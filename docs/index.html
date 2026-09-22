@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Knopp Map</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
+  <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <button id="panel-toggle" class="fab" aria-label="Show layers" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2 1 8l11 6 9-4.9V17h2V8L12 2zm-7 11.2V17l7 4 7-4v-3.8l-7 3.8-7-3.8z"/></svg>
+    <span>Layers</span>
+  </button>
+
+  <aside id="panel" aria-label="Map layers">
+    <header>
+      <div>
+        <h1>Knopp Map</h1>
+        <p class="sub">Quarter section, trails &amp; photos</p>
+      </div>
+      <button id="panel-close" class="icon-btn" aria-label="Close layers">&times;</button>
+    </header>
+
+    <section>
+      <h2>Base map</h2>
+      <div class="seg" id="basemaps"></div>
+    </section>
+
+    <section>
+      <h2>Tracks</h2>
+      <input id="track-search" type="search" placeholder="Find a trail…" autocomplete="off">
+      <div id="categories"></div>
+      <label class="row"><input type="checkbox" id="labels-toggle"> Show trail names on map</label>
+    </section>
+
+    <section>
+      <h2>Photos</h2>
+      <label class="row"><input type="checkbox" id="photos-toggle" checked> Show photos <span class="count" id="photo-count"></span></label>
+      <div class="chips" id="photo-dates"></div>
+      <label class="row"><input type="checkbox" id="cluster-toggle" checked> Group nearby photos</label>
+    </section>
+
+    <section class="actions">
+      <button id="fit-btn">Fit property</button>
+      <button id="locate-btn">Where am I?</button>
+    </section>
+  </aside>
+
+  <div id="lightbox" hidden>
+    <button class="lb-close icon-btn" aria-label="Close">&times;</button>
+    <button class="lb-nav lb-prev" aria-label="Previous photo">&#8249;</button>
+    <figure>
+      <img alt="">
+      <figcaption></figcaption>
+    </figure>
+    <button class="lb-nav lb-next" aria-label="Next photo">&#8250;</button>
+  </div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/markercluster/leaflet.markercluster.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

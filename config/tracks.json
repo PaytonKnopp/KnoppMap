@@ -1,0 +1,181 @@
+{
+  "categories": {
+    "boundary": {
+      "label": "Property Boundaries",
+      "order": 1
+    },
+    "roads": {
+      "label": "Roads & Yard",
+      "order": 2
+    },
+    "trails": {
+      "label": "Trails",
+      "order": 3
+    }
+  },
+  "tracks": {
+    "Roger Trail": {
+      "name": "Roger Trail",
+      "category": "trails",
+      "color": "#ffd400"
+    },
+    "Roper trail": {
+      "name": "Roper trail",
+      "category": "trails",
+      "color": "#00e5ff"
+    },
+    "Driveway and main yard": {
+      "name": "Driveway & Main Yard",
+      "category": "roads",
+      "color": "#e0e0e0"
+    },
+    "N/S Trail": {
+      "name": "N/S Trail",
+      "category": "trails",
+      "color": "#ff4fd8"
+    },
+    "Clint Trail": {
+      "name": "Clint Trail",
+      "category": "trails",
+      "color": "#7cff4f"
+    },
+    "Outside Trail": {
+      "name": "Outside Trail",
+      "category": "trails",
+      "color": "#ff8c1a"
+    },
+    "Saturday Afternoon Walking": {
+      "name": "Saturday Afternoon Walking",
+      "category": "trails",
+      "color": "#b388ff"
+    },
+    "Tree Farm Trail": {
+      "name": "Tree Farm Trail",
+      "category": "trails",
+      "color": "#4fc3ff"
+    },
+    "Perimeter": {
+      "name": "Quarter Section Boundary",
+      "category": "boundary",
+      "color": "#ffffff",
+      "loop": true
+    },
+    "TrailHead": {
+      "name": "TrailHead",
+      "category": "trails",
+      "color": "#ff5252"
+    },
+    "Cabin Perimeter": {
+      "name": "Cabin Perimeter",
+      "category": "boundary",
+      "color": "#ffcc80",
+      "loop": true
+    },
+    "E/W Flyover": {
+      "name": "E/W Flyover",
+      "category": "trails",
+      "color": "#c6ff00"
+    },
+    "Lor Trail": {
+      "name": "Lor Trail",
+      "category": "trails",
+      "color": "#ffab91"
+    },
+    "Hill behind house": {
+      "name": "Hill behind house",
+      "category": "trails",
+      "color": "#64ffda"
+    },
+    "Margaret Trail": {
+      "name": "Margaret Trail",
+      "category": "trails",
+      "color": "#f48fb1"
+    },
+    "Payton and Caine": {
+      "name": "Payton and Caine",
+      "category": "trails",
+      "color": "#ffd400"
+    },
+    "Golf range trail": {
+      "name": "Golf range trail",
+      "category": "trails",
+      "color": "#ff4fd8"
+    },
+    "Larry's Crossing": {
+      "name": "Larry's Crossing",
+      "category": "trails",
+      "color": "#7cff4f"
+    },
+    "Trail Home": {
+      "name": "Trail Home",
+      "category": "trails",
+      "color": "#ff8c1a"
+    },
+    "Warren Trail": {
+      "name": "Warren Trail",
+      "category": "trails",
+      "color": "#b388ff"
+    },
+    "Finley Trail": {
+      "name": "Finley Trail",
+      "category": "trails",
+      "color": "#4fc3ff"
+    },
+    "Skull Trail": {
+      "name": "Skull Trail",
+      "category": "trails",
+      "color": "#ff5252"
+    },
+    "Tracy Trail": {
+      "name": "Tracy Trail",
+      "category": "trails",
+      "color": "#c6ff00"
+    },
+    "Brittany Trail": {
+      "name": "Brittany Trail",
+      "category": "trails",
+      "color": "#ffab91"
+    },
+    "Shooting range": {
+      "name": "Shooting range",
+      "category": "trails",
+      "color": "#64ffda"
+    },
+    "Ring Road (MM, FF, CC)": {
+      "name": "Ring Road (MM, FF, CC)",
+      "category": "roads",
+      "color": "#bdbdbd"
+    },
+    "Cougar Bridge Trail": {
+      "name": "Cougar Bridge Trail",
+      "category": "trails",
+      "color": "#f48fb1"
+    },
+    "Taylor Trail": {
+      "name": "Taylor Trail",
+      "category": "trails",
+      "color": "#ffd400"
+    },
+    "Field Highway Trail": {
+      "name": "Field Highway Trail",
+      "category": "roads",
+      "color": "#d7ccc8"
+    },
+    "Zoey Trail": {
+      "name": "Zoey Trail",
+      "category": "trails",
+      "color": "#00e5ff"
+    },
+    "Cabin Trail": {
+      "name": "Cabin Trail",
+      "category": "trails",
+      "color": "#00e5ff"
+    },
+    "Achreage perimeter": {
+      "name": "Acreage Parcel",
+      "category": "boundary",
+      "color": "#ff9800",
+      "loop": true
+    }
+  }
+}
