@@ -589,7 +589,7 @@
       ${hero ? `<img class="place-hero" src="${esc(photoUrl(hero))}" alt="${esc(title)}">` : ""}
       ${p.story ? `<p class="place-story">${esc(p.story)}</p>` : ""}
       <p class="place-meta">${pl.photos.length} photo${pl.photos.length === 1 ? "" : "s"} · taken ${esc(days)}</p>
-      <div class="btn-row"><button class="big" data-act="zoom">🔍 Zoom in here</button></div>
+      <div class="btn-row"><button class="big" data-act="go">🧭 Take me there</button><button class="big ghost" data-act="zoom">🔍 Zoom in</button></div>
       <h3>Photos</h3><div data-slot="gallery"></div>
       ${trailsHere.length ? `<h3>On these trails</h3><div class="chips" data-slot="trails"></div>` : ""}
       ${nearby.length ? `<h3>Nearby</h3><div class="chips" data-slot="nearby"></div>` : ""}`;
@@ -607,6 +607,7 @@
       nslot.append(b);
     });
     $('[data-act="zoom"]', body).onclick = () => { if (isPhone()) closeSheet(); map.flyTo(ll, 19, { duration: 0.8 }); };
+    $('[data-act="go"]', body).onclick = () => takeMeThere(pl);
     openSheet(`${icon(p.icon)} ${title}`, body, { back: back ?? !!sheetCurrent });
     if (fly) flyToVisible(ll);
   }
@@ -792,6 +793,7 @@
     $("#sheet-back").hidden = sheetStack.length === 0;
     sheet.hidden = false;
     document.body.classList.add("sheet-open");
+    if (isPhone() && !$("#legend-pop").hidden) $("#legend-pop .lp-x").click();
   }
   function closeSheet() {
     const cbs = [sheetCurrent, ...sheetStack].map((s) => s?.onClose).filter(Boolean);
@@ -826,7 +828,7 @@
     const featured = featuredPlaces().sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
     const minor = [...places.values()].filter((pl) => !pl.f.properties.featured);
     const body = document.createElement("div");
-    body.innerHTML = `<h3>Places on the farm</h3>`;
+    body.innerHTML = `<h3>Places on the quarter</h3>`;
     featured.forEach((pl) => body.append(placeRow(pl)));
     if (minor.length) {
       const d = document.createElement("details");
@@ -913,19 +915,20 @@
       <div class="tour-name">${icon(pl.f.properties.icon)} ${esc(title)}</div>
       ${hero ? `<img class="place-hero" src="${esc(photoUrl(hero))}" alt="${esc(title)}">` : ""}
       ${text ? `<p class="place-story">${esc(text)}</p>` : ""}
-      <button class="big ghost" data-act="all" style="margin-top:.6rem">📷 See all ${pl.photos.length} photos here</button>
+      <div class="btn-row tour-btns"><button class="big ghost" data-act="all">📷 All ${pl.photos.length} photos</button><button class="big ghost" data-act="go">🧭 Take me there</button></div>
       <div class="tour-nav">
         <button class="big ghost" data-act="prev" ${tourIdx === 0 ? "disabled" : ""}>‹ Back</button>
         <button class="big" data-act="next">${tourIdx === n - 1 ? "Finish ✓" : "Next ›"}</button>
       </div>`;
     $(".place-hero", body)?.addEventListener("click", () => openLightbox(pl.photos, Math.max(0, pl.photos.indexOf(hero)), title));
     $('[data-act="all"]', body).onclick = () => openLightbox(pl.photos, 0, title);
+    $('[data-act="go"]', body).onclick = () => takeMeThere(pl);
     $('[data-act="prev"]', body).onclick = () => { tourIdx--; showTourStop(); };
     $('[data-act="next"]', body).onclick = () => {
       if (tourIdx === n - 1) { closeSheet(); fitFarm(); toast("That's the end of the tour. Thanks for visiting!"); return; }
       tourIdx++; showTourStop();
     };
-    openSheet(tour.title || "Tour of the farm", body, { onClose: () => { tourIdx = -1; } });
+    openSheet(tour.title || "Tour of the quarter", body, { onClose: () => { tourIdx = -1; } });
     setDockActive("tour");
     flyToVisible(pl.marker.getLatLng(), 18);
   }
@@ -1016,8 +1019,7 @@
         <h4>Trail length</h4><div class="seg" id="a-length"></div>
         <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>`, "advsec")}
       ${sec("labels", "🏷️", "Labels & extras", "Names, photo spots, shading", `<div id="a-checks"></div>`, "advsec")}
-      ${sec("pick", "〰️", "Trails one by one", "Turn single trails on or off", `<div id="m-tracks"></div>`, "advsec")}
-      ${sec("legend", "📖", "Legend", "What the lines and pins mean", `<div class="legend" id="m-legend"></div>`, "advsec")}`;
+      ${sec("pick", "〰️", "Trails one by one", "Turn single trails on or off", `<div id="m-tracks"></div>`, "advsec")}`;
     $$(".opt-sec", body).forEach((d) => d.addEventListener("toggle", () => { if (d.open) openSections.add(d.dataset.sec); else openSections.delete(d.dataset.sec); }));
     const setSum = (id, text) => { const el = $(`[data-sum="${id}"]`, body); if (el) el.textContent = text; };
 
@@ -1033,7 +1035,7 @@
         $$(".theme-card", tg).forEach((x) => x.classList.toggle("on", x === b));
         $$(".style-card", body).forEach((x) => x.classList.toggle("on", x.dataset.k === baseKey));
         setSum("look", t.label); setSum("style", BASEMAPS[baseKey].label);
-        drawLegend();
+        refreshLegend();
       };
       return b;
     });
@@ -1050,8 +1052,8 @@
     expandableGrid(bg, sCards, 6, "map styles");
 
     const ov = $("#m-over", body);
-    check(ov, "🌧️ Live rain radar <small>(last 2 hours + next 30 min)</small>", overlays.radar, setRadar).dataset.over = "radar";
-    check(ov, "⛅ Weather at the farm right now", overlays.weather, setWeather);
+    check(ov, "🌧️ Live rain radar", overlays.radar, setRadar).dataset.over = "radar";
+    check(ov, "⛅ Weather at the quarter right now", overlays.weather, setWeather);
 
     const basic = $("#m-basic", body);
     check(basic, "🥾 Trails &amp; roads", trailsOn, (v) => setTrails(v));
@@ -1063,7 +1065,7 @@
     offlinePanel($("#m-offline", body));
 
     // ---- advanced
-    const restyleAll = () => { tracks.forEach(restyle); drawLegend(); };
+    const restyleAll = () => { tracks.forEach(restyle); refreshLegend(); };
     seg($("#a-colour", body), [["simple", "One colour"], ["each", "Each trail"], ["steep", "Steepness"], ["length", "Length"]],
       adv.colourMode, (v) => { adv.colourMode = v; restyleAll(); });
     seg($("#a-thick", body), [[0.7, "Thin"], [1, "Normal"], [1.4, "Thick"], [1.9, "Extra"]], adv.thickness,
@@ -1096,25 +1098,6 @@
     check(ac, "Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
     check(ac, "Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
 
-    const drawLegend = () => {
-      const L_ = THEMES[theme].lines;
-      const line = (c, extra = "") => `<span class="sym"><span class="line" style="border-color:${c};${extra}filter:drop-shadow(0 0 1px #000)"></span></span>`;
-      let trailRows;
-      if (adv.colourMode === "steep") trailRows = RAMP_STEEP.map(([, c], i) => line(c) + `<span>${["Flat", "Gentle", "Some hills", "Hilly", "Steepest"][i]}</span>`).join("");
-      else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over 800 m" : "Up to " + lim + " m"}</span>`).join("");
-      else trailRows = line(adv.colourMode === "each" ? "#00e5ff" : L_.trail) + `<span>Trails${adv.colourMode === "each" ? " (each has its own colour)" : ""}</span>`;
-      $("#m-legend", body).innerHTML = `
-        ${line(L_.boundary || "#fff", "border-top-style:dashed;")}<span>Quarter section perimeter</span>
-        ${line("#ff9800", "border-top-style:dashed;")}<span>Acreage perimeter</span>
-        ${line(L_.road, "border-top-width:6px;")}<span>Roads and yard</span>
-        ${trailRows}
-        ${line(L_.sel, "border-top-width:6px;")}<span>The trail you picked</span>
-        <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
-        <span class="sym"><span class="lg-group">5</span></span><span>A group of photos – zoom in to spread them out</span>
-        <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
-        <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”)</span>`;
-    };
-    drawLegend();
 
     const list = $("#m-tracks", body);
     const cats = {};
@@ -1406,7 +1389,7 @@
     clearInterval(wxTimer);
     if (!on) { chip.hidden = true; return; }
     chip.hidden = false;
-    chip.textContent = "Checking the weather at the farm…";
+    chip.textContent = "Checking the weather at the quarter…";
     const load = async () => {
       try {
         const c = farmBounds.getCenter();
@@ -1484,6 +1467,7 @@
     $("#measure-btn").classList.toggle("active", on);
     $("#measure-btn").setAttribute("aria-pressed", on);
     map.getContainer().classList.toggle("measuring", on);
+    document.body.classList.toggle("measuring-on", on);
     if (on) {
       closeSheet();
       if (!map.hasLayer(measure.layer)) measure.layer.addTo(map);
@@ -1596,6 +1580,38 @@
   $("#welcome-tour").onclick = () => { doneWelcome(); startTour(0); };
   $("#help-btn").onclick = showWelcome;
 
+  // ================================================================ legend (top-right button)
+  function legendHtml() {
+    const L_ = THEMES[theme].lines;
+    const line = (c, extra = "") => `<span class="sym"><span class="line" style="border-color:${c};${extra}filter:drop-shadow(0 0 1px #000)"></span></span>`;
+    let trailRows;
+    if (adv.colourMode === "steep") trailRows = RAMP_STEEP.map(([, c], i) => line(c) + `<span>${["Flat", "Gentle", "Some hills", "Hilly", "Steepest"][i]}</span>`).join("");
+    else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over 800 m" : "Up to " + lim + " m"}</span>`).join("");
+    else trailRows = line(adv.colourMode === "each" ? "#00e5ff" : L_.trail) + `<span>Trails${adv.colourMode === "each" ? " (each has its own colour)" : ""}</span>`;
+    return `
+      ${line(L_.boundary || "#fff", "border-top-style:dashed;")}<span>Quarter section perimeter</span>
+      ${line("#ff9800", "border-top-style:dashed;")}<span>Acreage perimeter</span>
+      ${line(L_.road, "border-top-width:6px;")}<span>Roads and yard</span>
+      ${trailRows}
+      ${line(L_.sel, "border-top-width:6px;")}<span>The trail you picked</span>
+      <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
+      <span class="sym"><span class="lg-group">5</span></span><span>A group of photos – zoom in to spread them out</span>
+      <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
+      <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”)</span>`;
+  }
+  const legendPop = $("#legend-pop"), legendBtn = $("#legend-btn");
+  function refreshLegend() { if (!legendPop.hidden) $(".legend", legendPop).innerHTML = legendHtml(); }
+  function toggleLegend(show = legendPop.hidden) {
+    legendPop.hidden = !show;
+    legendBtn.setAttribute("aria-expanded", String(show));
+    legendBtn.classList.toggle("active", show);
+    refreshLegend();
+  }
+  legendBtn.onclick = (e) => { e.stopPropagation(); toggleLegend(); };
+  $(".lp-x", legendPop).onclick = () => toggleLegend(false);
+  document.addEventListener("pointerdown", (e) => { if (!legendPop.hidden && !legendPop.contains(e.target) && !legendBtn.contains(e.target)) toggleLegend(false); }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !legendPop.hidden) toggleLegend(false); });
+
   // ================================================================ live location
   let watchId = null, meMarker = null, meAcc = null, firstFix = true;
   function meIcon(heading) {
@@ -1610,6 +1626,7 @@
     watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
   }
   function stopFollow() {
+    stopNav(true);
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     [meMarker, meAcc].forEach((l) => l && map.removeLayer(l));
@@ -1631,12 +1648,12 @@
     if (firstFix) {
       firstFix = false;
       if (onFarm) map.flyTo(ll, Math.max(map.getZoom(), 17.5), { duration: 0.8 });
-      else toast("You're not at the farm right now. The blue dot shows where you are.", 5000);
+      else if (!nav.to) toast("You're not at the quarter right now. The blue dot shows where you are.", 5000);
     }
     const chip = $("#loc-chip");
     if (!onFarm) {
       const d = farmBounds ? distM(ll, farmBounds.getCenter()) : 0;
-      chip.textContent = `🏠 The farm is ${fmtLen(d)} away`;
+      chip.textContent = `🏠 The quarter is ${fmtLen(d)} away`;
       chip.onclick = () => fitFarm();
     } else {
       const near = featuredPlaces().map((pl) => [pl, distM(ll, pl.marker.getLatLng())]).sort((a, b) => a[1] - b[1])[0];
@@ -1647,11 +1664,170 @@
       }
     }
     chip.hidden = false;
+    updateNav(ll);
   }
   function onPosErr(err) {
     stopFollow();
+    stopNav(true);
     toast(err.code === 1 ? "Location is turned off for this website. You can allow it in your browser settings." : "Couldn't find your location right now.", 5000);
   }
+
+  // ================================================================ take me there
+  // Walks the trail network: every trail vertex is a node, shared junction vertices join the trails.
+  let navGraph = null;
+  function buildGraph() {
+    const nodes = [], idx = new Map(), adj = [], segs = [];
+    const node = (lng, lat) => {
+      const k = lng.toFixed(6) + "," + lat.toFixed(6);
+      if (!idx.has(k)) { idx.set(k, nodes.length); nodes.push(L.latLng(lat, lng)); adj.push([]); }
+      return idx.get(k);
+    };
+    const link = (a, b) => { if (a === b) return; const d = distM(nodes[a], nodes[b]); adj[a].push([b, d]); adj[b].push([a, d]); segs.push([a, b]); };
+    tracks.forEach((t) => {
+      if (!isTrail(t.f)) return;
+      const g = t.f.geometry;
+      const lines = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
+      lines.forEach((cs) => { for (let i = 1; i < cs.length; i++) link(node(cs[i - 1][0], cs[i - 1][1]), node(cs[i][0], cs[i][1])); });
+    });
+    return { nodes, adj, segs };
+  }
+  /** Nearest point on the network: {ll, a, b, d} where a–b is the segment it lies on. */
+  function snapToNet(ll) {
+    const G = navGraph, p = map.options.crs.project(ll);
+    let best = null;
+    for (const [a, b] of G.segs) {
+      const A = map.options.crs.project(G.nodes[a]), B = map.options.crs.project(G.nodes[b]);
+      const dx = B.x - A.x, dy = B.y - A.y, len = dx * dx + dy * dy;
+      const t = len ? Math.max(0, Math.min(1, ((p.x - A.x) * dx + (p.y - A.y) * dy) / len)) : 0;
+      const q = map.options.crs.unproject(L.point(A.x + t * dx, A.y + t * dy));
+      const d = distM(ll, q);
+      if (!best || d < best.d) best = { ll: q, a, b, d };
+    }
+    return best;
+  }
+  function routeBetween(from, to) {
+    if (!navGraph) navGraph = buildGraph();
+    const direct = distM(from, to);
+    if (!navGraph.segs.length) return { pts: [from, to], len: direct, onTrail: false };
+    const s = snapToNet(from), e = snapToNet(to);
+    // Dijkstra with two temporary nodes (S, E) sitting on their segments.
+    const G = navGraph, n = G.nodes.length, S = n, E = n + 1;
+    const nodeLL = (i) => (i === S ? s.ll : i === E ? e.ll : G.nodes[i]);
+    const extra = new Map([[S, []], [E, []]]);
+    const addX = (x, y, d) => { extra.get(x)?.push([y, d]); if (!extra.has(y)) extra.set(y, []); extra.get(y).push([x, d]); };
+    for (const [T, sn] of [[S, s], [E, e]]) { addX(T, sn.a, distM(sn.ll, G.nodes[sn.a])); addX(T, sn.b, distM(sn.ll, G.nodes[sn.b])); }
+    if ((s.a === e.a && s.b === e.b) || (s.a === e.b && s.b === e.a)) addX(S, E, distM(s.ll, e.ll));
+    const dist = new Map([[S, 0]]), prev = new Map(), done = new Set();
+    const heap = [[0, S]];
+    while (heap.length) {
+      let bi = 0; for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[bi][0]) bi = i;
+      const [du, u] = heap.splice(bi, 1)[0];
+      if (done.has(u)) continue;
+      done.add(u);
+      if (u === E) break;
+      for (const [v, w] of [...(u < n ? G.adj[u] : []), ...(extra.get(u) || [])]) {
+        const nd = du + w;
+        if (nd < (dist.get(v) ?? Infinity)) { dist.set(v, nd); prev.set(v, u); heap.push([nd, v]); }
+      }
+    }
+    const trailLen = dist.get(E);
+    const total = trailLen == null ? Infinity : s.d + trailLen + e.d;
+    // Walking straight is better when the trail route is a long way round, or the trails are far away.
+    if (!isFinite(total) || total > direct * 2.2 + 60 || s.d > direct * 0.8) return { pts: [from, to], len: direct, onTrail: false };
+    const path = [];
+    for (let u = E; u != null; u = prev.get(u)) path.unshift(nodeLL(u));
+    return { pts: [from, ...path, to], len: total, onTrail: true, offStart: s.d };
+  }
+
+  const nav = { to: null, name: "", layer: L.layerGroup(), last: null, arrived: false, fitDone: false };
+  const navPanel = $("#nav-panel");
+  const walkMins = (m) => Math.max(1, Math.round(m / 75));   // ~4.5 km/h
+  function takeMeThere(pl) {
+    const to = pl.marker.getLatLng(), name = placeTitle(pl);
+    const go = () => {
+      stopNav(true);
+      Object.assign(nav, { to, name, arrived: false, fitDone: false, last: null, icon: icon(pl.f.properties.icon) });
+      nav.layer.addTo(map);
+      nav.dest = L.marker(to, { interactive: false, keyboard: false, zIndexOffset: 2500,
+        icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="nv-flag"><span>${nav.icon}</span></div>` }) }).addTo(nav.layer);
+      document.body.classList.add("navigating");
+      $(".nv-to", navPanel).textContent = `${nav.icon} ${name}`;
+      $(".nv-dist", navPanel).textContent = "Finding you…";
+      $(".nv-sub", navPanel).textContent = "Allow location if your phone asks.";
+      navPanel.hidden = false;
+      if (window.innerWidth < 1100) closeSheet();
+      if (watchId == null) startFollow();
+      else if (meMarker) updateNav(meMarker.getLatLng());
+    };
+    go();
+  }
+  function stopNav(quiet) {
+    if (!nav.to) return;
+    nav.layer.clearLayers();
+    map.removeLayer(nav.layer);
+    nav.to = null;
+    navPanel.hidden = true;
+    document.body.classList.remove("navigating");
+    if (!quiet) toast("Directions stopped.");
+  }
+  function drawRoute(r) {
+    [nav.line, nav.lineCase, nav.lead].forEach((l) => l && nav.layer.removeLayer(l));
+    const pts = r.pts;
+    nav.lineCase = L.polyline(pts, { color: "#0b3d91", weight: 11, opacity: 0.55, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(nav.layer);
+    nav.line = L.polyline(pts, { color: "#4fc3ff", weight: 6, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round",
+      dashArray: r.onTrail ? null : "2 10", className: "nv-line" }).addTo(nav.layer);
+  }
+  function updateNav(me) {
+    if (!nav.to) return;
+    const onQuarter = farmBounds && farmBounds.pad(1.5).contains(me);
+    if (!onQuarter) {
+      const d = distM(me, nav.to);
+      $(".nv-dist", navPanel).textContent = fmtLen(d) + " away";
+      $(".nv-sub", navPanel).textContent = "You're not at the quarter yet. Get driving directions:";
+      $(".nv-gm", navPanel).href = `https://www.google.com/maps/dir/?api=1&destination=${nav.to.lat.toFixed(6)},${nav.to.lng.toFixed(6)}&travelmode=driving`;
+      $(".nv-arrow", navPanel).style.transform = `rotate(${bearing(me, nav.to)}deg)`;
+      navPanel.classList.add("far");
+      [nav.line, nav.lineCase].forEach((l) => l && nav.layer.removeLayer(l));
+      nav.line = nav.lineCase = null;
+      return;
+    }
+    navPanel.classList.remove("far");
+    if (nav.last && distM(nav.last, me) < 4 && nav.line) return;   // ignore GPS jitter
+    nav.last = me;
+    const r = routeBetween(me, nav.to);
+    const straight = distM(me, nav.to);
+    if (straight < 20) {
+      if (!nav.arrived) {
+        nav.arrived = true;
+        [nav.line, nav.lineCase].forEach((l) => l && nav.layer.removeLayer(l));
+        nav.line = nav.lineCase = null;
+        navPanel.classList.add("arrived");
+        $(".nv-to", navPanel).textContent = `🎉 You're at ${nav.name}`;
+        $(".nv-dist", navPanel).textContent = "You've arrived!";
+        $(".nv-sub", navPanel).textContent = "";
+        $(".nv-stop", navPanel).textContent = "Done";
+      }
+      return;
+    }
+    if (nav.arrived) { nav.arrived = false; navPanel.classList.remove("arrived"); $(".nv-to", navPanel).textContent = `${nav.icon} ${nav.name}`; $(".nv-stop", navPanel).textContent = "Stop"; }
+    drawRoute(r);
+    // Point the arrow toward the next bend in the route (a few metres ahead), not the far-off destination.
+    let aim = r.pts[r.pts.length - 1];
+    for (let i = 1; i < r.pts.length; i++) if (distM(me, r.pts[i]) > 12) { aim = r.pts[i]; break; }
+    const brg = bearing(me, aim);
+    $(".nv-arrow", navPanel).style.transform = `rotate(${brg}deg)`;
+    $(".nv-dist", navPanel).textContent = fmtLen(r.len);
+    $(".nv-sub", navPanel).textContent = `About ${walkMins(r.len)} min walk · head ${compass(brg)}` + (r.onTrail ? (r.offStart > 25 ? " to the trail" : " along the trail") : "");
+    if (!nav.fitDone) { nav.fitDone = true; showRoute(); }
+  }
+  function showRoute() {
+    const pts = [nav.to, ...(meMarker ? [meMarker.getLatLng()] : [])];
+    if (nav.line) pts.push(...nav.line.getLatLngs());
+    const top = navPanel.offsetHeight + 90;
+    map.flyToBounds(L.latLngBounds(pts), { paddingTopLeft: [40, top], paddingBottomRight: [60, isPhone() ? 110 : 90], maxZoom: 19, duration: 0.8 });
+  }
+  $(".nv-stop", navPanel).onclick = () => stopNav(nav.arrived);
+  $(".nv-see", navPanel).onclick = showRoute;
 
   // ================================================================ offline (service worker)
   let swReady = null;
@@ -1681,7 +1857,7 @@
     const saved = store.get("offlineSaved", null);
     el.innerHTML = `
       <p class="note">Nothing is downloaded to your files. This keeps a copy of the map and every photo <b>inside this browser</b>
-        on this phone or computer, so this same link keeps working at the farm with no cell signal.
+        on this phone or computer, so this same link keeps working at the quarter with no cell signal.
         Do it once at home on Wi-Fi (about 150 MB). Tip: use “Add to Home Screen” so it opens like an app.
         ${saved ? `<br><b>✅ Saved on ${esc(fmtDate(saved.at, false))}.</b> Tap again to refresh it.` : ""}</p>
       <button class="big" data-kind="full">💾 Save everything to this device</button>

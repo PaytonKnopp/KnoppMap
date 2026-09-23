@@ -1,5 +1,5 @@
 {
-  "title": "Tour of the farm",
+  "title": "Tour of the quarter",
   "stops": [
     {
       "place": "spot-10",
@@ -7,7 +7,7 @@
     },
     {
       "place": "spot-01",
-      "text": "The house and main yard – the heart of the farm."
+      "text": "The house and main yard – the heart of the quarter."
     },
     {
       "place": "spot-02",
