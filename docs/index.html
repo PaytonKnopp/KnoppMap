@@ -39,10 +39,16 @@
     </div>
     <div class="top-actions">
       <button id="search-btn" class="round" aria-label="Search">🔍</button>
+      <button id="measure-btn" class="round" aria-label="Measure distance" aria-pressed="false" title="Measure distance"><svg viewBox="0 0 24 24" class="ms-ic" aria-hidden="true"><rect x="2" y="8" width="20" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 8v4M10 8v3M14 8v4M18 8v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
       <button id="help-btn" class="tips-btn" aria-label="Welcome tips"><span>💡</span><span class="lbl">Tips</span></button>
     </div>
   </header>
 
+  <div id="measure-panel" hidden>
+    <div class="ms-head"><span class="ms-title">📏 Measure</span><span id="ms-total">—</span></div>
+    <p id="ms-sub">Tap the map to drop your first point.</p>
+    <div class="ms-btns"><button id="ms-undo">↶ Undo</button><button id="ms-clear">Clear</button><button id="ms-done" class="ms-done">Done</button></div>
+  </div>
   <button id="loc-chip" hidden></button>
   <div id="info-stack">
     <div id="wx-chip" class="info-chip" hidden></div>
@@ -106,6 +112,7 @@
           <h3>More to try</h3>
           <div class="tip"><span class="t-ic">▶️</span><div><b>Tour</b><small>A slideshow walk around the farm, one stop at a time.</small></div></div>
           <div class="tip"><span class="t-ic">🔍</span><div><b>Search</b><small>Find any place or trail by name (top right).</small></div></div>
+          <div class="tip"><span class="t-ic">📏</span><div><b>Measure</b><small>Tap the ruler (top right), then tap points on the map to measure the distance.</small></div></div>
           <div class="tip"><span class="t-ic">⚙️</span><div><b>Options</b><small>Change the look, map style, text size and weather. <b>Reset</b> puts it all back.</small></div></div>
         </section>
       </div>

@@ -999,7 +999,7 @@
       <button class="big reset-top" id="m-reset">↺ Reset to original settings</button>
       ${sec("look", "🎨", "Look", esc(THEMES[theme].label), `<div class="theme-grid" id="m-theme"></div>`)}
       ${sec("style", "🗺️", "Map style", esc(BASEMAPS[baseKey]?.label || ""), `<div class="style-grid" id="m-base"></div>`)}
-      ${sec("layers", "🌦️", "Weather & extra layers", "Rain radar, weather, hills", `<div id="m-over"></div>`)}
+      ${sec("layers", "🌦️", "Weather", "Live rain radar and current weather", `<div id="m-over"></div>`)}
       ${sec("show", "👁️", "What's on the map", "Trails, names, photos", `<div id="m-basic"></div>`)}
       ${sec("text", "🔠", "Text size", SIZE_NAMES[sizeIdx], `<div class="seg" id="m-size"></div>`)}
       ${sec("save", "💾", "Print & offline", "Print this view, use without internet", `
@@ -1052,7 +1052,6 @@
     const ov = $("#m-over", body);
     check(ov, "🌧️ Live rain radar <small>(last 2 hours + next 30 min)</small>", overlays.radar, setRadar).dataset.over = "radar";
     check(ov, "⛅ Weather at the farm right now", overlays.weather, setWeather);
-    check(ov, "⛰️ Hills &amp; valleys shading <small>(the farm is fairly flat, so it's subtle)</small>", overlays.hills, setHills);
 
     const basic = $("#m-basic", body);
     check(basic, "🥾 Trails &amp; roads", trailsOn, (v) => setTrails(v));
@@ -1426,6 +1425,86 @@
     wxTimer = setInterval(load, 15 * 60e3);
   }
 
+  // ================================================================ measure
+  // Tap to drop points; each new tap measures on from the last one. Points snap onto named places when tapped
+  // close to one, can be dragged to adjust, and Undo / Clear / Done are always one tap away.
+  const measure = { on: false, pts: [], layer: L.layerGroup(), line: null };
+  map.createPane("measure").style.zIndex = 650;
+  const fmtDist = (m) => (m >= 1000 ? (m / 1000).toFixed(2) + " km" : m >= 100 ? Math.round(m) + " m" : m.toFixed(1) + " m");
+  function snapToPlace(ll, cp) {
+    let best = null;
+    featuredPlaces().forEach((pl) => {
+      const d = map.latLngToContainerPoint(pl.marker.getLatLng()).distanceTo(cp);
+      if (d < 26 && (!best || d < best.d)) best = { d, pl };
+    });
+    return best ? { ll: best.pl.marker.getLatLng(), name: placeTitle(best.pl) } : { ll, name: null };
+  }
+  function addMeasurePoint(ll, cp) {
+    const snap = snapToPlace(ll, cp);
+    const m = L.marker(snap.ll, { draggable: true, pane: "measure", keyboard: false,
+      icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="ms-pt${measure.pts.length ? "" : " first"}"></div>` }) });
+    m.on("drag", drawMeasure);
+    m.on("dragend", () => { const i = measure.pts.findIndex((p) => p.m === m); if (i >= 0) measure.pts[i].name = null; drawMeasure(); });
+    m.on("click", (e) => { L.DomEvent.stop(e); });
+    measure.pts.push({ m, name: snap.name });
+    measure.layer.addLayer(m);
+    drawMeasure();
+  }
+  function drawMeasure() {
+    const lls = measure.pts.map((p) => p.m.getLatLng());
+    measure.layer.eachLayer((l) => { if (l.options.msLabel || l === measure.line || l.options.msCase) measure.layer.removeLayer(l); });
+    let total = 0;
+    if (lls.length > 1) {
+      measure.layer.addLayer(L.polyline(lls, { pane: "measure", color: "#000", weight: 7, opacity: 0.35, interactive: false, msCase: true }));
+      measure.line = L.polyline(lls, { pane: "measure", color: "#ffd400", weight: 4, dashArray: "10 7", interactive: false });
+      measure.layer.addLayer(measure.line);
+      for (let i = 1; i < lls.length; i++) {
+        const d = distM(lls[i - 1], lls[i]);
+        total += d;
+        const mid = L.latLng((lls[i - 1].lat + lls[i].lat) / 2, (lls[i - 1].lng + lls[i].lng) / 2);
+        measure.layer.addLayer(L.marker(mid, { pane: "measure", interactive: false, keyboard: false, msLabel: true,
+          icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="ms-seg">${fmtDist(d)}</div>` }) }));
+      }
+      const last = lls[lls.length - 1];
+      measure.layer.addLayer(L.marker(last, { pane: "measure", interactive: false, keyboard: false, msLabel: true,
+        icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="ms-total">${fmtDist(total)}</div>` }) }));
+    }
+    const n = measure.pts.length;
+    const named = measure.pts.map((p) => p.name).filter(Boolean);
+    $("#ms-total").textContent = n < 2 ? "—" : fmtDist(total);
+    $("#ms-sub").textContent = n === 0 ? "Tap the map to drop your first point." :
+      n === 1 ? "Now tap where you want to measure to." :
+      `${n - 1} leg${n > 2 ? "s" : ""} · ${Math.round(total * 3.28084).toLocaleString()} ft${named.length ? " · " + named.slice(0, 3).join(" → ") : ""} · tap to keep going`;
+    $("#ms-undo").disabled = n === 0;
+    $("#ms-clear").disabled = n === 0;
+  }
+  function setMeasure(on) {
+    measure.on = on;
+    $("#measure-panel").hidden = !on;
+    $("#measure-btn").classList.toggle("active", on);
+    $("#measure-btn").setAttribute("aria-pressed", on);
+    map.getContainer().classList.toggle("measuring", on);
+    if (on) {
+      closeSheet();
+      if (!map.hasLayer(measure.layer)) measure.layer.addTo(map);
+      map.doubleClickZoom.disable();
+      drawMeasure();
+    } else {
+      measure.pts = []; measure.layer.clearLayers(); measure.line = null;
+      map.removeLayer(measure.layer);
+      map.doubleClickZoom.enable();
+    }
+  }
+  $("#measure-btn").onclick = () => setMeasure(!measure.on);
+  $("#ms-done").onclick = () => setMeasure(false);
+  $("#ms-clear").onclick = () => { measure.pts = []; measure.layer.clearLayers(); measure.line = null; drawMeasure(); };
+  $("#ms-undo").onclick = () => { const p = measure.pts.pop(); if (p) measure.layer.removeLayer(p.m); drawMeasure(); };
+  document.addEventListener("keydown", (e) => {
+    if (!measure.on) return;
+    if (e.key === "Escape") setMeasure(false);
+    if ((e.key === "z" && (e.ctrlKey || e.metaKey)) || e.key === "Backspace") { e.preventDefault(); $("#ms-undo").click(); }
+  });
+
   // ================================================================ print
   // The map is redrawn at the exact paper size *before* printing (a map that is only resized by print CSS keeps its
   // old layout and prints a cropped corner). Then the area that was on screen is fitted into it.
@@ -1665,7 +1744,10 @@
     if (want !== map.hasLayer(photoLayer)) refreshPhotos();
   });
   map.on("moveend zoomend", () => { refreshBackToFarm(); declutter(); });
-  map.on("click", () => { if (selectedTrack && sheet.hidden) highlightTrack(null); });
+  map.on("click", (e) => {
+    if (measure.on) return addMeasurePoint(e.latlng, e.containerPoint);
+    if (selectedTrack && sheet.hidden) highlightTrack(null);
+  });
   window.addEventListener("resize", () => setTimeout(declutter, 100));
 
   // ================================================================ load

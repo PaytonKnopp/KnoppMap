@@ -1,123 +1,116 @@
 # Knopp Map
 
-Interactive map of the Knopp quarter section: property boundaries, roads, named trails and geotagged field photos.
-Built with Leaflet as a plain static site in `docs/`, which GitHub Pages serves directly.
+An interactive map of the Knopp quarter section: property perimeters, roads, 29 named trails, 14 named places
+and about 230 geotagged field photos. It is a plain static website (Leaflet, no server, no accounts) served by
+GitHub Pages from the `docs/` folder.
 
-## Layout
+**Live site:** https://paytonknopp.github.io/KnoppMap/  ·  **Place editor:** https://paytonknopp.github.io/KnoppMap/tag.html
+
+---
+
+## For family: using the map
+
+| | |
+|---|---|
+| 🏠 **Home** | Jump back to the whole property. |
+| 📍 **Places** | List of named places and trails. Tap one to fly there and see its photos. |
+| ▶️ **Tour** | A 14-stop slideshow walk around the farm with big Back / Next buttons. |
+| 〰️ **Trails** | Show or hide trail lines. Tap any trail for length, climb, an elevation chart, connecting trails and photos. |
+| 🧭 **Me** | Your live position (when you're at the farm) with the nearest place and direction. |
+| 🔍 **Search** | Find places, trails and photo captions. |
+| 📏 **Measure** | Tap points on the map to measure distance; keep tapping to add legs. Points snap to named places, can be dragged, and Undo / Clear / Done are always shown. |
+| 💡 **Tips** | The welcome guide. |
+| ⚙️ **Options** | Looks, map styles, weather, what's shown, text size, print & offline, and advanced filters. **Reset to original settings** is at the top. |
+
+- **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
+  tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
+- **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.
+- **Weather:** live RainViewer radar (slider, play/pause, step, speed, see-through, colour key) and current
+  Open-Meteo conditions at the farm.
+- **Print:** prints exactly the area on screen, either as *Just the map* or a *Framed poster* with title, compass,
+  legend and list of places.
+- **Offline:** Options → Print & offline → *Save everything to this device* keeps the map and all photos inside the
+  browser, so the same link works at the farm with no signal. "Add to Home Screen" gives it an app icon.
+- **Nothing is remembered between visits** except text size and whether the tips were seen. Every visit opens with
+  the original look and filters.
+
+---
+
+## Repository layout
 
 ```
 knopp-map.gpx          raw Gaia GPS export (never edited by the build)
-photos/Knopp Map/      original phone photos (GPS read from EXIF)
-config/tracks.json     display name, category, colour and loop flag per track   <- edit me
-config/places.json     named places: name, icon, story, cover photo, which photos <- edit with the tagger
-config/photos.json     optional title/caption per photo
-config/tour.json       optional: tour stops and wording (otherwise every named place, nearest-first from the house)
-config/site.json       site title and optional family password
-config/hidden.json     near-duplicate photos hidden from the map (never deleted; remove a line to bring one back)
-build/build.py         turns the raw files into site data
-build/report.md        what the last build did (snaps, trims, loops, missing GPS)
-docs/                  the website (index.html, css, js, data/, photos/web, photos/thumb)
+photos/Knopp Map/      original phone photos (GPS + time read from EXIF)
+config/tracks.json     per track: display name, category, colour, loop, snap, manual endpoints, named directions
+config/places.json     named places: name, icon, story, cover photo, photos, featured, optional fixed position
+config/tour.json       tour stops in order, with the text for each stop
+config/hidden.json     near-duplicate photos hidden from the map (never deleted; remove a line to restore)
+config/photos.json     optional per-photo title / caption
+config/site.json       site title, optional password, optional map-style keys
+build/build.py         turns all of the above into the website data
+build/report.md        what the last build did (joins, trims, loops, photo checks, places, tour)
+docs/                  the website: index.html, tag.html, css/, js/, data/, photos/web, photos/thumb, sw.js
 ```
 
-## Rebuilding
+## Rebuilding after a change
 
 ```
 pip install pillow cryptography
 python3 build/build.py             # full build (only resizes photos that are new)
-python3 build/build.py --tracks    # tracks only, fast
+python3 build/build.py --tracks    # trails only, fast
+cd docs && python3 -m http.server  # preview at http://localhost:8000
 ```
 
-Then commit `docs/` and push. To preview locally: `cd docs && python3 -m http.server` and open http://localhost:8000.
+Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitHub Pages updates in a minute or two.
 
-## How the tracks are cleaned up
+## How the data is cleaned
 
-- Paused-recording segments in the same track are joined when the gap is under 50 m.
-- Boundary tracks (`"loop": true` in `config/tracks.json`) are closed into a polygon.
-- Lines are simplified with a 2 m tolerance first, then every trail end is connected:
-  an end already touching a trail is locked onto it; an end that crosses a trail and runs on for up to 25 m is trimmed
-  back to the crossing; an end that stops within 25 m of a trail is extended to it. The junction point is added to both
-  lines so they share one exact point. Coordinates are rounded to 6 decimals.
+**Trails**
+- Paused-recording segments of one track are joined when the gap is under 50 m; perimeters (`"loop": true`) are
+  closed into outlines.
+- Lines are simplified (2 m tolerance), then every trail end is connected: an end touching a trail is locked on, an
+  end that crosses a trail and runs on up to 25 m is trimmed back, and an end stopping within 25 m of a trail is
+  extended to it. Both lines share the exact junction point.
+- `"extend": {"start": [lon, lat], "end": [lon, lat]}` pins an end to a chosen point (used to route Brush Pile
+  Trail between the two brush piles); `"snap": false` turns automatic joining off for a track.
+- `"directions"` adds named direction markers (Payton Trail one way, Caine Trail the other).
 
-Every snap and trim is listed in `build/report.md`. To stop a track being snapped, add `"snap": false` to it in
-`config/tracks.json`.
+**Photos**
+- Position and time come from EXIF. Each photo is checked against the GPS track timeline and moved to the track if
+  the camera was more than 25 m off (none needed it).
+- Web copies (1600 px) and thumbnails (360 px) have location data stripped.
+- Near-duplicates (burst shots) are listed in `config/hidden.json`; the sharper one of each pair stays.
 
-## Places and the tagger
+**Places**
+- `config/places.json` is seeded once by grouping photos taken within 20 m, then hand-edited and never overwritten.
+  New photos not in any place are grouped into temporary unnamed spots.
+- Named places (`featured`) get a picture icon and a label; unnamed ones are small camera spots.
 
-Photos are grouped into places. The family map shows named places as big labelled pins; tapping one opens its
-photos and story. Unnamed places show as small photo-spot dots when zoomed in.
+## Editing places — `/tag.html`
 
-Edit places at **`/tag.html`** on the live site (not linked from the family map):
-rename, pick an icon and cover photo, write a story, move photos between places, split or merge, drag pins.
-Edits save in that browser. Click **Download places.json**, upload it to `config/` on GitHub, then rebuild.
+Rename places, pick icons and cover photos, write stories, move photos between places, split or merge places, and
+drag pins. Edits save in that browser as a draft. Click **Download places.json**, put it in `config/` (or send it to
+Claude), and rebuild.
 
-`config/places.json` was seeded once automatically (photos grouped by walking order within 20 m) and is never
-overwritten by the build. New photos not listed in any place are grouped into temporary unnamed spots.
+## Looks and map styles
 
-## Looks, map styles, layers and filters
-
-Everything resets to normal each time the map is opened (only text size is remembered).
-**Options** (top left, under the title) holds, in order: Reset, Look (20 themes), Map style, Extra layers
-(hills shading, live RainViewer rain radar, current Open-Meteo weather), what shows on the map, text size, Print,
-offline saving, and a collapsed **Advanced** box (trail colouring, thickness, brightness, length filter, kinds of
-places, labels, legend, per-trail switches).
-
-Each look tints the real satellite photo through the "Match the look" map style and can add a texture
-(parchment, film grain, frost, neon...). Themes are `THEMES` in `docs/js/app.js` plus a CSS block in `docs/css/app.css`.
-
-All built-in map styles, the radar and the weather need no account. Extra styles appear automatically when keys are
-added to `config/site.json` and the site is rebuilt:
+Themes are the `THEMES` object in `docs/js/app.js` plus a matching `:root[data-theme="…"]` block in
+`docs/css/app.css`. Map styles are `BASEMAPS` in `docs/js/app.js`. All built-in styles, the radar and the weather
+need no account. Extra styles switch on automatically when keys are added to `config/site.json`:
 
 ```json
 "keys": { "maptiler": "YOUR_KEY", "thunderforest": "YOUR_KEY", "stadia": true }
 ```
 
-- **MapTiler** (free, 100k tiles/month): Outdoor, Winter, Topo, Dark minimal, HD satellite.
-- **Thunderforest** (free hobby key, 150k/month): Outdoors, Landscape, Pioneer (1800s style).
-- **Stadia Maps** (free non-commercial, no key — register the site's domain in the Stadia dashboard, then set `true`):
-  Watercolour, Toner, Terrain, Smooth light/dark.
+Restrict each key to `paytonknopp.github.io` in the provider's dashboard.
 
-Keys are visible in the page source; restrict each key to `paytonknopp.github.io` in the provider's dashboard.
+## Optional family password
 
-## Tour
-
-Without `config/tour.json` the tour visits every named place, walking to the nearest one next, starting at the house.
-To choose the order and wording yourself:
-
-```json
-{ "title": "Tour of the farm",
-  "stops": [ { "place": "spot-01", "text": "Grandma and Grandpa's house, built in ..." }, { "place": "spot-05" } ] }
-```
-
-## Family password
-
-Set `"password": "knopp"` in `config/site.json` and rebuild (not case-sensitive, so KNOPP works too). The map data is then encrypted (AES-GCM) and
-photo files get unguessable names, so the site shows a password screen and nothing can be read without it.
-Family can tick "Remember me" so they only type it once. Set it back to `null` to remove the lock.
-Note: while this repository is public, the original photos in `photos/` and the GPX file are still downloadable
-from GitHub itself — make the repo private (and deploy with Pages from a private repo or another host) for real privacy.
-
-## Offline use
-
-The site is an installable web app. **Options → Save everything to this device** stores the farm's satellite
-tiles and every photo in the browser's own storage (nothing goes to the Files/Downloads folder), so the same link
-keeps working at the farm with no signal. "Add to Home Screen" gives it an app icon.
+Set `"password": "knopp"` in `config/site.json` and rebuild (not case-sensitive). The map data is then encrypted
+(AES-GCM) and photo files get unguessable names, so nothing loads without the password; "Remember me" means family
+type it once. Set it back to `null` to remove it. While the repository is public, the originals in `photos/` can
+still be downloaded from GitHub itself.
 
 ## Links
 
-Every place, trail and tour stop has its own link (e.g. `#place=spot-05`, `#trail=cabin-trail`, `#tour=3`).
-
-## Captions
-
-`config/photos.json` is keyed by the original file name:
-
-```json
-{
-  "20260823_140246.jpg": { "title": "Front gate", "caption": "Looking south down the approach road" }
-}
-```
-
-Photos without a title show "Near <closest trail>".
-
-## GitHub Pages
-
-Settings -> Pages -> Build and deployment -> Source: **Deploy from a branch**, Branch: **main**, folder **/docs**.
+Every place, trail and tour stop has its own address, e.g. `#place=spot-05`, `#trail=cabin-trail`, `#tour=3`.

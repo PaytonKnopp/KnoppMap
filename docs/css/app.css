@@ -792,3 +792,27 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 .photos-shown .leaflet-marker-icon:hover .place-pin .bubble { opacity: 1; transform: none; }
 #dock .ic-svg { width: 1.6rem; height: 1.6rem; display: block; }
 .lg-group { width: 1.9rem; height: 1.9rem; border-radius: 50%; border: 3px solid #fff; background: var(--green); color: var(--on-accent); font-size: 0.8rem; font-weight: 800; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+
+/* =================================================================== measure */
+#measure-btn .ms-ic { width: 1.4rem; height: 1.4rem; }
+#measure-btn.active { background: var(--gold); color: #1f231d; box-shadow: 0 0 0 3px var(--paper), var(--shadow); }
+#measure-panel { position: fixed; z-index: 1050; left: 50%; transform: translateX(-50%); top: calc(4.4rem + env(safe-area-inset-top));
+  width: min(26rem, calc(100vw - 1.5rem)); background: var(--paper); color: var(--ink); border-radius: 16px; box-shadow: var(--shadow);
+  padding: 0.7rem 0.9rem; border: 2px solid var(--gold); }
+.ms-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+.ms-title { font-weight: 800; }
+#ms-total { font-family: var(--head-font); font-size: 1.6rem; font-weight: 800; color: var(--green); }
+#ms-sub { margin: 0.1rem 0 0.6rem; color: var(--muted); font-size: 0.9rem; }
+.ms-btns { display: flex; gap: 0.4rem; }
+.ms-btns button { flex: 1; min-height: 2.6rem; border-radius: 10px; border: 1.5px solid var(--line); background: var(--field); color: var(--ink); font-weight: 700; }
+.ms-btns button:disabled { opacity: .45; }
+.ms-btns .ms-done { background: var(--green); color: var(--on-accent); border-color: var(--green); }
+.measuring { cursor: crosshair !important; }
+.measuring .leaflet-interactive, .measuring .leaflet-marker-pane .leaflet-marker-icon { pointer-events: none !important; }
+.measuring .leaflet-measure-pane .leaflet-marker-icon { pointer-events: auto !important; cursor: grab; }
+.ms-pt { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 4px solid #1f231d; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+.ms-pt.first { background: #ffd400; }
+.ms-seg { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; background: rgba(20,20,20,.82); color: #fff; font-size: 0.75rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 6px; pointer-events: none; }
+.ms-total { position: absolute; transform: translate(12px, -130%); white-space: nowrap; background: #ffd400; color: #1f231d; font-weight: 800; font-size: 0.9rem; padding: 0.2rem 0.55rem; border-radius: 8px; border: 2px solid #1f231d; pointer-events: none; }
+@media (max-width: 700px) { #measure-panel { top: calc(7.2rem + env(safe-area-inset-top)); } #measure-btn .ms-ic { width: 1.2rem; } }
+body.sheet-open #measure-panel { display: none; }
