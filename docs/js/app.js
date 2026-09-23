@@ -1101,7 +1101,7 @@
         ${trailRows}
         ${line(L_.sel, "border-top-width:6px;")}<span>The trail you picked</span>
         <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
-        <span class="sym"><span class="ph-cluster" style="width:1.9rem;height:1.9rem;display:grid;place-items:center;background:var(--paper-2)"><b style="position:static;border:0">5</b></span></span><span>A group of photos – zoom in to spread them out</span>
+        <span class="sym"><span class="lg-group">5</span></span><span>A group of photos – zoom in to spread them out</span>
         <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
         <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”)</span>`;
     };

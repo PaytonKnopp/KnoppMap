@@ -744,3 +744,4 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 .photos-shown .leaflet-marker-pane .place-pin:not(.sel) .name { opacity: 0.8; }
 .photos-shown .leaflet-marker-icon:hover .place-pin .bubble { opacity: 1; transform: none; }
 #dock .ic-svg { width: 1.6rem; height: 1.6rem; display: block; }
+.lg-group { width: 1.9rem; height: 1.9rem; border-radius: 50%; border: 3px solid #fff; background: var(--green); color: var(--on-accent); font-size: 0.8rem; font-weight: 800; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
