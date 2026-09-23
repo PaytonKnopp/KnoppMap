@@ -379,6 +379,9 @@
   let selectedTrack = null, selectedPlace = null;
 
   // ================================================================ tracks
+  // The winding-path picture from the Trails button, used wherever a trail is named.
+  const TRAIL_SVG = `<svg class="trail-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21c0-4 5-4 7-7s-3-5 0-8 6-1 7-3" fill="none" stroke="currentColor"
+    stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3.5 3"/><circle cx="5" cy="21" r="1.8" fill="currentColor"/><path d="M17.5 1.5l3.5 1.5-3 2.5z" fill="currentColor"/></svg>`;
   const cat = (f) => f.properties.category;
   const isTrail = (f) => cat(f) !== "boundary";
 
@@ -732,7 +735,7 @@
       }
     };
     $('[data-act="fit"]', body).onclick = fit;
-    openSheet(`🥾 ${p.name}`, body, { back: back ?? false });
+    openSheet(p.name, body, { back: back ?? false, titleIcon: TRAIL_SVG });
     if (fly) fit();
     setTimeout(declutter, 50);
   }
@@ -779,12 +782,11 @@
   let photoLayer = adv.cluster ? photoCluster : photoPlain;
   const photoIconFor = (p) => L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 20],
     html: `<div class="ph-single"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"></div>` });
-  let photoDay = "all";
   function refreshPhotos() {
     photoClusters.forEach((cg) => cg.clearLayers());
     [photoCluster, photoPlain].forEach((l) => { l.clearLayers(); if (map.hasLayer(l) && l !== (adv.cluster ? photoCluster : photoPlain)) map.removeLayer(l); });
     photoLayer = adv.cluster ? photoCluster : photoPlain;
-    const shown = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay);
+    const shown = allPhotos;
     if (adv.cluster) {
       const byPlace = new Map();
       shown.forEach((x) => { const k = x.p.place || "none"; (byPlace.get(k) || byPlace.set(k, []).get(k)).push(x.m); });
@@ -832,14 +834,14 @@
   const sheet = $("#sheet");
   const sheetStack = [];
   let sheetCurrent = null;
-  function openSheet(title, content, { back = false, onClose = null } = {}) {
+  function openSheet(title, content, { back = false, onClose = null, titleIcon = "" } = {}) {
     if (!back) sheetStack.length = 0;
     else if (sheetCurrent) sheetStack.push(sheetCurrent);
-    sheetCurrent = { title, content, onClose, hash: location.hash };
+    sheetCurrent = { title, titleIcon, content, onClose, hash: location.hash };
     renderSheet();
   }
   function renderSheet() {
-    $("#sheet-title").textContent = sheetCurrent.title;
+    $("#sheet-title").innerHTML = (sheetCurrent.titleIcon ? `<span class="title-ic">${sheetCurrent.titleIcon}</span>` : "") + esc(sheetCurrent.title);
     const body = $("#sheet-body");
     body.replaceChildren(sheetCurrent.content);
     body.scrollTop = 0;
@@ -957,8 +959,7 @@
     const p = t.f.properties;
     const b = document.createElement("button");
     b.className = "list-row";
-    const ic = cat(t.f) === "boundary" ? "🧭" : cat(t.f) === "roads" ? "🚜" : "🥾";
-    b.innerHTML = `<span class="emoji">${ic}</span><span class="txt"><b>${hl(p.name)}</b><small>${fmtLen(p.length_m)}${p.gain_m != null ? ` · ↗ ${fmtH(p.gain_m)} uphill` : ""}</small></span><span class="chev">›</span>`;
+    b.innerHTML = `<span class="emoji">${TRAIL_SVG}</span><span class="txt"><b>${hl(p.name)}</b><small>${fmtLen(p.length_m)}${p.gain_m != null ? ` · ↗ ${fmtH(p.gain_m)} uphill` : ""}</small></span><span class="chev">›</span>`;
     b.onclick = () => openTrail(t.f.id, { back: true });
     return b;
   }
@@ -1189,11 +1190,10 @@
     placeCornerControls();
     applyLabelLook();
     dim = 100;
-    photoDay = "all";
     labelsOn = true;
     setPhotos(true);
     if (!trailsOn) setTrails(true);
-    setHills(false); setRadar(false); setWeather(false);
+    setRadar(false); setWeather(false);
     applyTheme("farmhouse", { pickBase: true });
     refreshPhotos(); refreshTracks(); refreshPlaces();
     places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f)));
@@ -1228,11 +1228,10 @@
         <h4>Trail see-through</h4><div class="range-row"><span class="rr-l">Faint</span><input type="range" id="a-lineop" min="20" max="100" step="5" aria-label="Trail opacity"><span class="rr-l">Solid</span></div>
         <h4>Map brightness</h4><div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>
         <div id="a-linechecks"></div>`, "advsec")}
-      ${sec("filter", "🔎", "Filter trails & places", "Length, steepness, photo day, kinds of places", `
+      ${sec("filter", "🔎", "Filter trails & places", "Length, steepness, kinds of places", `
         <p class="note filter-count" id="a-count"></p>
         <h4>Trail length</h4><div class="seg" id="a-length"></div>
         <h4>Steepness</h4><div class="seg" id="a-steep"></div>
-        <h4>Photos taken</h4><div class="seg" id="a-day"></div>
         <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>
         <div class="btn-row mini-btns"><button class="chip" id="a-types-all">Show all</button><button class="chip" id="a-types-none">Hide all</button></div>`, "advsec")}
       ${sec("labels", "🏷️", "Labels & extras", "Name size, rings, compass, units, shading", `
@@ -1276,7 +1275,7 @@
     check(ov, "⛅ Weather at the quarter right now", overlays.weather, setWeather);
 
     const basic = $("#m-basic", body);
-    check(basic, "🥾 Trails &amp; driveway", trailsOn, (v) => setTrails(v));
+    check(basic, `${TRAIL_SVG} Trails &amp; driveway`, trailsOn, (v) => setTrails(v));
     check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutter(); });
     check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
     check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
@@ -1291,8 +1290,9 @@
       adv.colourMode, (v) => { adv.colourMode = v; restyleAll(); });
     // Swatches for the single trail colour; the first follows the look.
     const swEl = $("#a-swatch", body);
-    [[null, "Look’s colour"], ["#ffffff", "White"], ["#ffd400", "Yellow"], ["#ff8c1a", "Orange"], ["#e53935", "Red"], ["#ff4fa3", "Pink"],
-      ["#a57bff", "Purple"], ["#2f8cff", "Blue"], ["#00e5ff", "Cyan"], ["#7cff4f", "Lime"]].forEach(([c, name]) => {
+    [[null, "Look’s colour"], ["#ffffff", "White"], ["#fff3a0", "Cream"], ["#ffd400", "Yellow"], ["#ff9f1a", "Orange"], ["#ff5a1f", "Red-orange"],
+      ["#e0201b", "Red"], ["#ff4fa3", "Pink"], ["#c93de0", "Magenta"], ["#8c6bff", "Purple"], ["#2f7bff", "Blue"], ["#00d7ff", "Cyan"],
+      ["#2fe08a", "Green"], ["#b6f23c", "Lime"]].forEach(([c, name]) => {
       const b = document.createElement("button");
       b.className = "sw-dot" + (adv.trailColour === c ? " on" : "") + (c ? "" : " theme");
       b.style.background = c || THEMES[theme].lines.trail;
@@ -1325,17 +1325,13 @@
       const tr = [...tracks.values()].filter((x) => cat(x.f) === "trails");
       const shownT = tr.filter((x) => !hiddenTracks.has(x.f.id) && passesTrailFilters(x.f)).length;
       const fp = featuredPlaces(), shownP = fp.filter((pl) => !adv.hiddenTypes.includes(pl.f.properties.icon)).length;
-      const ph = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay).length;
-      countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · <b>${shownP} of ${fp.length}</b> places · <b>${ph} of ${allPhotos.length}</b> photos`;
+      countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · <b>${shownP} of ${fp.length}</b> places`;
     };
     const refilter = () => { refreshTracks(); refreshPlaces(); declutter(); updateCount(); };
     seg($("#a-length", body), [["all", "Any"], ["short", "Under " + fmtLen(250)], ["medium", fmtLen(250) + "–" + fmtLen(600)], ["long", "Over " + fmtLen(600)]],
       adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
     seg($("#a-steep", body), [["all", "Any"], ["flat", "Flat"], ["gentle", "Gentle"], ["hilly", "Hilliest"]],
       adv.steepFilter, (v) => { adv.steepFilter = v; refilter(); });
-    const days = [...new Set(allPhotos.map((x) => x.p.taken?.slice(0, 10)).filter(Boolean))].sort();
-    const dayName = (d) => new Date(d + "T12:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: days.some((x) => x.slice(0, 4) !== d.slice(0, 4)) ? "numeric" : undefined });
-    seg($("#a-day", body), [["all", "Any day"], ...days.map((d) => [d, dayName(d)])], photoDay, (v) => { photoDay = v; refreshPhotos(); updateCount(); });
     const types = [...new Set([...places.values()].map((pl) => pl.f.properties.icon))];
     const tyEl = $("#a-types", body);
     const typeBtns = types.map((ty) => {
@@ -1364,7 +1360,6 @@
       $("#sheet-body").scrollTop = sc;
     });
     const ac = $("#a-checks", body);
-    check(ac, "⛰️ Hill shading <small>(makes slopes and valleys stand out)</small>", overlays.hills, setHills);
     check(ac, "⭕ Distance rings around the house", adv.rings, setRings);
     check(ac, "➜ Direction arrows on named trails", adv.dirArrows, (v) => { adv.dirArrows = v; refreshTracks(); });
     check(ac, "📏 Trail lengths next to trail names", adv.labelLengths, (v) => { adv.labelLengths = v; applyLabelLook(); declutter(); });
@@ -1547,14 +1542,8 @@
   stage.addEventListener("pointercancel", endPtr);
   stage.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.2 : 1 / 1.2)); }, { passive: false });
 
-  // ================================================================ extra layers: hills, precipitation radar, weather
-  const overlays = { hills: false, radar: false, weather: false };
-  let hillLayer = null;
-  function setHills(on) {
-    overlays.hills = on;
-    if (on && !hillLayer) hillLayer = hills(0.5);
-    if (on) hillLayer.addTo(map); else if (hillLayer) map.removeLayer(hillLayer);
-  }
+  // ================================================================ extra layers: precipitation radar, weather
+  const overlays = { radar: false, weather: false };
 
   // Radar tiles are RainViewer's (Universal Blue colours, smoothed, snow drawn in its own colours). They only go to zoom 7,
   // so the panel also says what is falling at the farm itself (Open-Meteo), and its icon follows that.
