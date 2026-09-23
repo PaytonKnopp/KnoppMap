@@ -30,16 +30,6 @@
     return (Math.atan2(y, x) / r + 360) % 360;
   }
   const compass = (deg) => ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(deg / 45) % 8];
-  async function share(title, hash) {
-    const url = location.origin + location.pathname + hash;
-    try {
-      if (navigator.share) return await navigator.share({ title, url });
-      await navigator.clipboard.writeText(url);
-      toast("Link copied. You can paste it into a message.");
-    } catch (e) {
-      if (e.name !== "AbortError") prompt("Copy this link:", url);
-    }
-  }
 
   // ================================================================ text size
   const SIZES = [16, 18, 20, 23, 26];
@@ -59,6 +49,8 @@
   L.control.zoom({ position: "topright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" }).addTo(map);
   L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
   window.kmMap = map;
+  map.createPane("hill").style.zIndex = 240;
+  map.createPane("radar").style.zIndex = 380;
   map.createPane("boundary").style.zIndex = 390;
   map.createPane("casing").style.zIndex = 395;
   map.createPane("trails").style.zIndex = 400;
@@ -71,34 +63,71 @@
     L.tileLayer(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
   const IMG_ATTR = "Imagery © Esri, Maxar, Earthstar Geographics";
   const OSM_ATTR = "© OpenStreetMap contributors";
+  const img = () => esriLayer("World_Imagery", "img", IMG_ATTR);
+  const hills = (opacity = 0.55) => esriLayer("Elevation/World_Hillshade", "hill", "Hillshade © Esri", { pane: "hill", opacity });
+  const openTopo = () => L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    { ...TILE_OPTS, maxNativeZoom: 17, attribution: OSM_ATTR + ", SRTM | OpenTopoMap" });
+  const canvas = (tone) => L.layerGroup([
+    L.tileLayer(`${ESRI}Canvas/World_${tone}_Gray_Base/MapServer/tile/{z}/{y}/{x}`, { ...TILE_OPTS, maxNativeZoom: 16, attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors" }),
+    L.tileLayer(`${ESRI}Canvas/World_${tone}_Gray_Reference/MapServer/tile/{z}/{y}/{x}`, { ...TILE_OPTS, maxNativeZoom: 16 })]);
   const BASEMAPS = {
-    satellite: { label: "Satellite", swatch: "#3f5b33", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
-    hybrid: { label: "Satellite + roads", swatch: "#4a6a3c", make: () => L.layerGroup([esriLayer("World_Imagery", "img", IMG_ATTR),
+    themed: { label: "Match the look", swatch: "linear-gradient(135deg,#3f5b33 50%,#d8c08f 50%)", filter: "theme", make: img },
+    satellite: { label: "Satellite", swatch: "#3f5b33", make: img },
+    hybrid: { label: "Satellite + roads", swatch: "#4a6a3c", make: () => L.layerGroup([img(),
       esriLayer("Reference/World_Transportation", "ref", ""), esriLayer("Reference/World_Boundaries_and_Places", "ref", "")]) },
-    topo: { label: "Topographic", swatch: "#d9d2b0", make: () => L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-      { ...TILE_OPTS, maxNativeZoom: 17, attribution: OSM_ATTR + ", SRTM | OpenTopoMap" }) },
+    sathills: { label: "Satellite + hills", swatch: "#566b45", make: () => L.layerGroup([img(), hills(0.45)]) },
+    hillshade: { label: "Hills & valleys", swatch: "#b9b6ad", make: () => L.layerGroup([
+      esriLayer("World_Terrain_Base", "terrain", "Esri, USGS, NOAA"), hills(0.7)]) },
+    topo: { label: "Topographic", swatch: "#d9d2b0", make: openTopo },
     esritopo: { label: "Detailed topo", swatch: "#e8e4d0", make: () => esriLayer("World_Topo_Map", "topo", "Esri, HERE, Garmin, USGS") },
     street: { label: "Street map", swatch: "#f2efe9", make: () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
       { ...TILE_OPTS, maxNativeZoom: 19, attribution: OSM_ATTR }) },
-    light: { label: "Clean & light", swatch: "#f5f5f3", make: () => L.tileLayer(CARTO + "rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      { ...TILE_OPTS, maxNativeZoom: 20, attribution: OSM_ATTR + " © CARTO" }) },
-    dark: { label: "Night", swatch: "#1d2327", make: () => L.tileLayer(CARTO + "dark_all/{z}/{x}/{y}{r}.png",
-      { ...TILE_OPTS, maxNativeZoom: 20, attribution: OSM_ATTR + " © CARTO" }) },
-    bw: { label: "Black & white", swatch: "#8a8a8a", filter: "bw", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
-    parchment: { label: "Old parchment map", swatch: "#d8c08f", filter: "parchment", make: () => L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-      { ...TILE_OPTS, maxNativeZoom: 17, attribution: OSM_ATTR + ", SRTM | OpenTopoMap" }) },
-    vintage: { label: "Vintage photo", swatch: "#a88b5c", filter: "vintage", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
-    blueprint: { label: "Blueprint", swatch: "#1d4f86", filter: "blueprint", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
+    light: { label: "Light canvas", swatch: "#e9e9e7", make: () => canvas("Light") },
+    dark: { label: "Dark canvas", swatch: "#2b2d30", make: () => canvas("Dark") },
+    bw: { label: "Black & white", swatch: "#8a8a8a", filter: "bw", make: img },
+    parchment: { label: "Old parchment", swatch: "#d8c08f", filter: "parchment", make: img },
+    drawn: { label: "Hand-drawn map", swatch: "#e3cf9d", filter: "drawn", make: openTopo },
+    vintage: { label: "Vintage photo", swatch: "#a88b5c", filter: "vintage", make: img },
+    blueprint: { label: "Blueprint", swatch: "#1d4f86", filter: "blueprint", make: img },
+    nightsat: { label: "Satellite at night", swatch: "#1a2433", filter: "nightsat", make: img },
   };
+  // Styles that need a free account/key; they appear once a key is set in config/site.json.
+  function addKeyedStyles(keys = {}) {
+    const mt = keys.maptiler, tf = keys.thunderforest;
+    const mtl = (id, label, sw, ext = "png") => ({ label, swatch: sw, make: () => L.tileLayer(`https://api.maptiler.com/maps/${id}/256/{z}/{x}/{y}.${ext}?key=${mt}`,
+      { ...TILE_OPTS, maxNativeZoom: 20, attribution: "© MapTiler © OpenStreetMap contributors" }) });
+    if (mt) Object.assign(BASEMAPS, {
+      mt_outdoor: mtl("outdoor-v2", "Outdoor (MapTiler)", "#dfe8d0"), mt_winter: mtl("winter-v2", "Winter (MapTiler)", "#eef4fa"),
+      mt_topo: mtl("topo-v2", "Topo (MapTiler)", "#e6e2cf"), mt_dataviz_dark: mtl("dataviz-dark", "Dark minimal (MapTiler)", "#22262b"),
+      mt_hybrid: mtl("hybrid", "HD satellite (MapTiler)", "#34502c", "jpg"),
+    });
+    if (keys.stadia) {
+      const st = (id, label, sw, ext = "png", z = 20) => ({ label, swatch: sw, make: () => L.tileLayer(`https://tiles.stadiamaps.com/tiles/${id}/{z}/{x}/{y}.${ext}`,
+        { ...TILE_OPTS, maxNativeZoom: z, attribution: "© Stadia Maps © Stamen Design © OpenMapTiles © OpenStreetMap contributors" }) });
+      Object.assign(BASEMAPS, {
+        st_watercolor: st("stamen_watercolor", "Watercolour painting", "#e9d9b8", "jpg", 16), st_toner: st("stamen_toner", "Newsprint (toner)", "#111"),
+        st_terrain: st("stamen_terrain", "Terrain", "#cfd9b5"), st_dark: st("alidade_smooth_dark", "Smooth dark", "#262a2e"),
+        st_light: st("alidade_smooth", "Smooth light", "#f3f3f1"),
+      });
+    }
+    if (tf) {
+      const t = (id, label, sw) => ({ label, swatch: sw, make: () => L.tileLayer(`https://{s}.tile.thunderforest.com/${id}/{z}/{x}/{y}.png?apikey=${tf}`,
+        { ...TILE_OPTS, maxNativeZoom: 20, attribution: "Maps © Thunderforest © OpenStreetMap contributors" }) });
+      Object.assign(BASEMAPS, { tf_outdoors: t("outdoors", "Outdoors (Thunderforest)", "#dbe6c8"), tf_landscape: t("landscape", "Landscape (Thunderforest)", "#d4e2b8"),
+        tf_pioneer: t("pioneer", "Pioneer 1800s (Thunderforest)", "#e2cfa3") });
+    }
+  }
 
   // ---- how deep the real imagery goes here (Esri shows a grey "Map data not yet available" tile beyond it)
-  const PROBE = { img: "World_Imagery", topo: "World_Topo_Map", ref: "Reference/World_Transportation" };
+  const PROBE = { img: "World_Imagery", topo: "World_Topo_Map", ref: "Reference/World_Transportation",
+    hill: "Elevation/World_Hillshade", terrain: "World_Terrain_Base" };
+  const FLAT_OK = new Set(["hill", "terrain"]);   // these are naturally grey, so only a missing tile counts
   const native = store.get("nativeZoom", {});
   function nativeZoom(key) {
     const n = native[key];
-    return n && n.z ? n.z : key === "ref" ? 17 : 17;
+    return n && n.z ? n.z : { hill: 15, terrain: 13 }[key] || 17;
   }
-  function probeTile(svc, z, lat, lng) {
+  function probeTile(svc, z, lat, lng, flatOk = false) {
     const n = 2 ** z;
     const x = Math.floor(((lng + 180) / 360) * n);
     const y = Math.floor((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2 * n);
@@ -119,7 +148,7 @@
           for (let i = 0; i < d.length; i += 4) {
             if (Math.abs(d[i] - d[i + 1]) < 6 && Math.abs(d[i + 1] - d[i + 2]) < 6 && d[i] > 190 && d[i] < 225) grey++;
           }
-          resolve(grey / 1024 < 0.6);
+          resolve(flatOk || grey / 1024 < 0.6);
         } catch { resolve(true); }
       };
       img.onerror = () => { clearTimeout(timer); resolve(false); };
@@ -137,13 +166,13 @@
       const old = native[key];
       if (old && Date.now() - old.at < 7 * 864e5) continue;
       let found = null;
-      for (let z = 20; z >= 15; z--) {
-        const res = await Promise.all(pts.map((p) => probeTile(svc, z, p.lat, p.lng)));
+      for (let z = 20; z >= 12; z--) {
+        const res = await Promise.all(pts.map((p) => probeTile(svc, z, p.lat, p.lng, FLAT_OK.has(key))));
         if (res.some((r) => r === null)) { found = undefined; break; }   // network trouble: try again next visit
         if (res.every(Boolean)) { found = z; break; }
       }
       if (found === undefined) continue;
-      native[key] = { z: found ?? 15, at: Date.now() };
+      native[key] = { z: found ?? 12, at: Date.now() };
       changed = changed || !old || old.z !== native[key].z;
     }
     store.set("nativeZoom", native);
@@ -161,45 +190,77 @@
   };
   map.on("move zoomend viewreset resize", placeTexture);
 
-  let baseKey = store.get("base", null);
+  // Every visit starts from the normal look; nothing below is remembered between visits.
+  let baseKey = null;
   let baseLayer = null;
-  let dim = store.get("dim", 100);
+  let dim = 100;
   function applyMapLook() {
     const el = map.getContainer();
-    const f = BASEMAPS[baseKey]?.filter || "";
-    el.dataset.filter = f;
+    const m = BASEMAPS[baseKey];
+    const t = THEMES[theme];
+    el.dataset.filter = m?.filter || "";
+    el.dataset.texture = m?.filter === "theme" ? t.texture || "" : m?.filter || "";
+    el.style.setProperty("--theme-filter", t.mapFilter || "saturate(1)");
     el.style.setProperty("--dim", dim / 100);
     if (dim < 100) el.dataset.dim = ""; else delete el.dataset.dim;
   }
   function setBase(k) {
-    if (!BASEMAPS[k]) k = THEMES[theme].base;
+    if (!BASEMAPS[k]) k = "themed";
     if (baseLayer) map.removeLayer(baseLayer);
     baseLayer = BASEMAPS[k].make().addTo(map);
     baseKey = k;
-    store.set("base", k);
     applyMapLook();
   }
 
-  // ================================================================ themes
+  // ================================================================ themes (looks)
+  // mapFilter tints the satellite photo under the "Match the look" map style; texture adds an overlay.
   const THEMES = {
-    farmhouse: { label: "Farmhouse", note: "Warm cream and green", base: "satellite", sw: ["#fbf8f1", "#2f5d3a", "#f2c200"],
+    farmhouse: { label: "Farmhouse", note: "Warm cream and green on real satellite", sw: ["#fbf8f1", "#2f5d3a", "#f2c200"], mapFilter: "saturate(1)",
       lines: { trail: "#fff3c4", trailCase: "#10140e", road: "#eadcbc", roadCase: "#2b2418", sel: "#f2c200", caseOp: 0.6 } },
-    middleearth: { label: "Middle-earth", note: "Parchment and ink, like an old fantasy map", base: "parchment", sw: ["#f1e2bd", "#6b3e1f", "#9c2f1c"],
-      font: "https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya:wght@400;700&display=swap",
-      lines: { trail: "#4a2c12", trailCase: "#f3e3bd", road: "#6b3e1f", roadCase: "#f3e3bd", sel: "#9c2f1c", caseOp: 0.75, dash: "7 5", boundary: "#7a1f12" } },
-    night: { label: "Night sky", note: "Dark and easy on the eyes", base: "dark", sw: ["#1c2126", "#3fb68b", "#ffcc4d"],
-      lines: { trail: "#7fdcff", trailCase: "#05080a", road: "#cfd8dc", roadCase: "#05080a", sel: "#ffcc4d", caseOp: 0.8, boundary: "#ffcc4d" } },
-    prairie: { label: "Prairie sky", note: "Bright, clean and modern", base: "hybrid", sw: ["#ffffff", "#1f6feb", "#ff9f1c"],
+    middleearth: { label: "Middle-earth", note: "Old parchment and ink, like a fantasy map", sw: ["#f1e2bd", "#6b3e1f", "#9c2f1c"],
+      mapFilter: "grayscale(1) sepia(0.95) saturate(0.85) contrast(1.15) brightness(1.08)", texture: "parchment",
+      font: "GFONTCinzel:wght@600;700&family=Alegreya:wght@400;700&display=swap",
+      lines: { trail: "#3d220b", trailCase: "#f3e3bd", road: "#5a3316", roadCase: "#f3e3bd", sel: "#9c2f1c", caseOp: 0.8, dash: "7 5", boundary: "#7a1f12" } },
+    night: { label: "Night sky", note: "Moonlit satellite, dark and easy on the eyes", sw: ["#1c2126", "#3fb68b", "#ffcc4d"],
+      mapFilter: "saturate(0.35) brightness(0.5) contrast(1.2) sepia(0.25) hue-rotate(180deg)", texture: "night",
+      lines: { trail: "#8fe3ff", trailCase: "#05080a", road: "#dfe6ea", roadCase: "#05080a", sel: "#ffcc4d", caseOp: 0.85, boundary: "#ffcc4d" } },
+    prairie: { label: "Prairie sky", note: "Bright, vivid and modern", sw: ["#ffffff", "#1f6feb", "#ff9f1c"],
+      mapFilter: "saturate(1.3) brightness(1.08) contrast(1.06)",
       lines: { trail: "#ffffff", trailCase: "#1f6feb", road: "#ffe8b3", roadCase: "#7a4b00", sel: "#ff9f1c", caseOp: 0.85 } },
-    blueprint: { label: "Blueprint", note: "Surveyor's drafting table", base: "blueprint", sw: ["#0f2a4a", "#4aa3ff", "#ffd166"],
+    blueprint: { label: "Blueprint", note: "Surveyor's drafting table", sw: ["#0f2a4a", "#4aa3ff", "#ffd166"],
+      mapFilter: "grayscale(1) invert(0.9) sepia(1) hue-rotate(175deg) saturate(3) brightness(0.8) contrast(1.3)", texture: "blueprint",
       lines: { trail: "#e6f0ff", trailCase: "#0b2140", road: "#ffffff", roadCase: "#0b2140", sel: "#ffd166", caseOp: 0.7, dash: "2 6", boundary: "#ffd166" } },
-    contrast: { label: "High contrast", note: "Biggest, boldest and easiest to see", base: "satellite", sw: ["#000000", "#ffd400", "#ffffff"],
+    maninblack: { label: "The Man in Black", note: "Johnny Cash: black, white and a little red", sw: ["#0d0d0d", "#f4f1ea", "#b3121b"],
+      mapFilter: "grayscale(1) contrast(1.5) brightness(0.78)", texture: "grain",
+      font: "GFONTRye&family=Special+Elite&display=swap",
+      lines: { trail: "#f4f1ea", trailCase: "#000000", road: "#c9c3b6", roadCase: "#000000", sel: "#e0141e", caseOp: 0.85, boundary: "#e0141e" } },
+    interstellar: { label: "Interstellar", note: "Dusty cornfields under a deep-space sky", sw: ["#0b1320", "#e0a458", "#8fb8de"],
+      mapFilter: "sepia(0.7) saturate(1.5) hue-rotate(-12deg) contrast(1.08) brightness(0.9)", texture: "dust",
+      font: "GFONTExo+2:wght@400;600;800&display=swap",
+      lines: { trail: "#ffe2b0", trailCase: "#1a0f05", road: "#f3d9a9", roadCase: "#1a0f05", sel: "#8fd3ff", caseOp: 0.75, boundary: "#8fb8de" } },
+    oppenheimer: { label: "Oppenheimer", note: "Black-and-white film with fire on the horizon", sw: ["#0a0a0a", "#ff6a13", "#f3e9dc"],
+      mapFilter: "grayscale(1) contrast(1.35) brightness(0.82)", texture: "fire",
+      font: "GFONTBebas+Neue&family=Libre+Baskerville:wght@400;700&display=swap",
+      lines: { trail: "#ffd9b8", trailCase: "#0a0a0a", road: "#f3e9dc", roadCase: "#0a0a0a", sel: "#ff6a13", caseOp: 0.85, boundary: "#ff6a13" } },
+    winter: { label: "First snow", note: "Frosty whites and icy blues", sw: ["#f4f8fc", "#2f6f9f", "#9fd3f2"],
+      mapFilter: "grayscale(0.7) brightness(1.25) contrast(1.05) sepia(0.2) hue-rotate(165deg) saturate(1.3)", texture: "frost",
+      lines: { trail: "#1f4e79", trailCase: "#ffffff", road: "#6b7f90", roadCase: "#ffffff", sel: "#e63946", caseOp: 0.85, boundary: "#1f4e79" } },
+    harvest: { label: "Harvest gold", note: "Autumn wheat, rust and warm sunsets", sw: ["#fbf1e1", "#a6461f", "#e9a13b"],
+      mapFilter: "sepia(0.4) saturate(1.6) hue-rotate(-18deg) contrast(1.06) brightness(1.02)", texture: "warm",
+      font: "GFONTMerriweather:wght@400;700&display=swap",
+      lines: { trail: "#fff0c9", trailCase: "#4a1d08", road: "#f2d29b", roadCase: "#4a1d08", sel: "#e9a13b", caseOp: 0.7, boundary: "#e9a13b" } },
+    synthwave: { label: "Synthwave", note: "Neon pink and cyan, straight out of the '80s", sw: ["#1a0b2e", "#ff2bd6", "#2de2e6"],
+      mapFilter: "grayscale(1) contrast(1.25) brightness(0.55)", texture: "synth",
+      font: "GFONTAudiowide&display=swap",
+      lines: { trail: "#2de2e6", trailCase: "#1a0b2e", road: "#ff2bd6", roadCase: "#1a0b2e", sel: "#fff36b", caseOp: 0.9, boundary: "#ff2bd6" } },
+    contrast: { label: "High contrast", note: "Biggest, boldest and easiest to see", sw: ["#000000", "#ffd400", "#ffffff"],
+      mapFilter: "brightness(0.6) contrast(1.1)",
       lines: { trail: "#ffd400", trailCase: "#000000", road: "#ffffff", roadCase: "#000000", sel: "#ff3b30", caseOp: 1, extra: 1.5, boundary: "#ffffff" } },
   };
-  let theme = THEMES[store.get("theme", "farmhouse")] ? store.get("theme", "farmhouse") : "farmhouse";
+  Object.values(THEMES).forEach((t) => { if (t.font) t.font = t.font.replace("GFONT", "https://fonts.googleapis.com/css2?family="); });
+  let theme = "farmhouse";
   function applyTheme(k, { pickBase = false } = {}) {
     theme = k;
-    store.set("theme", k);
     document.documentElement.dataset.theme = k;
     const t = THEMES[k];
     if (t.font && !document.querySelector(`link[data-font="${k}"]`)) {
@@ -208,7 +269,7 @@
       document.head.append(l);
     }
     document.querySelector('meta[name="theme-color"]').content = t.sw[1];
-    if (pickBase) setBase(t.base);
+    if (pickBase) setBase("themed"); else applyMapLook();
     tracks.forEach((tr) => restyle(tr));
   }
   document.documentElement.dataset.theme = theme;
@@ -216,15 +277,15 @@
 
   // ================================================================ state
   let farmBounds = null, farmPin = null;
-  let trailsOn = store.get("trailsOn", true);
-  let photosOn = store.get("photosOn", false);
-  let labelsOn = store.get("labelsOn", true);
+  let trailsOn = true;
+  let photosOn = false;
+  let labelsOn = true;
   const ADV_DEFAULTS = { colourMode: "simple", thickness: 1, placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all",
     trailDay: "all", cluster: true, boundaryFill: true };
-  const adv = { ...ADV_DEFAULTS, ...store.get("adv", {}) };
-  const saveAdv = () => store.set("adv", adv);
+  const adv = { ...ADV_DEFAULTS, hiddenTypes: [] };
+  const saveAdv = () => {};
   const LENGTHS = { all: [0, 1e9], short: [0, 250], medium: [250, 600], long: [600, 1e9] };
-  const hiddenTracks = new Set(store.get("hiddenTracks", []));
+  const hiddenTracks = new Set();
   const tracks = new Map();   // id -> {f, line, casing, group, label}
   const places = new Map();   // id -> {f, marker, photos}
   const photoById = new Map();
@@ -427,7 +488,7 @@
       ${hero ? `<img class="place-hero" src="${esc(photoUrl(hero))}" alt="${esc(title)}">` : ""}
       ${p.story ? `<p class="place-story">${esc(p.story)}</p>` : ""}
       <p class="place-meta">${pl.photos.length} photo${pl.photos.length === 1 ? "" : "s"} · taken ${esc(days)}</p>
-      <div class="btn-row"><button class="big" data-act="zoom">🔍 Zoom in here</button><button class="big ghost" data-act="share">📤 Share</button></div>
+      <div class="btn-row"><button class="big" data-act="zoom">🔍 Zoom in here</button></div>
       <h3>Photos</h3><div data-slot="gallery"></div>
       ${trailsHere.length ? `<h3>On these trails</h3><div class="chips" data-slot="trails"></div>` : ""}
       ${nearby.length ? `<h3>Nearby</h3><div class="chips" data-slot="nearby"></div>` : ""}`;
@@ -445,7 +506,6 @@
       nslot.append(b);
     });
     $('[data-act="zoom"]', body).onclick = () => { if (isPhone()) closeSheet(); map.flyTo(ll, 19, { duration: 0.8 }); };
-    $('[data-act="share"]', body).onclick = () => share(title, "#place=" + encodeURIComponent(id));
     openSheet(`${icon(p.icon)} ${title}`, body, { back: back ?? !!sheetCurrent });
     if (fly) flyToVisible(ll);
   }
@@ -502,7 +562,7 @@
         ${p.profile && isTrail(t.f) ? `<div class="stat"><b>${Math.round(Math.min(...p.profile.map((x) => x[1])))}–${Math.round(Math.max(...p.profile.map((x) => x[1])))} m</b><small>height above sea</small></div>` : ""}
       </div>
       ${p.profile && isTrail(t.f) ? `<h3>Ups and downs</h3>${elevationSvg(p.profile)}` : ""}
-      <div class="btn-row"><button class="big" data-act="fit">🔍 Show the whole ${kind.toLowerCase()}</button><button class="big ghost" data-act="share">📤 Share</button></div>
+      <div class="btn-row"><button class="big" data-act="fit">🔍 Show the whole ${kind.toLowerCase()}</button></div>
       ${links.length ? `<h3>Connects to</h3><div class="chips" data-slot="links"></div>` : ""}
       <h3>Photos along the way</h3>${along.length ? `<div data-slot="gallery"></div>` : `<p class="empty">No photos on this one yet.</p>`}`;
     const ls = $('[data-slot="links"]', body);
@@ -516,7 +576,6 @@
       }
     };
     $('[data-act="fit"]', body).onclick = fit;
-    $('[data-act="share"]', body).onclick = () => share(p.name, "#trail=" + encodeURIComponent(id));
     openSheet(`🥾 ${p.name}`, body, { back: back ?? false });
     if (fly) fit();
     setTimeout(declutter, 50);
@@ -589,7 +648,7 @@
     sheetStack.length = 0;
     sheetCurrent = null;
     document.body.classList.remove("sheet-open");
-    $$("#dock button.active").forEach((b) => b.classList.remove("active"));
+    $$("#dock button.active, #options-btn.active").forEach((b) => b.classList.remove("active"));
     selectPlace(null);
     highlightTrack(null);
     refreshTracks();
@@ -607,6 +666,7 @@
     if (e.key === "Escape" && $("#lightbox").hidden && !sheet.hidden) closeSheet();
   });
   function setDockActive(act) {
+    $("#options-btn").classList.remove("active");
     $$("#dock button").forEach((b) => b.classList.toggle("active", b.dataset.act === act));
   }
 
@@ -745,40 +805,72 @@
     return box;
   }
 
+  /** A grid that shows the first few cards and a "Show all" button for the rest. */
+  function expandableGrid(el, cards, first, label) {
+    cards.forEach((c, i) => { if (i >= first) c.classList.add("extra"); el.append(c); });
+    if (cards.length <= first) return;
+    const onIdx = cards.findIndex((c) => c.classList.contains("on"));
+    const b = document.createElement("button");
+    b.className = "show-all";
+    const set = (open) => {
+      el.classList.toggle("open", open);
+      b.textContent = open ? "Show fewer ▴" : `Show all ${cards.length} ${label} ▾`;
+    };
+    b.onclick = () => set(!el.classList.contains("open"));
+    set(onIdx >= first);
+    el.after(b);
+  }
+
+  function resetAll() {
+    Object.assign(adv, ADV_DEFAULTS, { hiddenTypes: [] });
+    hiddenTracks.clear();
+    dim = 100;
+    photoDay = "all";
+    labelsOn = true;
+    setPhotos(false);
+    if (!trailsOn) setTrails(true);
+    setHills(false); setRadar(false); setWeather(false);
+    applyTheme("farmhouse", { pickBase: true });
+    refreshPhotos(); refreshTracks(); refreshPlaces();
+    places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f)));
+    declutter();
+  }
+
   function moreSheet() {
     const body = document.createElement("div");
-    const advOpen = store.get("advOpen", false);
     body.innerHTML = `
+      <button class="big reset-top" id="m-reset">↺ Reset everything to normal</button>
       <h3>Look</h3><div class="theme-grid" id="m-theme"></div>
       <h3>Map style</h3><div class="style-grid" id="m-base"></div>
-      <h3>Text size</h3><div class="seg" id="m-size"></div>
+      <h3>Extra layers</h3><div id="m-over"></div>
       <h3>On the map</h3><div id="m-basic"></div>
+      <h3>Text size</h3><div class="seg" id="m-size"></div>
+      <h3>Print</h3>
+      <p class="note">Prints exactly what you see now: the look, map style and filters you picked.</p>
+      <button class="big ghost" id="m-print">🖨️ Print this map</button>
       <h3>Use without internet</h3><div id="m-offline"></div>
-      <details class="adv" id="m-adv" ${advOpen ? "open" : ""}>
-        <summary><span>🎛️ Advanced options &amp; filters</span><small>colours, filters, labels, every trail</small></summary>
+      <details class="adv" id="m-adv">
+        <summary><span class="adv-badge">ADVANCED</span><span>🎛️ Filters &amp; fine-tuning</span><small>Trail colours, thickness, brightness, what shows on the map, and every trail one by one</small></summary>
+        <div class="adv-body">
         <h3>Trail colours</h3><div class="seg" id="a-colour"></div>
         <h3>Line thickness</h3><div class="seg" id="a-thick"></div>
         <h3>Map brightness</h3>
         <div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>
         <h3>Trail length</h3><div class="seg" id="a-length"></div>
-        <h3>Trails recorded on</h3><div class="seg" id="a-tday"></div>
         <h3>Kinds of places</h3><div class="chips" id="a-types"></div>
         <h3>Labels &amp; extras</h3><div id="a-checks"></div>
-        <h3>Photo pins</h3><div class="seg" id="a-pday"></div><div id="a-pchecks"></div>
         <h3>Legend</h3><div class="legend" id="m-legend"></div>
         <h3>Choose trails one by one</h3><div id="m-tracks"></div>
         <button class="big ghost" id="a-reset" style="margin-top:1rem">↺ Reset everything to normal</button>
-      </details>
-      <h3>Help</h3>
-      <div class="btn-row" style="flex-wrap:wrap"><button class="big ghost" id="m-help">Show the welcome tips</button>
-        <button class="big ghost" id="m-share">📤 Share this map</button></div>`;
-    $("#m-adv", body).ontoggle = (e) => store.set("advOpen", e.target.open);
+        </div>
+      </details>`;
 
-    // themes
+    // looks
     const tg = $("#m-theme", body);
-    Object.entries(THEMES).forEach(([k, t]) => {
+    const tCards = Object.entries(THEMES).map(([k, t]) => {
       const b = document.createElement("button");
       b.className = "theme-card" + (k === theme ? " on" : "");
+      b.dataset.k = k;
       b.innerHTML = `<span class="theme-sw">${t.sw.map((c) => `<i style="background:${c}"></i>`).join("")}</span><b>${esc(t.label)}</b><small>${esc(t.note)}</small>`;
       b.onclick = () => {
         applyTheme(k, { pickBase: true });
@@ -786,41 +878,46 @@
         $$(".style-card", body).forEach((x) => x.classList.toggle("on", x.dataset.k === baseKey));
         drawLegend();
       };
-      tg.append(b);
+      return b;
     });
+    expandableGrid(tg, tCards, 4, "looks");
     // map styles
     const bg = $("#m-base", body);
-    Object.entries(BASEMAPS).forEach(([k, m]) => {
+    const sCards = Object.entries(BASEMAPS).map(([k, m]) => {
       const b = document.createElement("button");
       b.className = "style-card" + (k === baseKey ? " on" : "");
       b.dataset.k = k;
       b.innerHTML = `<span class="style-sw sw-${k}" style="background:${m.swatch}"></span><span>${esc(m.label)}</span>`;
       b.onclick = () => { setBase(k); $$(".style-card", bg).forEach((x) => x.classList.toggle("on", x === b)); };
-      bg.append(b);
+      return b;
     });
-    seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); });
+    expandableGrid(bg, sCards, 6, "map styles");
+
+    const ov = $("#m-over", body);
+    check(ov, "⛰️ Hills &amp; valleys shading", overlays.hills, setHills);
+    check(ov, "🌧️ Live rain radar <small>(RainViewer)</small>", overlays.radar, setRadar);
+    check(ov, "⛅ Weather at the farm right now", overlays.weather, setWeather);
+
     const basic = $("#m-basic", body);
-    const trBox = check(basic, "Trails &amp; roads", trailsOn, (v) => setTrails(v));
-    void trBox;
-    check(basic, "Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; store.set("labelsOn", v); refreshTracks(); declutter(); });
-    const phBox = check(basic, "Every photo as a camera pin", photosOn, (v) => setPhotos(v));
+    check(basic, "🥾 Trails &amp; roads", trailsOn, (v) => setTrails(v));
+    check(basic, "📷 Every photo as a camera pin", photosOn, (v) => setPhotos(v));
+    check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutter(); });
+    seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); });
+    $("#m-print", body).onclick = printMap;
     offlinePanel($("#m-offline", body));
 
     // ---- advanced
-    const restyleAll = () => { tracks.forEach(restyle); drawLegend(); saveAdv(); };
+    const restyleAll = () => { tracks.forEach(restyle); drawLegend(); };
     seg($("#a-colour", body), [["simple", "One colour"], ["each", "Each trail its own"], ["steep", "By steepness"], ["length", "By length"]],
       adv.colourMode, (v) => { adv.colourMode = v; restyleAll(); });
     seg($("#a-thick", body), [[0.7, "Thin"], [1, "Normal"], [1.4, "Thick"], [1.9, "Extra thick"]], adv.thickness,
       (v) => { adv.thickness = v; restyleAll(); });
     const dimEl = $("#a-dim", body);
     dimEl.value = dim;
-    dimEl.oninput = () => { dim = +dimEl.value; store.set("dim", dim); applyMapLook(); };
-    const refilter = () => { saveAdv(); refreshTracks(); refreshPlaces(); declutter(); };
+    dimEl.oninput = () => { dim = +dimEl.value; applyMapLook(); };
+    const refilter = () => { refreshTracks(); refreshPlaces(); declutter(); };
     seg($("#a-length", body), [["all", "All"], ["short", "Short (under 250 m)"], ["medium", "Medium"], ["long", "Long (over 600 m)"]],
       adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
-    const tdays = [...new Set([...tracks.values()].map((t) => (t.f.properties.recorded || "").slice(0, 10)).filter(Boolean))].sort();
-    seg($("#a-tday", body), [["all", "Any day"], ...tdays.map((d) => [d, fmtDate(d + "T12:00:00-06:00", false)])], adv.trailDay,
-      (v) => { adv.trailDay = v; refilter(); });
     const types = [...new Set([...places.values()].map((pl) => pl.f.properties.icon))];
     const tyEl = $("#a-types", body);
     types.forEach((ty) => {
@@ -836,19 +933,16 @@
       tyEl.append(b);
     });
     const ac = $("#a-checks", body);
-    check(ac, "Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; saveAdv(); places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
+    check(ac, "Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
     check(ac, "Small photo spots (when zoomed in)", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
     check(ac, "Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
-    const pdays = [...new Set(allPhotos.map((x) => x.p.taken?.slice(0, 10)).filter(Boolean))].sort();
-    seg($("#a-pday", body), [["all", "All days"], ...pdays.map((d) => [d, fmtDate(d + "T12:00:00-06:00", false)])], photoDay,
-      (k) => { photoDay = k; if (!photosOn) { phBox.checked = true; setPhotos(true); } refreshPhotos(); });
-    check($("#a-pchecks", body), "Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; saveAdv(); refreshPhotos(); });
+    check(ac, "Group nearby camera pins together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
 
     const drawLegend = () => {
       const L_ = THEMES[theme].lines;
       const line = (c, extra = "") => `<span class="sym"><span class="line" style="border-color:${c};${extra}filter:drop-shadow(0 0 1px #000)"></span></span>`;
-      let trailRows = "";
-      if (adv.colourMode === "steep") trailRows = RAMP_STEEP.map(([lim, c], i) => line(c) + `<span>${i === 0 ? "Flat" : i === RAMP_STEEP.length - 1 ? "Steepest" : ["Gentle", "Some hills", "Hilly"][i - 1]}</span>`).join("");
+      let trailRows;
+      if (adv.colourMode === "steep") trailRows = RAMP_STEEP.map(([, c], i) => line(c) + `<span>${["Flat", "Gentle", "Some hills", "Hilly", "Steepest"][i]}</span>`).join("");
       else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over 800 m" : "Up to " + lim + " m"}</span>`).join("");
       else trailRows = line(adv.colourMode === "each" ? "#00e5ff" : L_.trail) + `<span>Trails${adv.colourMode === "each" ? " (each has its own colour)" : ""}</span>`;
       $("#m-legend", body).innerHTML = `
@@ -892,34 +986,20 @@
       sync();
       list.append(head, sub);
     });
-    $("#a-reset", body).onclick = () => {
-      Object.assign(adv, ADV_DEFAULTS, { hiddenTypes: [] });
-      saveAdv();
-      hiddenTracks.clear(); store.set("hiddenTracks", []);
-      dim = 100; store.set("dim", 100);
-      photoDay = "all"; labelsOn = true; store.set("labelsOn", true);
-      setPhotos(false); if (!trailsOn) setTrails(true);
-      applyTheme("farmhouse", { pickBase: true });
-      refreshPhotos(); refreshTracks(); refreshPlaces();
-      places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f)));
-      toast("Everything is back to normal.");
-      moreSheet();
-    };
-    $("#m-help", body).onclick = () => { closeSheet(); showWelcome(); };
-    $("#m-share", body).onclick = () => share($("#site-title").textContent, "");
-    openSheet("☰ More options", body);
-    setDockActive("more");
+    const doReset = () => { resetAll(); toast("Everything is back to normal."); moreSheet(); };
+    $("#m-reset", body).onclick = doReset;
+    $("#a-reset", body).onclick = doReset;
+    openSheet("⚙️ Options", body);
+    $("#options-btn").classList.add("active");
   }
 
   function setTrackHidden(id, hide) {
     if (hide) hiddenTracks.add(id); else hiddenTracks.delete(id);
-    store.set("hiddenTracks", [...hiddenTracks]);
     refreshTracks();
     declutter();
   }
   function setTrails(on) {
     trailsOn = on;
-    store.set("trailsOn", on);
     $('#dock [data-act="trails"]').setAttribute("aria-pressed", on);
     refreshTracks();
     declutter();
@@ -927,7 +1007,7 @@
   }
   function setPhotos(on) {
     photosOn = on;
-    store.set("photosOn", on);
+    $('#dock [data-act="photos"]').setAttribute("aria-pressed", on);
     refreshPhotos();
   }
 
@@ -1005,10 +1085,6 @@
     const pulse = L.marker(ll, { icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div class="pulse"><span></span></div>' }), interactive: false }).addTo(map);
     setTimeout(() => map.removeLayer(pulse), 4200);
   };
-  $('[data-lb="share"]', lb).onclick = () => {
-    const p = lbList[lbIdx];
-    if (p.place) share(lbTitle, "#place=" + encodeURIComponent(p.place)); else share(lbTitle, "");
-  };
   document.addEventListener("keydown", (e) => {
     if (lb.hidden) return;
     if (e.key === "Escape") closeLb();
@@ -1056,6 +1132,120 @@
   stage.addEventListener("pointerup", endPtr);
   stage.addEventListener("pointercancel", endPtr);
   stage.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.2 : 1 / 1.2)); }, { passive: false });
+
+  // ================================================================ extra layers: hills, rain radar, weather
+  const overlays = { hills: false, radar: false, weather: false };
+  let hillLayer = null;
+  function setHills(on) {
+    overlays.hills = on;
+    if (on && !hillLayer) hillLayer = hills(0.5);
+    if (on) hillLayer.addTo(map); else if (hillLayer) map.removeLayer(hillLayer);
+  }
+
+  const radar = { frames: [], layers: new Map(), idx: 0, timer: null, host: "", loadedAt: 0 };
+  async function setRadar(on) {
+    overlays.radar = on;
+    const chip = $("#radar-chip");
+    if (!on) {
+      clearInterval(radar.timer); radar.timer = null;
+      radar.layers.forEach((l) => map.removeLayer(l));
+      chip.hidden = true;
+      return;
+    }
+    chip.hidden = false;
+    $(".rc-text", chip).textContent = "🌧️ Loading rain radar…";
+    try {
+      if (Date.now() - radar.loadedAt > 5 * 60e3) {
+        const j = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-cache" }).then((r) => r.json());
+        radar.host = j.host;
+        radar.frames = [...(j.radar?.past || []), ...(j.radar?.nowcast || [])];
+        radar.past = (j.radar?.past || []).length;
+        radar.layers.forEach((l) => map.removeLayer(l));
+        radar.layers.clear();
+        radar.loadedAt = Date.now();
+      }
+      if (!overlays.radar) return;
+      showRadarFrame(radar.past - 1);
+    } catch {
+      $(".rc-text", chip).textContent = "🌧️ Rain radar isn't available right now";
+    }
+  }
+  function radarLayer(i) {
+    if (!radar.layers.has(i)) {
+      radar.layers.set(i, L.tileLayer(`${radar.host}${radar.frames[i].path}/256/{z}/{x}/{y}/2/1_1.png`,
+        { pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 21, attribution: "Radar © RainViewer" }));
+    }
+    return radar.layers.get(i);
+  }
+  function showRadarFrame(i) {
+    if (!radar.frames.length) return;
+    radar.idx = (i + radar.frames.length) % radar.frames.length;
+    const cur = radarLayer(radar.idx);
+    if (!map.hasLayer(cur)) cur.addTo(map);
+    cur.setOpacity(0.65);
+    radar.layers.forEach((l, k) => { if (k !== radar.idx) l.setOpacity(0); });
+    const next = radarLayer((radar.idx + 1) % radar.frames.length);
+    if (!map.hasLayer(next)) next.addTo(map);
+    const t = new Date(radar.frames[radar.idx].time * 1000);
+    const when = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    const future = radar.idx >= radar.past;
+    $(".rc-text", $("#radar-chip")).textContent = `🌧️ Rain radar · ${when}${future ? " (forecast)" : radar.idx === radar.past - 1 ? " (latest)" : ""}`;
+  }
+  $("#radar-play").onclick = () => {
+    const b = $("#radar-play");
+    if (radar.timer) { clearInterval(radar.timer); radar.timer = null; b.textContent = "▶"; b.setAttribute("aria-label", "Play the last two hours"); showRadarFrame(radar.past - 1); return; }
+    b.textContent = "⏸"; b.setAttribute("aria-label", "Pause");
+    showRadarFrame(0);
+    radar.timer = setInterval(() => showRadarFrame(radar.idx + 1), 900);
+  };
+
+  const WX = { 0: ["☀️", "Clear"], 1: ["🌤️", "Mostly clear"], 2: ["⛅", "Partly cloudy"], 3: ["☁️", "Cloudy"], 45: ["🌫️", "Fog"], 48: ["🌫️", "Frosty fog"],
+    51: ["🌦️", "Light drizzle"], 53: ["🌦️", "Drizzle"], 55: ["🌧️", "Heavy drizzle"], 61: ["🌧️", "Light rain"], 63: ["🌧️", "Rain"], 65: ["🌧️", "Heavy rain"],
+    66: ["🌧️", "Freezing rain"], 67: ["🌧️", "Freezing rain"], 71: ["🌨️", "Light snow"], 73: ["🌨️", "Snow"], 75: ["❄️", "Heavy snow"], 77: ["🌨️", "Snow grains"],
+    80: ["🌦️", "Showers"], 81: ["🌧️", "Showers"], 82: ["⛈️", "Heavy showers"], 85: ["🌨️", "Snow showers"], 86: ["❄️", "Snow showers"],
+    95: ["⛈️", "Thunderstorm"], 96: ["⛈️", "Thunderstorm, hail"], 99: ["⛈️", "Thunderstorm, hail"] };
+  let wxTimer = null;
+  async function setWeather(on) {
+    overlays.weather = on;
+    const chip = $("#wx-chip");
+    clearInterval(wxTimer);
+    if (!on) { chip.hidden = true; return; }
+    chip.hidden = false;
+    chip.textContent = "Checking the weather at the farm…";
+    const load = async () => {
+      try {
+        const c = farmBounds.getCenter();
+        const u = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat.toFixed(4)}&longitude=${c.lng.toFixed(4)}` +
+          "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,sunset" +
+          "&timezone=America%2FEdmonton&wind_speed_unit=kmh&forecast_days=1";
+        const j = await fetch(u).then((r) => r.json());
+        const cur = j.current, d = j.daily;
+        const [emo, text] = WX[cur.weather_code] || ["🌡️", ""];
+        const sunset = d.sunset?.[0] ? new Date(d.sunset[0]).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+        chip.innerHTML = `<b>${emo} ${Math.round(cur.temperature_2m)}°C</b> ${esc(text)} · feels ${Math.round(cur.apparent_temperature)}°<br>
+          <small>Wind ${Math.round(cur.wind_speed_10m)} km/h from the ${compass(cur.wind_direction_10m)} · High ${Math.round(d.temperature_2m_max[0])}° Low ${Math.round(d.temperature_2m_min[0])}°${sunset ? " · Sunset " + sunset : ""}</small>`;
+      } catch { chip.textContent = "Weather isn't available right now."; }
+    };
+    await load();
+    wxTimer = setInterval(load, 15 * 60e3);
+  }
+
+  // ================================================================ print
+  function fillPrintHead() {
+    const t = THEMES[theme];
+    $("#print-head").innerHTML = `<b>${esc($("#site-title").textContent)}</b><span>${esc(t.label)} look · ${esc(BASEMAPS[baseKey]?.label || "")} · printed ${esc(fmtDate(new Date().toISOString(), false))}</span>`;
+  }
+  window.addEventListener("beforeprint", () => { fillPrintHead(); map.invalidateSize(); });
+  function printMap() {
+    closeSheet();
+    fillPrintHead();
+    document.body.classList.add("printing");
+    map.invalidateSize();
+    toast("Getting the map ready to print…", 1500);
+    // give tiles a moment to load at the print size
+    setTimeout(() => { window.print(); }, 1200);
+  }
+  window.addEventListener("afterprint", () => { document.body.classList.remove("printing"); map.invalidateSize(); });
 
   // ================================================================ welcome
   function showWelcome() { $("#welcome").hidden = false; $("#welcome-tour").focus(); }
@@ -1148,14 +1338,13 @@
     if (!swReady) { el.innerHTML = `<p class="note">This browser can't save the map for offline use.</p>`; return; }
     const saved = store.get("offlineSaved", null);
     el.innerHTML = `
-      <p class="note">Save the map to this device so it still works at the farm with no cell signal.
-        ${saved ? `<br><b>Saved ${esc(fmtDate(saved.at, false))}</b> (${esc(saved.kind)}).` : ""}</p>
-      <div class="btn-row" style="flex-wrap:wrap">
-        <button class="big" data-kind="light">💾 Save map + small photos (about 25 MB)</button>
-        <button class="big ghost" data-kind="full">Save everything incl. full photos (about 150 MB)</button>
-      </div>
+      <p class="note">Nothing is downloaded to your files. This keeps a copy of the map and every photo <b>inside this browser</b>
+        on this phone or computer, so this same link keeps working at the farm with no cell signal.
+        Do it once at home on Wi-Fi (about 150 MB). Tip: use “Add to Home Screen” so it opens like an app.
+        ${saved ? `<br><b>✅ Saved on ${esc(fmtDate(saved.at, false))}.</b> Tap again to refresh it.` : ""}</p>
+      <button class="big" data-kind="full">💾 Save everything to this device</button>
       <div class="bar" hidden><span></span></div><p class="note" data-status></p>`;
-    $$("button[data-kind]", el).forEach((b) => b.onclick = () => saveOffline(b.dataset.kind, el));
+    $("button[data-kind]", el).onclick = () => saveOffline("full", el);
   }
   async function saveOffline(kind, el) {
     const reg = await swReady;
@@ -1172,7 +1361,7 @@
       $("span", bar).style.width = (done / total) * 100 + "%";
       status.textContent = finished ? `Done! ${total - failed} of ${total} items saved.` : `Saving… ${done} of ${total}`;
       if (finished) {
-        store.set("offlineSaved", { at: new Date().toISOString(), kind: kind === "full" ? "everything" : "map + small photos" });
+        store.set("offlineSaved", { at: new Date().toISOString() });
         $$("button", el).forEach((b) => b.disabled = false);
         toast("The map is saved on this device.");
       }
@@ -1194,12 +1383,13 @@
     const toggle = (fn) => { if (b.classList.contains("active")) closeSheet(); else fn(); };
     if (act === "farm") { closeSheet(); fitFarm(); }
     if (act === "places") toggle(placesSheet);
-    if (act === "more") toggle(moreSheet);
+    if (act === "photos") setPhotos(!photosOn);
     if (act === "tour") toggle(() => startTour(Math.max(0, tourIdx)));
     if (act === "trails") setTrails(!trailsOn);
     if (act === "locate") { if (watchId == null) startFollow(); else { stopFollow(); toast("Stopped showing your location", 1500); } }
   });
   $("#back-to-farm").onclick = () => fitFarm();
+  $("#options-btn").onclick = () => { if ($("#options-btn").classList.contains("active")) closeSheet(); else moreSheet(); };
   function refreshBackToFarm() {
     if (!farmBounds) return;
     $("#back-to-farm").hidden = !(!map.getBounds().intersects(farmBounds) || map.getZoom() < 12.5);
@@ -1228,6 +1418,7 @@
   function start({ meta, data }) {
     $("#site-title").textContent = meta.title || "Knopp Map";
     document.title = meta.title || "Knopp Map";
+    addKeyedStyles(meta.keys);
     categories = data.tracks.categories || {};
     tour = data.tour || { stops: [] };
     data.tracks.features.filter((f) => f.geometry.type !== "Point").forEach(addTrack);

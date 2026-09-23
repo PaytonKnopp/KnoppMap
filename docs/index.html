@@ -19,17 +19,25 @@
 <body>
   <div id="map" aria-label="Map of the farm"></div>
 
+  <div id="print-head"></div>
   <header id="topbar">
-    <h1 id="site-title">Knopp Map</h1>
+    <div class="top-left">
+      <h1 id="site-title">Knopp Map</h1>
+      <button id="options-btn" aria-label="Options, looks and filters"><span>⚙️</span> Options</button>
+    </div>
     <div class="top-actions">
       <button id="search-btn" class="round" aria-label="Search">🔍</button>
       <button id="text-smaller" class="round" aria-label="Make text smaller">A−</button>
       <button id="text-bigger" class="round" aria-label="Make text bigger">A+</button>
-      <button id="help-btn" class="round" aria-label="Help">?</button>
+      <button id="help-btn" class="tips-btn" aria-label="Welcome tips"><span>💡</span><span class="lbl">Tips</span></button>
     </div>
   </header>
 
   <button id="loc-chip" hidden></button>
+  <div id="info-stack">
+    <div id="wx-chip" class="info-chip" hidden></div>
+    <div id="radar-chip" class="info-chip" hidden><span class="rc-text"></span><button id="radar-play" aria-label="Play the last two hours">▶</button></div>
+  </div>
   <button id="back-to-farm" hidden>🏠 Back to the farm</button>
   <div id="toast" role="status" aria-live="polite" hidden></div>
   <div id="offline-badge" hidden>📴 No internet – showing saved map</div>
@@ -39,8 +47,8 @@
     <button data-act="places"><span class="ic">📍</span><span>Places</span></button>
     <button data-act="tour"><span class="ic">▶️</span><span>Tour</span></button>
     <button data-act="trails" aria-pressed="true"><span class="ic">🥾</span><span>Trails</span></button>
+    <button data-act="photos" aria-pressed="false"><span class="ic">📷</span><span>Photos</span></button>
     <button data-act="locate" aria-pressed="false"><span class="ic">🧭</span><span>Me</span></button>
-    <button data-act="more"><span class="ic">☰</span><span>More</span></button>
   </nav>
 
   <aside id="sheet" hidden>
@@ -62,6 +70,7 @@
         <li><span>📍</span> Tap a round picture on the map to see that place and its photos.</li>
         <li><span>▶️</span> Tap <b>Tour</b> for a slideshow walk around the farm.</li>
         <li><span>🏠</span> Lost? Tap <b>Farm</b> at the bottom to come back.</li>
+        <li><span>⚙️</span> <b>Options</b> (top left) changes the look, map style and filters. <b>Reset</b> puts it all back.</li>
       </ul>
       <div class="btn-row">
         <button id="welcome-tour" class="big">▶️ Start the tour</button>
@@ -94,7 +103,6 @@
       <div class="lb-tools">
         <button class="lb-btn" data-lb="zoom">🔍 Zoom</button>
         <button class="lb-btn" data-lb="map">📍 Show on map</button>
-        <button class="lb-btn" data-lb="share">📤 Share</button>
       </div>
       <div class="lb-strip"></div>
     </div>

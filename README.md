@@ -52,17 +52,30 @@ Edits save in that browser. Click **Download places.json**, upload it to `config
 `config/places.json` was seeded once automatically (photos grouped by walking order within 20 m) and is never
 overwritten by the build. New photos not listed in any place are grouped into temporary unnamed spots.
 
-## Looks, map styles and filters
+## Looks, map styles, layers and filters
 
-**More → Look** has six themes (Farmhouse, Middle-earth, Night sky, Prairie sky, Blueprint, High contrast); each also
-picks a matching map style. **Map style** offers 11 base maps: satellite, satellite + roads, two topo maps, street,
-clean light, night, black & white, old parchment, vintage photo and blueprint. The satellite map detects how far the
-real imagery goes at the farm and enlarges that level beyond it, so you never see "Map data not yet available".
+Everything resets to normal each time the map is opened (only text size is remembered).
+**Options** (top left, under the title) holds, in order: Reset, Look (12 themes), Map style, Extra layers
+(hills shading, live RainViewer rain radar, current Open-Meteo weather), what shows on the map, text size, Print,
+offline saving, and a collapsed **Advanced** box (trail colouring, thickness, brightness, length filter, kinds of
+places, labels, legend, per-trail switches).
 
-**Advanced options & filters** (collapsed by default): trail colouring (one colour / per trail / steepness / length),
-line thickness, map brightness, trail length and recording-day filters, kinds of places, label toggles, photo pins,
-legend, per-trail switches, and "Reset everything to normal". Themes live in `THEMES` in `docs/js/app.js` and
-`docs/css/app.css` — adding one is a new entry plus a CSS block.
+Each look tints the real satellite photo through the "Match the look" map style and can add a texture
+(parchment, film grain, frost, neon...). Themes are `THEMES` in `docs/js/app.js` plus a CSS block in `docs/css/app.css`.
+
+All built-in map styles, the radar and the weather need no account. Extra styles appear automatically when keys are
+added to `config/site.json` and the site is rebuilt:
+
+```json
+"keys": { "maptiler": "YOUR_KEY", "thunderforest": "YOUR_KEY", "stadia": true }
+```
+
+- **MapTiler** (free, 100k tiles/month): Outdoor, Winter, Topo, Dark minimal, HD satellite.
+- **Thunderforest** (free hobby key, 150k/month): Outdoors, Landscape, Pioneer (1800s style).
+- **Stadia Maps** (free non-commercial, no key — register the site's domain in the Stadia dashboard, then set `true`):
+  Watercolour, Toner, Terrain, Smooth light/dark.
+
+Keys are visible in the page source; restrict each key to `paytonknopp.github.io` in the provider's dashboard.
 
 ## Tour
 
@@ -76,7 +89,7 @@ To choose the order and wording yourself:
 
 ## Family password
 
-Set `"password": "something"` in `config/site.json` and rebuild. The map data is then encrypted (AES-GCM) and
+Set `"password": "knopp"` in `config/site.json` and rebuild (not case-sensitive, so KNOPP works too). The map data is then encrypted (AES-GCM) and
 photo files get unguessable names, so the site shows a password screen and nothing can be read without it.
 Family can tick "Remember me" so they only type it once. Set it back to `null` to remove the lock.
 Note: while this repository is public, the original photos in `photos/` and the GPX file are still downloadable
@@ -84,14 +97,13 @@ from GitHub itself — make the repo private (and deploy with Pages from a priva
 
 ## Offline use
 
-The site is an installable web app. In **More → Use without internet**, family can save the satellite map for the
-farm plus small (or full) photos onto their phone, so it works at the farm with no signal. "Add to Home Screen"
-gives it an app icon.
+The site is an installable web app. **Options → Save everything to this device** stores the farm's satellite
+tiles and every photo in the browser's own storage (nothing goes to the Files/Downloads folder), so the same link
+keeps working at the farm with no signal. "Add to Home Screen" gives it an app icon.
 
 ## Links
 
-Every place, trail and tour stop has its own link (e.g. `#place=spot-05`, `#trail=cabin-trail`, `#tour=3`) —
-the Share buttons copy these.
+Every place, trail and tour stop has its own link (e.g. `#place=spot-05`, `#trail=cabin-trail`, `#tour=3`).
 
 ## Captions
 
