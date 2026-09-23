@@ -161,7 +161,7 @@ body { font-family: var(--body-font); color: var(--ink); }
 }
 .trail-label {
   background: rgba(31, 35, 29, 0.82); color: #fff; border: 0; border-radius: 6px; padding: 0.1rem 0.45rem;
-  font-size: 0.78rem; font-weight: 700; box-shadow: none; white-space: nowrap;
+  font-size: calc(0.78rem * var(--tl, 1)); font-weight: 700; box-shadow: none; white-space: nowrap;
 }
 .trail-label::before { display: none; }
 .declutter-hide, .declutter-hide * { visibility: hidden !important; }
@@ -236,6 +236,8 @@ body { font-family: var(--body-font); color: var(--ink); }
 /* ---------- search */
 #search-input { width: 100%; font: inherit; font-size: 1.15rem; padding: 0.7rem 0.9rem; border-radius: 12px; border: 2px solid var(--line); background: var(--field); color: var(--ink); }
 #search-input:focus { outline: none; border-color: var(--green); }
+.search-eg .eg { border: 0; background: none; padding: 0; color: var(--green); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+#search-results mark { background: color-mix(in srgb, var(--gold) 45%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 
 /* ---------- location, toast, offline */
 #loc-chip {
@@ -342,7 +344,7 @@ body { font-family: var(--body-font); color: var(--ink); }
 :root[data-theme="contrast"] #topbar h1 { color: #ffd400; }
 :root[data-theme="contrast"] .place-pin .bubble { background: #000; border: 4px solid #ffd400; width: 3rem; height: 3rem; }
 :root[data-theme="contrast"] .place-pin .name { background: #000; color: #fff; border: 2px solid #fff; font-size: 0.95rem; }
-:root[data-theme="contrast"] .trail-label { background: #000; border: 2px solid #ffd400; font-size: 0.9rem; }
+:root[data-theme="contrast"] .trail-label { background: #000; border: 2px solid #ffd400; font-size: calc(0.9rem * var(--tl, 1)); }
 :root[data-theme="contrast"] .elev polygon { fill: #333; }
 :root[data-theme="contrast"] .elev polyline { stroke: #ffd400; stroke-width: 4; }
 :root[data-theme="contrast"] .elev text { fill: #fff; }
@@ -560,19 +562,13 @@ body.print-poster #print-poster { display: block; position: fixed; top: 0; left:
 @media (max-width: 600px) { .pd-opts { grid-template-columns: 1fr; } }
 
 /* =================================================================== compass */
-.map-compass { width: 58px; height: 58px; margin: 0 10px 6px 0 !important; filter: drop-shadow(0 2px 4px rgba(0,0,0,.45)); pointer-events: auto; }
+.map-compass { width: 66px; height: 66px; margin: 0 10px 6px 0 !important; filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); pointer-events: auto; cursor: pointer; }
 .map-compass svg, .pp-compass svg { width: 100%; height: 100%; display: block; }
-.c-ring { fill: var(--paper); stroke: var(--green); stroke-width: 3; }
-.c-face { fill: none; stroke: var(--line); stroke-width: 1; }
-.c-ticks line { stroke: var(--muted); stroke-width: 1.4; }
-.c-n { fill: #c62828; }
-.c-s { fill: var(--ink); opacity: .8; }
-.c-ew { fill: var(--muted); opacity: .7; }
-.c-hub { fill: var(--gold); stroke: var(--ink); stroke-width: 1; }
-.c-lbl { font: 700 11px var(--head-font); fill: var(--ink); text-anchor: middle; }
-.c-lbl-n { fill: #c62828; font-size: 12px; }
-#print-poster .c-ring { fill: #fff; stroke: #222; } #print-poster .c-lbl { fill: #111; } #print-poster .c-s { fill: #222; }
-@media (max-width: 700px) { .map-compass { width: 46px; height: 46px; } }
+.c-rose { transform-box: view-box; transform-origin: 60px 60px; }
+.map-compass:hover .c-rose, .map-compass.spin .c-rose { animation: c-wobble 1.1s ease-out; }
+@keyframes c-wobble { 0% { transform: rotate(0); } 20% { transform: rotate(-14deg); } 45% { transform: rotate(9deg); } 70% { transform: rotate(-4deg); } 100% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .map-compass:hover .c-rose, .map-compass.spin .c-rose { animation: none; } }
+@media (max-width: 700px) { .map-compass { width: 52px; height: 52px; } }
 
 @media (max-width: 700px) {
   .tips-btn .lbl { display: none; }
@@ -819,9 +815,10 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 #measure-panel { position: fixed; z-index: 1050; left: 50%; transform: translateX(-50%); top: calc(4.4rem + env(safe-area-inset-top));
   width: min(26rem, calc(100vw - 1.5rem)); background: var(--paper); color: var(--ink); border-radius: 16px; box-shadow: var(--shadow);
   padding: 0.7rem 0.9rem; border: 2px solid var(--gold); }
-.ms-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
-.ms-title { font-weight: 800; }
-#ms-total { font-family: var(--head-font); font-size: 1.6rem; font-weight: 800; color: var(--green); }
+.ms-head { display: flex; align-items: center; gap: 0.6rem; }
+.ms-title { font-weight: 800; flex: 1; }
+#ms-total { font-family: var(--head-font); font-size: 1.6rem; font-weight: 800; color: var(--green); line-height: 1.1; }
+.ms-x { width: 2.2rem; height: 2.2rem; font-size: 0.95rem; margin: -0.2rem -0.3rem -0.2rem 0; }
 #ms-sub { margin: 0.1rem 0 0.6rem; color: var(--muted); font-size: 0.9rem; }
 .ms-btns { display: flex; gap: 0.4rem; }
 .ms-btns button { flex: 1; min-height: 2.6rem; border-radius: 10px; border: 1.5px solid var(--line); background: var(--field); color: var(--ink); font-weight: 700; }
@@ -910,3 +907,33 @@ body.sheet-open #nav-panel { display: none; }
   #options-btn { min-height: 2.45rem; padding: 0.25rem 0.8rem; font-size: 0.92rem; }
 }
 #sheet .btn-row .big { white-space: nowrap; font-size: 1rem; padding: 0.55rem 0.6rem; }
+
+/* =================================================================== icons sit dead-centre in their circles and tiles */
+/* A tall line box (and the text font's ascent) pushes emoji below the middle, most of all on Windows. */
+.round, .place-pin .bubble, .os-ic, .t-ic, .t-bubble, .lg-group, .pin-count, .dir-chev, .rp-x, .legend .sym, #dock .ic, .tips-btn > span,
+#options-btn > span, .nv-flag span, .nv-arrow, .list-row .emoji, .howto span, .welcome-art, .ph-cluster b, .ms-x, .chip { line-height: 1; }
+.place-pin .bubble, .os-ic, .t-ic, #dock .ic, .list-row .emoji, .nv-flag span, .welcome-art, .howto span, .tips-btn > span:first-child,
+#options-btn > span:first-child, #search-btn, .legend .sym {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", var(--body-font); }
+.pin-count, .t-bubble, .lg-group { font-family: var(--body-font); }
+.place-pin .bubble .cam-svg { width: 64%; height: 64%; }
+
+/* =================================================================== advanced options extras */
+.swatches { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.sw-dot { width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 3px solid var(--field); box-shadow: 0 0 0 1.5px var(--line); padding: 0; position: relative; }
+.sw-dot.on { box-shadow: 0 0 0 3px var(--green); }
+.sw-dot.on::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; font-weight: 900; color: #1f231d; line-height: 1;
+  text-shadow: 0 0 2px #fff, 0 0 4px #fff; }
+.sw-dot.theme::before { content: "Look"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.56rem; font-weight: 800; color: #1f231d;
+  line-height: 1; text-shadow: 0 0 3px #fff; }
+.sw-dot.theme.on::before { content: ""; }
+.filter-count { background: var(--paper-2); border-radius: 10px; padding: 0.45rem 0.65rem; margin: 0 0 0.3rem; }
+.mini-btns { margin-top: 0.5rem; }
+.mini-btns .chip { flex: 0 0 auto; min-height: 2.3rem; font-size: 0.85rem; }
+.tl-len { opacity: 0.8; font-weight: 600; }
+.ring-lbl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; background: rgba(20, 22, 18, 0.78); color: #fff;
+  font-size: 0.72rem; font-weight: 800; padding: 0.05rem 0.4rem; border-radius: 999px; border: 1px solid rgba(255,255,255,.7); pointer-events: none; }
+/* Moving trails: dashes flow along every trail line. */
+.flow-trails path.km-trail { stroke-dasharray: 11 9; animation: km-flow 1.1s linear infinite; }
+@keyframes km-flow { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .flow-trails path.km-trail { animation-duration: 4s; } }

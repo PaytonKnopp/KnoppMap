@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const { icon, esc, fmtLen, fmtDate, store, loadBundle, photoUrl } = KM;
+  const { icon, esc, fmtDate, store, loadBundle, photoUrl } = KM;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const isPhone = () => window.matchMedia("(max-width: 700px)").matches;
@@ -45,17 +45,52 @@
   // ================================================================ map
   const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 22, minZoom: 5 });
   L.control.zoom({ position: "topright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" }).addTo(map);
-  L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
-  const COMPASS_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true">
-    <circle cx="50" cy="50" r="46" class="c-ring"/><circle cx="50" cy="50" r="38" class="c-face"/>
-    <g class="c-ticks">${Array.from({ length: 16 }, (_, i) => `<line x1="50" y1="${i % 4 ? 15 : 12}" x2="50" y2="19" transform="rotate(${i * 22.5} 50 50)"/>`).join("")}</g>
-    <path d="M50 18 58 50 50 46 42 50Z" class="c-n"/><path d="M50 82 58 50 50 54 42 50Z" class="c-s"/>
-    <path d="M18 50 50 44 46 50 50 56Z" class="c-ew"/><path d="M82 50 50 44 54 50 50 56Z" class="c-ew"/>
-    <circle cx="50" cy="50" r="4" class="c-hub"/>
-    <text x="50" y="11" class="c-lbl c-lbl-n">N</text><text x="50" y="97" class="c-lbl">S</text><text x="94" y="54" class="c-lbl">E</text><text x="6" y="54" class="c-lbl">W</text></svg>`;
+  let scaleCtl = L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
+  // An antique compass rose: brass ring, aged parchment face, 16-point rose with shaded halves and a fleur-de-lis for north.
+  // Each copy gets its own gradient ids (the map and the printed poster both show one).
+  let compassCount = 0;
+  function compassSvg() {
+    const u = "cmp" + ++compassCount, ink = "#2e2014", light = "#f6ebcb";
+    const at = (deg, r) => { const a = (deg * Math.PI) / 180; return `${(60 + r * Math.sin(a)).toFixed(2)},${(60 - r * Math.cos(a)).toFixed(2)}`; };
+    const spike = (deg, len, side, spread, dark, pale) =>
+      `<path d="M60,60L${at(deg, len)}L${at(deg - spread, side)}Z" fill="${dark}"/><path d="M60,60L${at(deg, len)}L${at(deg + spread, side)}Z" fill="${pale}"/>`;
+    let rose = "";
+    for (let k = 0; k < 8; k++) rose += spike(22.5 + k * 45, 25, 5, 22.5, ink, light);
+    for (let k = 0; k < 4; k++) rose += spike(45 + k * 90, 31, 7.5, 45, ink, light);
+    for (let k = 0; k < 4; k++) rose += k ? spike(k * 90, 38, 8.5, 45, ink, light) : spike(0, 38, 8.5, 45, "#7a1414", "#c0392b");
+    let ticks = "";
+    for (let d = 0; d < 360; d += 5) ticks += `<line x1="${at(d, 53).split(",")[0]}" y1="${at(d, 53).split(",")[1]}" x2="${at(d, d % 30 ? (d % 10 ? 51.4 : 50.2) : 48.6).split(",")[0]}" y2="${at(d, d % 30 ? (d % 10 ? 51.4 : 50.2) : 48.6).split(",")[1]}"/>`;
+    const letter = (deg, s) => { const [x, y] = at(deg, 44.3).split(","); return `<text x="${x}" y="${y}">${s}</text>`; };
+    return `<svg viewBox="0 0 120 120" aria-hidden="true">
+      <defs>
+        <radialGradient id="${u}p" cx="45%" cy="40%" r="65%"><stop offset="0" stop-color="#fcf3da"/><stop offset=".65" stop-color="#eed9a6"/><stop offset="1" stop-color="#d4b377"/></radialGradient>
+        <linearGradient id="${u}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6e4a14"/><stop offset=".28" stop-color="#e9c872"/>
+          <stop offset=".52" stop-color="#a0722a"/><stop offset=".76" stop-color="#f4dc94"/><stop offset="1" stop-color="#5e3f10"/></linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="58" fill="url(#${u}b)" stroke="${ink}" stroke-width="1.4"/>
+      <circle cx="60" cy="60" r="55.4" fill="none" stroke="#fff3cf" stroke-opacity=".55" stroke-width=".8"/>
+      <circle cx="60" cy="60" r="53.2" fill="url(#${u}p)" stroke="${ink}" stroke-width="1.2"/>
+      <g stroke="${ink}" stroke-width=".7" stroke-linecap="round">${ticks}</g>
+      <circle cx="60" cy="60" r="39.6" fill="none" stroke="${ink}" stroke-width=".9"/><circle cx="60" cy="60" r="38.2" fill="none" stroke="${ink}" stroke-width=".4"/>
+      <g font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="11.5" fill="${ink}" text-anchor="middle" dominant-baseline="central">
+        ${letter(90, "E")}${letter(180, "S")}${letter(270, "W")}</g>
+      <path transform="translate(60 15.2)" fill="#7a1414" d="M0-7.2C3.2-4 3.1 0 0 3 -3.1 0 -3.2-4 0-7.2ZM1.2 2.2C3.8-3.4 8.6-2.4 7.4 2 6.4-.3 4.2-.2 3.2 3ZM-1.2 2.2C-3.8-3.4-8.6-2.4-7.4 2-6.4-.3-4.2-.2-3.2 3ZM-4.4 2.7h8.8v1.7h-8.8ZM-2.2 4.4h4.4L0 7.4Z"/>
+      <g class="c-rose"><g stroke="${ink}" stroke-width=".5" stroke-linejoin="round">${rose}</g>
+        <circle cx="60" cy="60" r="5" fill="url(#${u}b)" stroke="${ink}" stroke-width=".8"/><circle cx="60" cy="60" r="1.5" fill="${ink}"/></g>
+    </svg>`;
+  }
   const Compass = L.Control.extend({ options: { position: "bottomright" },
-    onAdd() { const d = L.DomUtil.create("div", "map-compass"); d.title = "North is up"; d.innerHTML = COMPASS_SVG; L.DomEvent.disableClickPropagation(d); return d; } });
-  new Compass().addTo(map);
+    onAdd() {
+      const d = L.DomUtil.create("div", "map-compass");
+      d.title = "North is always at the top";
+      d.setAttribute("role", "img");
+      d.setAttribute("aria-label", "Compass: north is at the top of the map");
+      d.innerHTML = compassSvg();
+      L.DomEvent.disableClickPropagation(d);
+      d.addEventListener("click", () => { d.classList.remove("spin"); void d.offsetWidth; d.classList.add("spin"); toast("🧭 North is always at the top of this map", 2000); });
+      return d;
+    } });
+  const compassCtl = new Compass().addTo(map);
   window.kmMap = map;
   map.createPane("hill").style.zIndex = 240;
   map.createPane("radar").style.zIndex = 380;
@@ -321,11 +356,19 @@
   let trailsOn = true;
   let photosOn = true;
   let labelsOn = true;
-  const ADV_DEFAULTS = { colourMode: "simple", thickness: 1, lineOpacity: 100, placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all",
-    trailDay: "all", cluster: true, boundaryFill: true };
+  const ADV_DEFAULTS = { colourMode: "simple", trailColour: null, lineStyle: "theme", outline: true, flow: false, thickness: 1, lineOpacity: 100,
+    placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all", steepFilter: "all", trailDay: "all", cluster: true, boundaryFill: true,
+    dirArrows: true, labelSize: 1, labelLengths: false, rings: false, compass: true, units: "metric" };
   const adv = { ...ADV_DEFAULTS, hiddenTypes: [] };
-  const saveAdv = () => {};
   const LENGTHS = { all: [0, 1e9], short: [0, 250], medium: [250, 600], long: [600, 1e9] };
+  const STEEPS = { all: [0, 1e9], flat: [0, 1.5], gentle: [1.5, 3], hilly: [3, 1e9] };   // % climb over the trail's length
+  // Distances follow the "Distances in" setting: metres and kilometres, or feet and miles.
+  const fmtLen = (m) => {
+    if (adv.units !== "imperial") return KM.fmtLen(m);
+    const ft = m * 3.28084;
+    return ft < 1000.5 ? Math.round(ft).toLocaleString() + " ft" : (m / 1609.34).toFixed(m < 16093 ? 2 : 1) + " mi";
+  };
+  const fmtH = (m) => (adv.units === "imperial" ? Math.round(m * 3.28084) + " ft" : Math.round(m) + " m");
   const hiddenTracks = new Set();
   const tracks = new Map();   // id -> {f, line, casing, group, label}
   const places = new Map();   // id -> {f, marker, photos}
@@ -349,7 +392,7 @@
     if (adv.colourMode === "each") return f.properties.color;
     if (adv.colourMode === "steep" && !road) return ramp(RAMP_STEEP, steepness(f.properties));
     if (adv.colourMode === "length" && !road) return ramp(RAMP_LEN, f.properties.length_m);
-    return road ? L_.road : L_.trail;
+    return road ? L_.road : adv.trailColour || L_.trail;
   }
   function styles(f, hi = false) {
     const z = map.getZoom();
@@ -365,9 +408,11 @@
     const road = c === "roads";
     const w = ((road ? 5 : 3.5) + boost) * k + (hi ? 2.5 : 0);
     const color = hi ? L_.sel : trailColour(f);
+    const dash = { theme: L_.dash, solid: null, dashed: `${(w * 2.6).toFixed(1)} ${(w * 1.9).toFixed(1)}`, dotted: `0.1 ${(w * 2.1).toFixed(1)}` }[adv.lineStyle];
     return {
-      line: { color, weight: w, opacity: hi ? 1 : adv.lineOpacity / 100, lineCap: "round", lineJoin: "round", dashArray: !road && !hi && L_.dash ? L_.dash : null },
-      casing: { color: road ? L_.roadCase : L_.trailCase, weight: w + 3.5 * k, opacity: hi ? 0.95 : L_.caseOp * adv.lineOpacity / 100, lineCap: "round", lineJoin: "round" },
+      line: { color, weight: w, opacity: hi ? 1 : adv.lineOpacity / 100, lineCap: "round", lineJoin: "round", dashArray: !road && !hi && dash ? dash : null },
+      casing: { color: road ? L_.roadCase : L_.trailCase, weight: w + 3.5 * k, lineCap: "round", lineJoin: "round",
+        opacity: hi ? 0.95 : adv.outline ? L_.caseOp * adv.lineOpacity / 100 : 0 },
     };
   }
   function restyle(t) {
@@ -387,7 +432,7 @@
 
   function addTrack(f) {
     const boundary = cat(f) === "boundary";
-    const line = L.geoJSON(f, { pane: boundary ? "boundary" : "trails", interactive: false });
+    const line = L.geoJSON(f, { pane: boundary ? "boundary" : "trails", interactive: false, className: boundary ? "km-bound" : cat(f) === "roads" ? "km-road" : "km-trail" });
     const casing = L.geoJSON(f, { pane: "casing", interactive: false });
     const hit = L.geoJSON(f, { pane: "trails", style: { weight: 24, opacity: 0, fill: false } });
     const group = L.featureGroup([casing, line, hit]);
@@ -399,12 +444,14 @@
     }
     const label = L.tooltip({ permanent: true, direction: "center", className: "trail-label", interactive: false })
       .setLatLng(f.geometry.type === "Polygon" ? line.getBounds().getCenter() : midpoint(f.geometry))
-      .setContent(esc(f.properties.name));
+      .setContent(labelText(f));
     const t = { f, line, casing, group, label, dirs: f.properties.directions ? directionLayer(f) : null };
     tracks.set(f.id, t);
     restyle(t);
     if (f.id === "quarter-section-perimeter") farmBounds = line.getBounds();
   }
+
+  const labelText = (f) => esc(f.properties.name) + (adv.labelLengths && isTrail(f) ? ` <span class="tl-len">· ${fmtLen(f.properties.length_m)}</span>` : "");
 
   // Point and heading at a fraction of the way along a line (lon/lat coords).
   function alongLine(coords, frac) {
@@ -453,6 +500,9 @@
   function passesTrailFilters(f) {
     const [lo, hi] = LENGTHS[adv.lengthFilter] || LENGTHS.all;
     if (f.properties.length_m < lo || f.properties.length_m >= hi) return false;
+    const [slo, shi] = STEEPS[adv.steepFilter] || STEEPS.all;
+    const s = steepness(f.properties);
+    if (cat(f) === "trails" && (s < slo || s >= shi)) return false;
     if (adv.trailDay !== "all" && (f.properties.recorded || "").slice(0, 10) !== adv.trailDay) return false;
     return true;
   }
@@ -473,7 +523,7 @@
       if (!show && map.hasLayer(t.group)) map.removeLayer(t.group);
       if (show) restyle(t);
       if (t.dirs) {
-        const d = show && map.getZoom() >= 16.5;
+        const d = adv.dirArrows && show && map.getZoom() >= 16.5;
         if (d && !map.hasLayer(t.dirs)) t.dirs.addTo(map);
         if (!d && map.hasLayer(t.dirs)) map.removeLayer(t.dirs);
       }
@@ -491,8 +541,11 @@
     <rect x="12" y="32" width="40" height="24" fill="#a0673a"/><g stroke="#6b4222" stroke-width="2.4"><path d="M12 38h40M12 44h40M12 50h40"/></g>
     <rect x="28" y="40" width="9" height="16" fill="#4a2c14"/><rect x="16" y="37" width="8" height="7" fill="#ffd978" stroke="#4a2c14" stroke-width="1.5"/>
     <rect x="41" y="37" width="8" height="7" fill="#ffd978" stroke="#4a2c14" stroke-width="1.5"/></svg>`;
+  // Small unnamed spots share a drawn camera (an emoji camera sits off-centre in the small circle on some phones).
+  const CAMERA_SVG = `<svg class="pin-svg cam-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.2 6.5 9.6 4.5h4.8l1.4 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"
+    fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.6" fill="none" stroke="#fff" stroke-width="2"/></svg>`;
   // Named places get their own picture; small unnamed spots all share the camera.
-  const pinEmoji = (p) => (p.icon === "cabin" ? CABIN_SVG : p.featured || SPECIAL_PINS.has(p.icon) ? icon(p.icon) : "📷");
+  const pinEmoji = (p) => (p.icon === "cabin" ? CABIN_SVG : p.featured || SPECIAL_PINS.has(p.icon) ? icon(p.icon) : CAMERA_SVG);
   const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   function placeIcon(f, sel = false) {
     const p = f.properties;
@@ -635,8 +688,8 @@
       <polygon points="${x(0)},${H - pad.b} ${pts} ${x(maxD)},${H - pad.b}" fill="#cfe3c9"/>
       <polyline points="${pts}" fill="none" stroke="#2f5d3a" stroke-width="2.5" stroke-linejoin="round"/>
       <g font-size="10" fill="#5d6258">
-        <text x="${pad.l - 4}" y="${y(hi) + 4}" text-anchor="end">${Math.round(hi)} m</text>
-        <text x="${pad.l - 4}" y="${y(lo) + 4}" text-anchor="end">${Math.round(lo)} m</text>
+        <text x="${pad.l - 4}" y="${y(hi) + 4}" text-anchor="end">${fmtH(hi)}</text>
+        <text x="${pad.l - 4}" y="${y(lo) + 4}" text-anchor="end">${fmtH(lo)}</text>
         <text x="${pad.l}" y="${H - 5}">start</text>
         <text x="${W - pad.r}" y="${H - 5}" text-anchor="end">${fmtLen(maxD)}</text>
       </g></svg>`;
@@ -659,9 +712,9 @@
     body.innerHTML = `
       <div class="stats">
         <div class="stat"><b>${fmtLen(p.length_m)}</b><small>${cat(t.f) === "boundary" ? "around" : "long"}</small></div>
-        ${p.gain_m != null && isTrail(t.f) ? `<div class="stat"><b>↗ ${p.gain_m} m</b><small>total uphill</small></div>
-          <div class="stat"><b>↘ ${p.loss_m} m</b><small>total downhill</small></div>` : ""}
-        ${p.profile && isTrail(t.f) ? `<div class="stat"><b>${Math.round(Math.min(...p.profile.map((x) => x[1])))}–${Math.round(Math.max(...p.profile.map((x) => x[1])))} m</b><small>height above sea</small></div>` : ""}
+        ${p.gain_m != null && isTrail(t.f) ? `<div class="stat"><b>↗ ${fmtH(p.gain_m)}</b><small>total uphill</small></div>
+          <div class="stat"><b>↘ ${fmtH(p.loss_m)}</b><small>total downhill</small></div>` : ""}
+        ${p.profile && isTrail(t.f) ? `<div class="stat"><b>${Math.round((adv.units === "imperial" ? 3.28084 : 1) * Math.min(...p.profile.map((x) => x[1])))}–${fmtH(Math.max(...p.profile.map((x) => x[1])))}</b><small>height above sea</small></div>` : ""}
       </div>
       ${p.directions ? `<p class="dir-note">➜ <b>${esc(p.directions.find((d) => d.reverse)?.label || "")}</b> heading from the trail sign toward the cabin; <b>${esc(p.directions.find((d) => !d.reverse)?.label || "")}</b> coming back the other way.</p>` : ""}
       ${p.profile && isTrail(t.f) ? `<h3>Ups and downs</h3>${elevationSvg(p.profile)}` : ""}
@@ -883,57 +936,122 @@
       body.append(d);
     }
     const trailsH = document.createElement("h3");
-    trailsH.textContent = "Trails and roads";
+    trailsH.textContent = "Trails & driveway";
     body.append(trailsH);
     [...tracks.values()].filter((t) => isTrail(t.f)).sort((a, b) => a.f.properties.name.localeCompare(b.f.properties.name))
       .forEach((t) => body.append(trailRow(t)));
     openSheet("📍 Places & trails", body);
     setDockActive("places");
   }
-  function placeRow(pl) {
+  function placeRow(pl, hl = esc) {
     const p = pl.f.properties;
     const hero = heroOf(pl);
     const b = document.createElement("button");
     b.className = "list-row";
     b.innerHTML = `${hero ? `<img src="${esc(photoUrl(hero, "thumb"))}" alt="" loading="lazy">` : `<span class="emoji">${icon(p.icon)}</span>`}
-      <span class="txt"><b>${icon(p.icon)} ${esc(placeTitle(pl))}</b><small>${pl.photos.length} photo${pl.photos.length === 1 ? "" : "s"}</small></span><span class="chev">›</span>`;
+      <span class="txt"><b>${icon(p.icon)} ${hl(placeTitle(pl))}</b><small>${pl.photos.length} photo${pl.photos.length === 1 ? "" : "s"}</small></span><span class="chev">›</span>`;
     b.onclick = () => openPlace(pl.f.id, { back: true });
     return b;
   }
-  function trailRow(t) {
+  function trailRow(t, hl = esc) {
     const p = t.f.properties;
     const b = document.createElement("button");
     b.className = "list-row";
-    b.innerHTML = `<span class="emoji">🥾</span><span class="txt"><b>${esc(p.name)}</b><small>${fmtLen(p.length_m)}${p.gain_m != null ? ` · ↗ ${p.gain_m} m uphill` : ""}</small></span><span class="chev">›</span>`;
+    const ic = cat(t.f) === "boundary" ? "🧭" : cat(t.f) === "roads" ? "🚜" : "🥾";
+    b.innerHTML = `<span class="emoji">${ic}</span><span class="txt"><b>${hl(p.name)}</b><small>${fmtLen(p.length_m)}${p.gain_m != null ? ` · ↗ ${fmtH(p.gain_m)} uphill` : ""}</small></span><span class="chev">›</span>`;
     b.onclick = () => openTrail(t.f.id, { back: true });
     return b;
   }
 
   // ================================================================ search
+  // Every word typed has to match somewhere (in any order), so "payton trail" finds the Payton and Caine Trail.
+  // Apostrophes and punctuation don't matter, and a slip of a letter or two still matches ("britany" → Brittney Trail).
+  const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "")
+    .replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+  function editDist(a, b) {
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  /** 3 = a word starts with it, 2 = inside a word, 1 = near miss, 0 = no match. */
+  function wordScore(q, words) {
+    let best = 0;
+    for (const w of words) {
+      if (w.startsWith(q)) return 3;
+      if (q.length >= 3 && w.includes(q)) best = Math.max(best, 2);
+      else if (q.length >= 4 && best < 1) {
+        const d = Math.min(editDist(q, w), editDist(q, w.slice(0, q.length)));
+        if (d <= (q.length >= 7 ? 2 : 1)) best = 1;
+      }
+    }
+    return best;
+  }
+  function searchScore(tokens, whole, name, extra) {
+    const n = norm(name).replace(/^the /, ""), nw = n.split(" "), xw = norm(extra).split(" ");
+    const bonus = n === whole ? 20 : n.startsWith(whole) ? 10 : n.includes(whole) ? 5 : 0;
+    // Words typed run together still match ("fieldhighway", "trailhead").
+    const squashed = whole.replace(/ /g, "");
+    if (squashed.length >= 5 && n.replace(/ /g, "").includes(squashed)) return tokens.length * 6 + bonus + 1;
+    let total = 0;
+    for (const tok of tokens) {
+      const s = Math.max(wordScore(tok, nw) * 2, wordScore(tok, xw));
+      if (!s) return 0;
+      total += s;
+    }
+    return total + bonus;
+  }
+  /** Wraps the words of a name that match what was typed in <mark>. */
+  const highlighter = (tokens) => (name) => String(name).split(/(\s+)/).map((w) => {
+    const n = norm(w);
+    return n && tokens.some((t) => n.startsWith(t) || (t.length >= 3 && n.includes(t))) ? `<mark>${esc(w)}</mark>` : esc(w);
+  }).join("");
+  const SEARCH_EXAMPLES = ["Cabin", "Driveway", "Payton Trail"];
   function searchSheet() {
     const body = document.createElement("div");
-    body.innerHTML = `<input id="search-input" type="search" placeholder="Type a place or trail name…" autocomplete="off" aria-label="Search">
-      <div id="search-results"></div>`;
+    body.innerHTML = `<input id="search-input" type="search" placeholder="Type a place or trail name…" autocomplete="off" enterkeyhint="search" aria-label="Search">
+      <div id="search-results" aria-live="polite"></div>`;
     const input = $("#search-input", body);
     const out = $("#search-results", body);
     const run = () => {
-      const q = input.value.trim().toLowerCase();
+      const whole = norm(input.value), tokens = whole ? whole.split(" ") : [];
       out.replaceChildren();
-      if (!q) { out.innerHTML = `<p class="note">For example: cabin, gate, garden, Roger…</p>`; return; }
-      const pl = [...places.values()].filter((x) => x.f.properties.featured && (placeTitle(x) + " " + (x.f.properties.story || "")).toLowerCase().includes(q));
-      const tr = [...tracks.values()].filter((t) => t.f.properties.name.toLowerCase().includes(q));
-      const ph = allPhotos.map((x) => x.p).filter((p) => ((p.title || "") + " " + (p.caption || "")).toLowerCase().includes(q));
-      if (pl.length) { out.insertAdjacentHTML("beforeend", "<h3>Places</h3>"); pl.slice(0, 20).forEach((x) => out.append(placeRow(x))); }
-      if (tr.length) { out.insertAdjacentHTML("beforeend", "<h3>Trails and roads</h3>"); tr.forEach((t) => out.append(trailRow(t))); }
+      if (!tokens.length) {
+        out.innerHTML = `<p class="note search-eg">For example: ${SEARCH_EXAMPLES.map((q) => `<button class="eg" data-q="${esc(q)}">${esc(q)}</button>`).join(", ")}…</p>`;
+        $$(".eg", out).forEach((b) => b.onclick = () => { input.value = b.dataset.q; run(); input.focus(); });
+        return;
+      }
+      const hl = highlighter(tokens);
+      const rank = (list) => list.filter((x) => x.s > 0).sort((a, b) => b.s - a.s || a.name.localeCompare(b.name));
+      const pl = rank(featuredPlaces().map((x) => ({ x, name: placeTitle(x),
+        s: searchScore(tokens, whole, placeTitle(x), `${x.f.properties.story || ""} ${KM.ICONS[x.f.properties.icon]?.[1] || ""}`) })));
+      const tr = rank([...tracks.values()].map((x) => ({ x, name: x.f.properties.name,
+        s: searchScore(tokens, whole, x.f.properties.name, `${(x.f.properties.directions || []).map((d) => d.label).join(" ")} ${categories[cat(x.f)]?.label || ""}`) })));
+      const ph = allPhotos.map((x) => x.p).filter((p) => searchScore(tokens, whole, p.title || "", p.caption || "") > 0);
+      const groups = [
+        [pl[0]?.s || 0, () => { out.insertAdjacentHTML("beforeend", "<h3>Places</h3>"); pl.slice(0, 20).forEach((r) => out.append(placeRow(r.x, hl))); }],
+        [tr[0]?.s || 0, () => { out.insertAdjacentHTML("beforeend", "<h3>Trails</h3>"); tr.forEach((r) => out.append(trailRow(r.x, hl))); }],
+      ].filter(([s]) => s > 0).sort((a, b) => b[0] - a[0]);
+      groups.forEach(([, draw]) => draw());
       if (ph.length) { out.insertAdjacentHTML("beforeend", "<h3>Photos</h3>"); out.append(gallery(ph, "Search results")); }
-      if (!pl.length && !tr.length && !ph.length) out.innerHTML = `<p class="note">Nothing found for “${esc(input.value)}”.</p>`;
+      if (!groups.length && !ph.length) out.innerHTML = `<p class="note">Nothing found for “${esc(input.value.trim())}”. Try a shorter word, or open <b>Places</b> to see everything.</p>`;
     };
     input.oninput = run;
+    input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); $(".list-row", out)?.click(); } };
     run();
     openSheet("🔍 Search", body);
     setDockActive(null);
     setTimeout(() => input.focus(), 50);
   }
+  // "/" opens search on a computer, like most websites.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || !$("#lightbox").hidden) return;
+    e.preventDefault();
+    searchSheet();
+  });
   $("#search-btn").onclick = searchSheet;
 
   // ================================================================ tour
@@ -1021,9 +1139,55 @@
     el.after(b);
   }
 
+  // ---- extras from Options → Labels & extras
+  function applyLabelLook() {
+    const el = map.getContainer();
+    el.style.setProperty("--tl", adv.labelSize);
+    el.classList.toggle("flow-trails", adv.flow);
+    tracks.forEach((tr) => tr.label.setContent(labelText(tr.f)));
+  }
+  // The compass sits above the scale bar in the bottom-right corner; both are re-added together to keep that order.
+  function placeCornerControls() {
+    scaleCtl.remove();
+    compassCtl.remove();
+    if (!adv.compass) return;
+    scaleCtl = L.control.scale({ position: "bottomright", metric: adv.units !== "imperial", imperial: adv.units === "imperial" }).addTo(map);
+    compassCtl.addTo(map);
+  }
+  function setUnits(u) {
+    if (adv.units === u) return;
+    adv.units = u;
+    placeCornerControls();
+    applyLabelLook();
+    if (adv.rings) setRings(true);
+    if (measure.on) drawMeasure();
+    refreshLegend();
+  }
+  // Dashed circles around the house, labelled with their distance, to judge how far things are.
+  map.createPane("rings").style.zIndex = 385;
+  let ringLayer = null;
+  function setRings(on) {
+    adv.rings = on;
+    if (ringLayer) map.removeLayer(ringLayer);
+    ringLayer = null;
+    if (!on || !farmBounds) return;
+    const home = featuredPlaces().find((pl) => pl.f.properties.icon === "house");
+    const c = home ? home.marker.getLatLng() : farmBounds.getCenter();
+    const radii = adv.units === "imperial" ? [152.4, 304.8, 402.34, 804.67] : [100, 250, 500, 750];
+    ringLayer = L.layerGroup(radii.flatMap((r) => [
+      L.circle(c, { radius: r, pane: "rings", color: "#fff", weight: 1.6, opacity: 0.85, dashArray: "5 7", fill: false, interactive: false }),
+      L.marker([c.lat + r / 111320, c.lng], { pane: "rings", interactive: false, keyboard: false,
+        icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="ring-lbl">${fmtLen(r)}</div>` }) }),
+    ])).addTo(map);
+  }
+
   function resetAll() {
     Object.assign(adv, ADV_DEFAULTS, { hiddenTypes: [] });
     hiddenTracks.clear();
+    setUnits("metric");
+    setRings(false);
+    placeCornerControls();
+    applyLabelLook();
     dim = 100;
     photoDay = "all";
     labelsOn = true;
@@ -1056,15 +1220,25 @@
         <button class="big ghost" id="m-print">🖨️ Print this map</button>
         <div class="os-div"></div><div id="m-offline"></div>`)}
       <div class="adv-label"><span class="adv-badge">ADVANCED</span> For people who like to fine-tune</div>
-      ${sec("colours", "🖍️", "Trail colours & lines", "Colour, thickness, brightness", `
+      ${sec("colours", "🖍️", "Trail colours & lines", "Colour, line style, outline, thickness, brightness", `
         <h4>Colour trails by</h4><div class="seg" id="a-colour"></div>
+        <h4>Trail colour <small>(for “One colour”)</small></h4><div class="swatches" id="a-swatch"></div>
+        <h4>Line style</h4><div class="seg" id="a-style"></div>
         <h4>Line thickness</h4><div class="seg" id="a-thick"></div>
         <h4>Trail see-through</h4><div class="range-row"><span class="rr-l">Faint</span><input type="range" id="a-lineop" min="20" max="100" step="5" aria-label="Trail opacity"><span class="rr-l">Solid</span></div>
-        <h4>Map brightness</h4><div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>`, "advsec")}
-      ${sec("filter", "🔎", "Filter trails & places", "Length, kinds of places", `
+        <h4>Map brightness</h4><div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>
+        <div id="a-linechecks"></div>`, "advsec")}
+      ${sec("filter", "🔎", "Filter trails & places", "Length, steepness, photo day, kinds of places", `
+        <p class="note filter-count" id="a-count"></p>
         <h4>Trail length</h4><div class="seg" id="a-length"></div>
-        <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>`, "advsec")}
-      ${sec("labels", "🏷️", "Labels & extras", "Names, photo spots, shading", `<div id="a-checks"></div>`, "advsec")}
+        <h4>Steepness</h4><div class="seg" id="a-steep"></div>
+        <h4>Photos taken</h4><div class="seg" id="a-day"></div>
+        <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>
+        <div class="btn-row mini-btns"><button class="chip" id="a-types-all">Show all</button><button class="chip" id="a-types-none">Hide all</button></div>`, "advsec")}
+      ${sec("labels", "🏷️", "Labels & extras", "Name size, rings, compass, units, shading", `
+        <h4>Trail name size</h4><div class="seg" id="a-lsize"></div>
+        <h4>Distances in</h4><div class="seg" id="a-units"></div>
+        <h4>On the map</h4><div id="a-checks"></div>`, "advsec")}
       ${sec("pick", "〰️", "Trails one by one", "Turn single trails on or off", `<div id="m-tracks"></div>`, "advsec")}`;
     $$(".opt-sec", body).forEach((d) => d.addEventListener("toggle", () => { if (d.open) openSections.add(d.dataset.sec); else openSections.delete(d.dataset.sec); }));
     const setSum = (id, text) => { const el = $(`[data-sum="${id}"]`, body); if (el) el.textContent = text; };
@@ -1102,7 +1276,7 @@
     check(ov, "⛅ Weather at the quarter right now", overlays.weather, setWeather);
 
     const basic = $("#m-basic", body);
-    check(basic, "🥾 Trails &amp; roads", trailsOn, (v) => setTrails(v));
+    check(basic, "🥾 Trails &amp; driveway", trailsOn, (v) => setTrails(v));
     check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutter(); });
     check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
     check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
@@ -1111,9 +1285,29 @@
     offlinePanel($("#m-offline", body));
 
     // ---- advanced
-    const restyleAll = () => { tracks.forEach(restyle); refreshLegend(); };
-    seg($("#a-colour", body), [["simple", "One colour"], ["each", "Each trail"], ["steep", "Steepness"], ["length", "Length"]],
+    const restyleAll = () => { tracks.forEach(restyle); refreshLegend(); $$("#m-tracks .swatch", body).forEach((s) => { s.style.background = trailColour(tracks.get(s.dataset.id).f); }); };
+    const colourSeg = $("#a-colour", body);
+    seg(colourSeg, [["simple", "One colour"], ["each", "Each trail"], ["steep", "Steepness"], ["length", "Length"]],
       adv.colourMode, (v) => { adv.colourMode = v; restyleAll(); });
+    // Swatches for the single trail colour; the first follows the look.
+    const swEl = $("#a-swatch", body);
+    [[null, "Look’s colour"], ["#ffffff", "White"], ["#ffd400", "Yellow"], ["#ff8c1a", "Orange"], ["#e53935", "Red"], ["#ff4fa3", "Pink"],
+      ["#a57bff", "Purple"], ["#2f8cff", "Blue"], ["#00e5ff", "Cyan"], ["#7cff4f", "Lime"]].forEach(([c, name]) => {
+      const b = document.createElement("button");
+      b.className = "sw-dot" + (adv.trailColour === c ? " on" : "") + (c ? "" : " theme");
+      b.style.background = c || THEMES[theme].lines.trail;
+      b.title = name;
+      b.setAttribute("aria-label", "Trail colour: " + name);
+      b.onclick = () => {
+        adv.trailColour = c;
+        $$(".sw-dot", swEl).forEach((x) => x.classList.toggle("on", x === b));
+        if (adv.colourMode !== "simple") { adv.colourMode = "simple"; $$(":scope > button", colourSeg).forEach((x, i) => x.classList.toggle("on", i === 0)); }
+        restyleAll();
+      };
+      swEl.append(b);
+    });
+    seg($("#a-style", body), [["theme", "Look’s own"], ["solid", "Solid"], ["dashed", "Dashed"], ["dotted", "Dotted"]], adv.lineStyle,
+      (v) => { adv.lineStyle = v; tracks.forEach(restyle); });
     seg($("#a-thick", body), [[0.7, "Thin"], [1, "Normal"], [1.4, "Thick"], [1.9, "Extra"]], adv.thickness,
       (v) => { adv.thickness = v; restyleAll(); });
     const dimEl = $("#a-dim", body);
@@ -1122,12 +1316,29 @@
     const opEl = $("#a-lineop", body);
     opEl.value = adv.lineOpacity;
     opEl.oninput = () => { adv.lineOpacity = +opEl.value; tracks.forEach(restyle); };
-    const refilter = () => { refreshTracks(); refreshPlaces(); declutter(); };
-    seg($("#a-length", body), [["all", "All"], ["short", "Under 250 m"], ["medium", "250–600 m"], ["long", "Over 600 m"]],
+    const lc = $("#a-linechecks", body);
+    check(lc, "Dark outline around trails <small>(helps them stand out on the photo)</small>", adv.outline, (v) => { adv.outline = v; tracks.forEach(restyle); });
+    check(lc, "Moving trails <small>(dashes flow along every trail)</small>", adv.flow, (v) => { adv.flow = v; applyLabelLook(); });
+
+    const countEl = $("#a-count", body);
+    const updateCount = () => {
+      const tr = [...tracks.values()].filter((x) => cat(x.f) === "trails");
+      const shownT = tr.filter((x) => !hiddenTracks.has(x.f.id) && passesTrailFilters(x.f)).length;
+      const fp = featuredPlaces(), shownP = fp.filter((pl) => !adv.hiddenTypes.includes(pl.f.properties.icon)).length;
+      const ph = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay).length;
+      countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · <b>${shownP} of ${fp.length}</b> places · <b>${ph} of ${allPhotos.length}</b> photos`;
+    };
+    const refilter = () => { refreshTracks(); refreshPlaces(); declutter(); updateCount(); };
+    seg($("#a-length", body), [["all", "Any"], ["short", "Under " + fmtLen(250)], ["medium", fmtLen(250) + "–" + fmtLen(600)], ["long", "Over " + fmtLen(600)]],
       adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
+    seg($("#a-steep", body), [["all", "Any"], ["flat", "Flat"], ["gentle", "Gentle"], ["hilly", "Hilliest"]],
+      adv.steepFilter, (v) => { adv.steepFilter = v; refilter(); });
+    const days = [...new Set(allPhotos.map((x) => x.p.taken?.slice(0, 10)).filter(Boolean))].sort();
+    const dayName = (d) => new Date(d + "T12:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: days.some((x) => x.slice(0, 4) !== d.slice(0, 4)) ? "numeric" : undefined });
+    seg($("#a-day", body), [["all", "Any day"], ...days.map((d) => [d, dayName(d)])], photoDay, (v) => { photoDay = v; refreshPhotos(); updateCount(); });
     const types = [...new Set([...places.values()].map((pl) => pl.f.properties.icon))];
     const tyEl = $("#a-types", body);
-    types.forEach((ty) => {
+    const typeBtns = types.map((ty) => {
       const b = document.createElement("button");
       const on = () => !adv.hiddenTypes.includes(ty);
       b.className = "chip toggle" + (on() ? " on" : "");
@@ -1138,12 +1349,29 @@
         refilter();
       };
       tyEl.append(b);
+      return b;
+    });
+    const allTypes = (show) => { adv.hiddenTypes = show ? [] : [...types]; typeBtns.forEach((b) => b.classList.toggle("on", show)); refilter(); };
+    $("#a-types-all", body).onclick = () => allTypes(true);
+    $("#a-types-none", body).onclick = () => allTypes(false);
+    updateCount();
+
+    seg($("#a-lsize", body), [[0.85, "Small"], [1, "Normal"], [1.25, "Large"], [1.5, "Huge"]], adv.labelSize, (v) => { adv.labelSize = v; applyLabelLook(); declutter(); });
+    seg($("#a-units", body), [["metric", "Metres & km"], ["imperial", "Feet & miles"]], adv.units, (v) => {
+      setUnits(v);
+      const sc = $("#sheet-body").scrollTop;
+      moreSheet();
+      $("#sheet-body").scrollTop = sc;
     });
     const ac = $("#a-checks", body);
-    check(ac, "Small photo spots (when zoomed in)", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
-    check(ac, "Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
-    check(ac, "Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
-
+    check(ac, "⛰️ Hill shading <small>(makes slopes and valleys stand out)</small>", overlays.hills, setHills);
+    check(ac, "⭕ Distance rings around the house", adv.rings, setRings);
+    check(ac, "➜ Direction arrows on named trails", adv.dirArrows, (v) => { adv.dirArrows = v; refreshTracks(); });
+    check(ac, "📏 Trail lengths next to trail names", adv.labelLengths, (v) => { adv.labelLengths = v; applyLabelLook(); declutter(); });
+    check(ac, "🧭 Compass and scale bar", adv.compass, (v) => { adv.compass = v; placeCornerControls(); });
+    check(ac, "📷 Small photo spots <small>(when zoomed in)</small>", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
+    check(ac, "🗂️ Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
+    check(ac, "🟩 Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
 
     const list = $("#m-tracks", body);
     const cats = {};
@@ -1159,7 +1387,7 @@
       const boxes = items.map((t) => {
         const r = document.createElement("div");
         r.className = "check-row";
-        r.innerHTML = `<input type="checkbox" id="t-${esc(t.f.id)}"> <span class="swatch" style="background:${esc(trailColour(t.f))}"></span>
+        r.innerHTML = `<input type="checkbox" id="t-${esc(t.f.id)}"> <span class="swatch" data-id="${esc(t.f.id)}" style="background:${esc(trailColour(t.f))}"></span>
           <label class="grow" for="t-${esc(t.f.id)}">${esc(t.f.properties.name)}</label>
           <button class="round mini" aria-label="About ${esc(t.f.properties.name)}">›</button>`;
         const box = $("input", r);
@@ -1535,7 +1763,10 @@
   // close to one, can be dragged to adjust, and Undo / Clear / Done are always one tap away.
   const measure = { on: false, pts: [], layer: L.layerGroup(), line: null };
   map.createPane("measure").style.zIndex = 650;
-  const fmtDist = (m) => (m >= 1000 ? (m / 1000).toFixed(2) + " km" : m >= 100 ? Math.round(m) + " m" : m.toFixed(1) + " m");
+  const fmtDist = (m) => (adv.units === "imperial" ? (m * 3.28084 < 1000 ? (m * 3.28084).toFixed(m < 30 ? 1 : 0) + " ft" : (m / 1609.34).toFixed(2) + " mi")
+    : m >= 1000 ? (m / 1000).toFixed(2) + " km" : m >= 100 ? Math.round(m) + " m" : m.toFixed(1) + " m");
+  // The other unit, shown smaller under the total.
+  const altDist = (m) => (adv.units === "imperial" ? (m >= 1000 ? (m / 1000).toFixed(2) + " km" : Math.round(m) + " m") : Math.round(m * 3.28084).toLocaleString() + " ft");
   function snapToPlace(ll, cp) {
     let best = null;
     featuredPlaces().forEach((pl) => {
@@ -1576,10 +1807,11 @@
     }
     const n = measure.pts.length;
     const named = measure.pts.map((p) => p.name).filter(Boolean);
-    $("#ms-total").textContent = n < 2 ? "—" : fmtDist(total);
+    $("#ms-total").textContent = n < 2 ? "" : fmtDist(total);
+    $("#ms-total").hidden = n < 2;
     $("#ms-sub").textContent = n === 0 ? "Tap the map to drop your first point." :
       n === 1 ? "Now tap where you want to measure to." :
-      `${n - 1} leg${n > 2 ? "s" : ""} · ${Math.round(total * 3.28084).toLocaleString()} ft${named.length ? " · " + named.slice(0, 3).join(" → ") : ""} · tap to keep going`;
+      `${n - 1} leg${n > 2 ? "s" : ""} · ${altDist(total)}${named.length ? " · " + named.slice(0, 3).join(" → ") : ""} · tap to keep going`;
     $("#ms-undo").disabled = n === 0;
     $("#ms-clear").disabled = n === 0;
   }
@@ -1602,7 +1834,7 @@
     }
   }
   $("#measure-btn").onclick = () => setMeasure(!measure.on);
-  $("#ms-done").onclick = () => setMeasure(false);
+  $("#ms-done").onclick = $("#ms-x").onclick = () => setMeasure(false);
   $("#ms-clear").onclick = () => { measure.pts = []; measure.layer.clearLayers(); measure.line = null; drawMeasure(); };
   $("#ms-undo").onclick = () => { const p = measure.pts.pop(); if (p) measure.layer.removeLayer(p.m); drawMeasure(); };
   document.addEventListener("keydown", (e) => {
@@ -1635,12 +1867,12 @@
     const named = featuredPlaces().sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
     $("#print-poster").innerHTML = `
       <h1>${esc(title)}</h1><p class="pp-sub">${esc(sub.split(" · printed ")[1] ? "Printed " + sub.split(" · printed ")[1] : "")}</p>
-      <div class="pp-compass">${COMPASS_SVG}</div>
+      <div class="pp-compass">${compassSvg()}</div>
       <h2>Legend</h2>
       <div class="pp-legend">
         ${line(L_.boundary || "#fff", 1)}<span>Quarter section perimeter</span>
         ${line("#ff9800", 1)}<span>Acreage perimeter</span>
-        ${line(L_.road)}<span>Roads and yard</span>
+        ${line(L_.road)}<span>Driveway &amp; main yard</span>
         ${line(adv.colourMode === "each" ? "#00e5ff" : L_.trail)}<span>Trails</span>
       </div>
       <h2>Places</h2>
@@ -1708,17 +1940,17 @@
     const line = (c, extra = "") => `<span class="sym"><span class="line" style="border-color:${c};${extra}filter:drop-shadow(0 0 1px #000)"></span></span>`;
     let trailRows;
     if (adv.colourMode === "steep") trailRows = RAMP_STEEP.map(([, c], i) => line(c) + `<span>${["Flat", "Gentle", "Some hills", "Hilly", "Steepest"][i]}</span>`).join("");
-    else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over 800 m" : "Up to " + lim + " m"}</span>`).join("");
+    else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over " + fmtLen(800) : "Up to " + fmtLen(lim)}</span>`).join("");
     else trailRows = line(adv.colourMode === "each" ? "#00e5ff" : L_.trail) + `<span>Trails${adv.colourMode === "each" ? " (each has its own colour)" : ""}</span>`;
     return `
       ${line(L_.boundary || "#fff", "border-top-style:dashed;")}<span>Quarter section perimeter</span>
       ${line("#ff9800", "border-top-style:dashed;")}<span>Acreage perimeter</span>
-      ${line(L_.road, "border-top-width:6px;")}<span>Roads and yard</span>
+      ${line(L_.road, "border-top-width:6px;")}<span>Driveway &amp; main yard</span>
       ${trailRows}
       ${line(L_.sel, "border-top-width:6px;")}<span>The trail you picked</span>
       <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
       <span class="sym"><span class="lg-group">5</span></span><span>A group of photos – zoom in to spread them out</span>
-      <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
+      <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">${CAMERA_SVG}</span></span></span><span>Other photo spot</span>
       <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”) – the blue beam shows which way you’re facing</span>`;
   }
   const legendPop = $("#legend-pop"), legendBtn = $("#legend-btn");
