@@ -1,6 +1,6 @@
 # Knopp Map
 
-An interactive map of the Knopp quarter section: property perimeters, roads, 29 named trails, 14 named places
+An interactive map of the Knopp quarter section: 3 property perimeters, 3 roads, 26 named trails, 14 named places
 and about 230 geotagged field photos. It is a plain static website (Leaflet, no server, no accounts) served by
 GitHub Pages from the `docs/` folder.
 
