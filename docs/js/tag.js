@@ -10,12 +10,13 @@
   let filter = "all";
   let query = "";
 
-  const map = L.map("map", { zoomSnap: 0.25 });
+  const map = L.map("map", { zoomSnap: 0.25, maxZoom: 22 });
   L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    { maxZoom: 20, maxNativeZoom: 19, attribution: "Imagery © Esri" }).addTo(map);
+    { maxZoom: 22, maxNativeZoom: 19, attribution: "Imagery © Esri" }).addTo(map);
   const markers = new Map();
 
-  const save = () => store.set("tagDraft", places);
+  let version = "";
+  const save = () => store.set("tagDraft", { version, places });
 
   function center(pl) {
     if (pl.coords) return pl.coords;
@@ -217,11 +218,16 @@
 
   // ---------------------------------------------------------------- load
   loadBundle(async (retry) => ({ password: prompt(retry ? "Wrong password, try again:" : "Map password:") || "", remember: true }))
-  .then(({ data }) => {
+  .then(({ meta, data }) => {
+    version = meta.version;
     const pfc = data.places, phfc = data.photos;
     phfc.features.forEach((f) => photos.set(f.properties.file + ".jpg",
       { file: f.properties.file, src: f.properties.src, taken: f.properties.taken, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
-    const draft = store.get("tagDraft", null);
+    let draft = store.get("tagDraft", null);
+    if (Array.isArray(draft)) draft = { version: "", places: draft };
+    if (draft && draft.version !== version &&
+        confirm("The published map has changed since you last edited here.\n\nOK = start from the new published version (recommended)\nCancel = keep your unsaved edits")) draft = null;
+    draft = draft?.places || null;
     places = draft || pfc.features.map((f) => {
       const p = f.properties;
       const o = { id: f.id, name: p.name, icon: p.icon, story: p.story, hero: p.hero ? p.hero + ".jpg" : null,

@@ -1,6 +1,6 @@
 window.KM = (() => {
   const ICONS = {
-    house: ["🏠", "House"], garden: ["🌷", "Garden"], bench: ["🪑", "Sitting area"], cabin: ["🛖", "Cabin"],
+    house: ["🏠", "House"], garden: ["🌷", "Garden"], bench: ["🪑", "Sitting area"], cabin: ["🏡", "Cabin"],
     shop: ["🔧", "Shop"], shed: ["🏚️", "Shed"], machine: ["🚜", "Machine shed"], greenhouse: ["🌱", "Greenhouse"],
     well: ["💧", "Well / water"], gate: ["🚪", "Gate"], bridge: ["🌉", "Bridge / crossing"], sign: ["🪧", "Trail sign"],
     pasture: ["🐄", "Pasture / cattle"], horse: ["🐴", "Horses"], field: ["🌾", "Field"], tree: ["🌳", "Tree / bush"],
