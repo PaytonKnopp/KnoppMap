@@ -443,6 +443,33 @@ def dms_to_deg(v, ref):
     return -d if ref in ("S", "W") else d
 
 
+def gpx_timeline():
+    """All recorded track points with timestamps, sorted, for checking where you were when a photo was taken."""
+    pts = []
+    for p in ET.parse(GPX_FILE).getroot().iter("{http://www.topografix.com/GPX/1/1}trkpt"):
+        t = p.findtext("g:time", None, NS)
+        if t:
+            pts.append((datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp(), float(p.get("lon")), float(p.get("lat"))))
+    pts.sort()
+    return pts
+
+
+FIX_GAP_S = 60      # only trust the track when it has points on both sides of the photo this close together
+FIX_OFF_M = 25      # and the camera's location disagrees with it by more than this
+
+
+def track_position(timeline, times, t):
+    import bisect
+    i = bisect.bisect_left(times, t)
+    if i == 0 or i >= len(timeline):
+        return None
+    a, b = timeline[i - 1], timeline[i]
+    if b[0] - a[0] > FIX_GAP_S or t - a[0] > FIX_GAP_S or b[0] - t > FIX_GAP_S:
+        return None
+    k = 0 if b[0] == a[0] else (t - a[0]) / (b[0] - a[0])
+    return (a[1] + k * (b[1] - a[1]), a[2] + k * (b[2] - a[2]))
+
+
 def build_photos(track_features, resize=True):
     from PIL import Image, ImageOps
 
@@ -457,7 +484,9 @@ def build_photos(track_features, resize=True):
 
     WEB_OUT.mkdir(parents=True, exist_ok=True)
     THUMB_OUT.mkdir(parents=True, exist_ok=True)
-    feats, missing, report = [], [], []
+    feats, missing, report, fixes = [], [], [], []
+    timeline = gpx_timeline()
+    times = [p[0] for p in timeline]
     files = sorted(p for p in PHOTO_DIR.iterdir() if p.suffix.lower() in (".jpg", ".jpeg"))
     for n, src in enumerate(files, 1):
         with Image.open(src) as im:
@@ -488,6 +517,13 @@ def build_photos(track_features, resize=True):
                 web.save(WEB_OUT / f"{out}.jpg", "JPEG", quality=WEB_Q, optimize=True, progressive=True)
                 img.thumbnail((THUMB_PX, THUMB_PX), Image.LANCZOS)
                 img.save(THUMB_OUT / f"{out}.jpg", "JPEG", quality=THUMB_Q, optimize=True)
+        fixed = False
+        if iso:
+            tp = track_position(timeline, times, datetime.fromisoformat(iso).timestamp())
+            if tp and dist((lon, lat), tp) > FIX_OFF_M:
+                fixes.append(f"- {src.name}: moved {dist((lon, lat), tp):.0f} m to the GPS track position at that time")
+                lon, lat = tp
+                fixed = True
         near, near_d = None, float("inf")
         for name, line in lines:
             _, d = nearest_on_line((lon, lat), line)
@@ -499,7 +535,7 @@ def build_photos(track_features, resize=True):
             "id": stem,
             "properties": {
                 "file": stem, "src": out, "taken": iso, "title": cap.get("title"), "caption": cap.get("caption"),
-                "near": near if near_d <= NEAR_TRACK_M else None,
+                "near": near if near_d <= NEAR_TRACK_M else None, "corrected": fixed,
             },
             "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]},
         })
@@ -507,7 +543,8 @@ def build_photos(track_features, resize=True):
             print(f"  photos {n}/{len(files)}", file=sys.stderr)
 
     report += ["## Photos\n", f"{len(files)} photos found, {len(feats)} placed on the map.\n",
-               "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), ""]
+               "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), "",
+               f"### Locations corrected from the GPS track (camera was over {FIX_OFF_M} m off)\n", *(fixes or ["- none"]), ""]
     return feats, report
 
 
