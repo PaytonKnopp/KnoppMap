@@ -68,7 +68,8 @@
   <div id="info-stack">
     <div id="wx-chip" class="info-chip" hidden></div>
     <div id="radar-panel" class="info-chip" hidden>
-      <div class="rp-head"><span class="rp-title">🌧️ Rain radar</span><span class="rp-time"></span><button data-rp="close" class="rp-x" aria-label="Close radar">✕</button></div>
+      <div class="rp-head"><span class="rp-title"><span class="rp-icon" aria-hidden="true">🌦️</span> Precipitation</span><span class="rp-time"></span><button data-rp="close" class="rp-x" aria-label="Close precipitation radar">✕</button></div>
+      <div class="rp-now"><span class="rp-now-text"></span><button data-rp="wide" class="rp-wide">🔭 Wider view</button></div>
       <div class="rp-track"><input type="range" class="rp-slider" min="0" max="0" value="0" aria-label="Radar time"><div class="rp-ticks"></div></div>
       <div class="rp-btns">
         <button data-rp="first" aria-label="Oldest">⏮</button><button data-rp="back" aria-label="Back one step">◀</button>
@@ -77,7 +78,10 @@
         <button data-rp="speed" class="rp-speed">Speed: Normal</button>
       </div>
       <div class="rp-foot">
-        <span class="rp-key"><span>Light</span><i></i><span>Heavy</span></span>
+        <span class="rp-keys" title="Colours run from light (left) to heavy (right)">
+          <span class="rp-key"><span>Rain</span><i class="rain"></i></span><span class="rp-key"><span>Snow</span><i class="snow"></i></span>
+          <span class="rp-scale">light → heavy</span>
+        </span>
         <label class="rp-op">See-through <input type="range" class="rp-opacity" min="20" max="100" value="70" aria-label="Radar strength"></label>
       </div>
     </div>

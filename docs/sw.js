@@ -1,5 +1,5 @@
 // Offline support: the app shell and data are network-first (so updates arrive), photos and map tiles are cache-first.
-const SHELL = "km-shell-v13";
+const SHELL = "km-shell-v14";
 const MEDIA = "km-media-v1";
 const CORE = [
   "./", "index.html", "css/app.css", "js/common.js", "js/app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-32.png",

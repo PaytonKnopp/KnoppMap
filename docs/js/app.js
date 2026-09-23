@@ -1048,7 +1048,7 @@
       <button class="big reset-top" id="m-reset">↺ Reset to original settings</button>
       ${sec("look", "🎨", "Look", esc(THEMES[theme].label), `<div class="theme-grid" id="m-theme"></div>`)}
       ${sec("style", "🗺️", "Map style", esc(BASEMAPS[baseKey]?.label || ""), `<div class="style-grid" id="m-base"></div>`)}
-      ${sec("layers", "🌦️", "Weather", "Live rain radar and current weather", `<div id="m-over"></div>`)}
+      ${sec("layers", "🌦️", "Weather", "Live precipitation radar and current weather", `<div id="m-over"></div>`)}
       ${sec("show", "👁️", "What's on the map", "Trails, names, photos", `<div id="m-basic"></div>`)}
       ${sec("text", "🔠", "Text size", SIZE_NAMES[sizeIdx], `<div class="seg" id="m-size"></div>`)}
       ${sec("save", "💾", "Print & offline", "Print this view, use without internet", `
@@ -1098,7 +1098,7 @@
     expandableGrid(bg, sCards, 6, "map styles");
 
     const ov = $("#m-over", body);
-    check(ov, "🌧️ Live rain radar", overlays.radar, setRadar).dataset.over = "radar";
+    check(ov, "🌦️ Live precipitation radar (rain &amp; snow)", overlays.radar, setRadar).dataset.over = "radar";
     check(ov, "⛅ Weather at the quarter right now", overlays.weather, setWeather);
 
     const basic = $("#m-basic", body);
@@ -1319,7 +1319,7 @@
   stage.addEventListener("pointercancel", endPtr);
   stage.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, zs * (e.deltaY < 0 ? 1.2 : 1 / 1.2)); }, { passive: false });
 
-  // ================================================================ extra layers: hills, rain radar, weather
+  // ================================================================ extra layers: hills, precipitation radar, weather
   const overlays = { hills: false, radar: false, weather: false };
   let hillLayer = null;
   function setHills(on) {
@@ -1328,11 +1328,14 @@
     if (on) hillLayer.addTo(map); else if (hillLayer) map.removeLayer(hillLayer);
   }
 
-  const radar = { frames: [], layers: new Map(), idx: 0, timer: null, host: "", loadedAt: 0, past: 0, speed: 700, opacity: 0.7 };
+  // Radar tiles are RainViewer's (Universal Blue colours, smoothed, snow drawn in its own colours). They only go to zoom 7,
+  // so the panel also says what is falling at the farm itself (Open-Meteo), and its icon follows that.
+  const radar = { frames: [], layers: new Map(), idx: 0, timer: null, refresh: null, host: "", loadedAt: 0, past: 0, speed: 700, opacity: 0.7 };
   const rp = () => $("#radar-panel");
   async function setRadar(on) {
     overlays.radar = on;
     const panel = rp();
+    clearInterval(radar.refresh);
     if (!on) {
       stopRadarPlay();
       radar.layers.forEach((l) => map.removeLayer(l));
@@ -1341,32 +1344,46 @@
       return;
     }
     panel.hidden = false;
-    $(".rp-time", panel).textContent = "Loading…";
-    try {
-      if (Date.now() - radar.loadedAt > 5 * 60e3) {
-        const j = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-cache" }).then((r) => r.json());
-        radar.host = j.host;
-        radar.past = (j.radar?.past || []).length;
-        radar.frames = [...(j.radar?.past || []), ...(j.radar?.nowcast || [])];
-        radar.layers.forEach((l) => map.removeLayer(l));
-        radar.layers.clear();
-        radar.loadedAt = Date.now();
-      }
-      if (!overlays.radar || !radar.frames.length) return;
-      const slider = $(".rp-slider", panel);
-      slider.max = radar.frames.length - 1;
-      $(".rp-ticks", panel).innerHTML = radar.frames.map((f, i) => `<i class="${i >= radar.past ? "fc" : ""}${i === radar.past - 1 ? " now" : ""}"></i>`).join("");
-      showRadarFrame(radar.past - 1);
-    } catch {
-      $(".rp-time", panel).textContent = "Radar isn't available right now";
-    }
+    updateWideBtn();
+    showFarmPrecip();
+    // Left open, it keeps itself current: new radar frames every few minutes, farm conditions every 10.
+    radar.refresh = setInterval(() => {
+      loadRadar().then(() => { if (overlays.radar && !radar.timer) showRadarFrame(radar.idx); }).catch(() => {});
+      showFarmPrecip();
+    }, 5 * 60e3);
+    if (!radar.frames.length) $(".rp-time", panel).textContent = "Loading…";
+    try { await loadRadar(); } catch { /* fall back to the frames we already have */ }
+    if (!overlays.radar) return;
+    if (radar.frames.length) showRadarFrame(radar.past - 1);
+    else $(".rp-time", panel).textContent = "Radar isn't available right now";
+  }
+  async function loadRadar() {
+    if (radar.frames.length && Date.now() - radar.loadedAt < 4 * 60e3) return;
+    const j = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-cache" })
+      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    const past = j.radar?.past || [], frames = [...past, ...(j.radar?.nowcast || [])];
+    if (!frames.length) throw new Error("no radar frames");
+    // Stay on the frame being looked at, unless that was the latest one (then follow the new latest).
+    const wasLatest = !radar.frames.length || radar.idx === radar.past - 1, shown = radar.frames[radar.idx]?.time;
+    radar.host = j.host;
+    radar.past = past.length;
+    radar.frames = frames;
+    radar.loadedAt = Date.now();
+    const keep = new Set(frames.map((f) => f.path));
+    radar.layers.forEach((l, path) => { if (!keep.has(path)) { map.removeLayer(l); radar.layers.delete(path); } });
+    const same = frames.findIndex((f) => f.time === shown);
+    radar.idx = wasLatest || same < 0 ? radar.past - 1 : same;
+    const panel = rp();
+    $(".rp-slider", panel).max = frames.length - 1;
+    $(".rp-ticks", panel).innerHTML = frames.map((f, i) => `<i class="${i >= radar.past ? "fc" : ""}${i === radar.past - 1 ? " now" : ""}"></i>`).join("");
   }
   function radarLayer(i) {
-    if (!radar.layers.has(i)) {
-      radar.layers.set(i, L.tileLayer(`${radar.host}${radar.frames[i].path}/256/{z}/{x}/{y}/2/1_1.png`,
+    const f = radar.frames[i];
+    if (!radar.layers.has(f.path)) {
+      radar.layers.set(f.path, L.tileLayer(`${radar.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`,
         { pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 22, attribution: "Radar © RainViewer" }));
     }
-    return radar.layers.get(i);
+    return radar.layers.get(f.path);
   }
   function showRadarFrame(i) {
     if (!radar.frames.length) return;
@@ -1374,7 +1391,7 @@
     const cur = radarLayer(radar.idx);
     if (!map.hasLayer(cur)) cur.addTo(map);
     cur.setOpacity(radar.opacity);
-    radar.layers.forEach((l, k) => { if (k !== radar.idx) l.setOpacity(0); });
+    radar.layers.forEach((l) => { if (l !== cur) l.setOpacity(0); });
     [radar.idx + 1, radar.idx + 2].forEach((k) => { if (k < radar.frames.length) { const n = radarLayer(k); if (!map.hasLayer(n)) n.addTo(map); } });
     const panel = rp();
     const t = new Date(radar.frames[radar.idx].time * 1000);
@@ -1400,12 +1417,20 @@
       if (radar.idx >= radar.frames.length - 1) showRadarFrame(0); else showRadarFrame(radar.idx + 1);
     }, radar.speed);
   }
+  // Radar is only detailed down to about zoom 7, so one tap zooms out to the surrounding area and back.
+  const isWide = () => map.getZoom() < 10;
+  function updateWideBtn() {
+    const b = $('[data-rp="wide"]');
+    if (b) b.textContent = isWide() ? "🏠 Back to farm" : "🔭 Wider view";
+  }
+  map.on("zoomend", () => { if (overlays.radar) updateWideBtn(); });
   (() => {
     const panel = rp();
     panel.addEventListener("click", (e) => {
       const act = e.target.closest("[data-rp]")?.dataset.rp;
       if (!act) return;
       if (act === "close") return setRadar(false);
+      if (act === "wide") return isWide() ? fitFarm() : map.flyTo(farmBounds.getCenter(), 8);
       if (act === "play") return radar.timer ? stopRadarPlay() : startRadarPlay();
       stopRadarPlay();
       if (act === "first") showRadarFrame(0);
@@ -1424,10 +1449,66 @@
   })();
 
   const WX = { 0: ["☀️", "Clear"], 1: ["🌤️", "Mostly clear"], 2: ["⛅", "Partly cloudy"], 3: ["☁️", "Cloudy"], 45: ["🌫️", "Fog"], 48: ["🌫️", "Frosty fog"],
-    51: ["🌦️", "Light drizzle"], 53: ["🌦️", "Drizzle"], 55: ["🌧️", "Heavy drizzle"], 61: ["🌧️", "Light rain"], 63: ["🌧️", "Rain"], 65: ["🌧️", "Heavy rain"],
-    66: ["🌧️", "Freezing rain"], 67: ["🌧️", "Freezing rain"], 71: ["🌨️", "Light snow"], 73: ["🌨️", "Snow"], 75: ["❄️", "Heavy snow"], 77: ["🌨️", "Snow grains"],
-    80: ["🌦️", "Showers"], 81: ["🌧️", "Showers"], 82: ["⛈️", "Heavy showers"], 85: ["🌨️", "Snow showers"], 86: ["❄️", "Snow showers"],
+    51: ["🌦️", "Light drizzle"], 53: ["🌦️", "Drizzle"], 55: ["🌧️", "Heavy drizzle"], 56: ["🧊", "Light freezing drizzle"], 57: ["🧊", "Freezing drizzle"],
+    61: ["🌧️", "Light rain"], 63: ["🌧️", "Rain"], 65: ["🌧️", "Heavy rain"], 66: ["🧊", "Light freezing rain"], 67: ["🧊", "Freezing rain"],
+    71: ["🌨️", "Light snow"], 73: ["🌨️", "Snow"], 75: ["❄️", "Heavy snow"], 77: ["🌨️", "Snow grains"],
+    80: ["🌦️", "Showers"], 81: ["🌧️", "Showers"], 82: ["⛈️", "Heavy showers"], 85: ["🌨️", "Snow showers"], 86: ["❄️", "Heavy snow showers"],
     95: ["⛈️", "Thunderstorm"], 96: ["⛈️", "Thunderstorm, hail"], 99: ["⛈️", "Thunderstorm, hail"] };
+  // What kind of precipitation a weather code means (null = nothing falling).
+  const PRECIP = { snow: ["🌨️", "Snow"], ice: ["🧊", "Freezing rain"], storm: ["⛈️", "Thunderstorms"], rain: ["🌧️", "Rain"] };
+  const precipKind = (code) => ([71, 73, 75, 77, 85, 86].includes(code) ? "snow" : [56, 57, 66, 67].includes(code) ? "ice"
+    : code >= 95 ? "storm" : (code >= 51 && code <= 65) || (code >= 80 && code <= 82) ? "rain" : null);
+  const clock = (unix) => new Date(unix * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+  // Open-Meteo at the middle of the quarter, shared by the weather chip and the radar panel; fetched again after 10 minutes.
+  let wxCache = null;
+  function farmWx() {
+    if (wxCache && Date.now() - wxCache.at < 10 * 60e3) return wxCache.p;
+    const c = farmBounds.getCenter();
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat.toFixed(4)}&longitude=${c.lng.toFixed(4)}` +
+      "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m" +
+      "&hourly=weather_code,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,sunset" +
+      "&timezone=America%2FEdmonton&timeformat=unixtime&wind_speed_unit=kmh&forecast_days=2&forecast_hours=7";
+    const p = fetch(u).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+    wxCache = { at: Date.now(), p };
+    p.catch(() => { if (wxCache?.p === p) wxCache = null; });
+    return p;
+  }
+
+  // "Light snow at the farm now · easing around 3 PM", or "Dry · rain likely around 5 PM (70%)".
+  async function showFarmPrecip() {
+    const panel = rp(), text = $(".rp-now-text", panel), icon = $(".rp-icon", panel);
+    try {
+      const { current: cur, hourly: h } = await farmWx();
+      const now = Date.now() / 1000, kindNow = precipKind(cur.weather_code);
+      let next = null, clears = null;
+      h.time.forEach((t, i) => {
+        if (t <= now || t > now + 6.5 * 3600) return;
+        const k = precipKind(h.weather_code[i]);
+        if (!kindNow && k && !next) next = { k, t, p: h.precipitation_probability?.[i] };
+        if (kindNow && !k && !clears) clears = t;
+      });
+      const temp = `${Math.round(cur.temperature_2m)}°C`;
+      let line, sub;
+      if (kindNow) {
+        line = `${WX[cur.weather_code][1]} at the farm now`;
+        sub = clears ? `easing around ${clock(clears)}` : "keeping up for the next few hours";
+      } else if (next) {
+        line = "Dry at the farm now";
+        sub = `${PRECIP[next.k][1].toLowerCase()} ${next.p == null || next.p >= 60 ? "likely" : "possible"} around ${clock(next.t)}${next.p == null ? "" : ` (${next.p}%)`}`;
+      } else {
+        line = "Dry at the farm now";
+        sub = "nothing expected in the next 6 hours";
+      }
+      const kind = kindNow || next?.k || (cur.temperature_2m <= 0 ? "snow" : "rain");
+      icon.textContent = PRECIP[kind][0];
+      text.innerHTML = `<b>${esc(line)}</b><small>${esc(temp)} · ${esc(sub)}</small>`;
+    } catch {
+      icon.textContent = "🌦️";
+      text.innerHTML = "<small>Conditions at the farm aren't available right now</small>";
+    }
+  }
+
   let wxTimer = null;
   async function setWeather(on) {
     overlays.weather = on;
@@ -1438,14 +1519,9 @@
     chip.textContent = "Checking the weather at the quarter…";
     const load = async () => {
       try {
-        const c = farmBounds.getCenter();
-        const u = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat.toFixed(4)}&longitude=${c.lng.toFixed(4)}` +
-          "&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,sunset" +
-          "&timezone=America%2FEdmonton&wind_speed_unit=kmh&forecast_days=1";
-        const j = await fetch(u).then((r) => r.json());
-        const cur = j.current, d = j.daily;
+        const { current: cur, daily: d } = await farmWx();
         const [emo, text] = WX[cur.weather_code] || ["🌡️", ""];
-        const sunset = d.sunset?.[0] ? new Date(d.sunset[0]).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+        const sunset = d.sunset?.[0] ? clock(d.sunset[0]) : "";
         chip.innerHTML = `<b>${emo} ${Math.round(cur.temperature_2m)}°C</b> ${esc(text)} · feels ${Math.round(cur.apparent_temperature)}°<br>
           <small>Wind ${Math.round(cur.wind_speed_10m)} km/h from the ${compass(cur.wind_direction_10m)} · High ${Math.round(d.temperature_2m_max[0])}° Low ${Math.round(d.temperature_2m_min[0])}°${sunset ? " · Sunset " + sunset : ""}</small>`;
       } catch { chip.textContent = "Weather isn't available right now."; }

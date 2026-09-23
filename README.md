@@ -32,8 +32,10 @@ GitHub Pages from the `docs/` folder.
 - **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
   tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
 - **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.
-- **Weather:** live RainViewer radar (slider, play/pause, step, speed, see-through, colour key) and current
-  Open-Meteo conditions at the quarter.
+- **Weather:** live RainViewer precipitation radar with rain and snow in separate colours (slider, play/pause, step,
+  speed, see-through, rain and snow colour keys, a one-tap wider view). A line in the panel says what is falling at
+  the farm right now and what's coming in the next few hours, and the panel's icon switches between 🌧️ 🌨️ 🧊 ⛈️ to
+  match. There is also a chip with current Open-Meteo conditions at the quarter.
 - **Print:** prints exactly the area on screen, either as *Just the map* or a *Framed poster* with title, compass,
   legend and list of places.
 - **Offline:** Options → Print & offline → *Save everything to this device* keeps the map and all photos inside the
