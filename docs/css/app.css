@@ -630,7 +630,7 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 .os-div { border-top: 1px solid var(--line); margin: 0.9rem 0; }
 .adv-label { display: flex; align-items: center; gap: 0.5rem; margin: 0.8rem 0 0.1rem; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
 .adv-label::after { content: ""; flex: 1; border-top: 2px dashed var(--line); }
-.opt-sec.adv { border-left: 5px solid var(--green); }
+.opt-sec.advsec { border-left: 5px solid var(--green); }
 .adv-badge { background: var(--green); color: var(--on-accent); font-size: 0.68rem; letter-spacing: 0.12em; padding: 0.15rem 0.55rem; border-radius: 999px; font-weight: 800; }
 .opts .check-row { padding: 0.15rem 0; }
 .opts .check-row small { color: var(--muted); font-size: 0.8rem; }
@@ -731,9 +731,16 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 .photos-shown .pin-count { display: none; }
 
 /* =================================================================== named trail directions */
-.dir-tag { position: absolute; transform: translate(-50%, -140%); display: flex; align-items: center; gap: 0.35rem; white-space: nowrap;
-  background: var(--green); color: var(--on-accent); font-weight: 800; font-size: 0.78rem; padding: 0.2rem 0.6rem 0.2rem 0.3rem;
-  border-radius: 999px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.45); pointer-events: none; }
-.dir-arrow { display: inline-grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; background: #fff; color: var(--green); font-size: 0.8rem; line-height: 1; }
+.dir-tag { position: absolute; transform: translate(-50%, -150%); white-space: nowrap; pointer-events: none; }
 .dir-chev { position: absolute; width: 1.15rem; height: 1.15rem; border-radius: 50%; background: var(--green); color: #fff; border: 1.5px solid #fff; display: grid; place-items: center; font-weight: 900; font-size: 1rem; line-height: 1; box-shadow: 0 1px 3px rgba(0,0,0,.5); pointer-events: none; }
 .dir-note { background: var(--paper-2); border-radius: 12px; padding: 0.6rem 0.8rem; margin: 0 0 0.8rem; font-size: 0.95rem; }
+
+.legend .sym { width: 2.2rem; }
+.lg-me { display: block; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: #1e88e5; border: 3px solid #fff; box-shadow: 0 0 0 4px rgba(30,136,229,.25), 0 1px 3px rgba(0,0,0,.5); }
+.rr-l { font-size: 0.8rem; color: var(--muted); }
+/* Named-place pins turn see-through once photos are showing, so they never hide the photos under them. */
+.leaflet-marker-pane .place-pin .bubble { transition: opacity .2s, transform .2s; }
+.photos-shown .leaflet-marker-pane .place-pin:not(.sel) .bubble { opacity: 0.45; transform: scale(0.8); }
+.photos-shown .leaflet-marker-pane .place-pin:not(.sel) .name { opacity: 0.8; }
+.photos-shown .leaflet-marker-icon:hover .place-pin .bubble { opacity: 1; transform: none; }
+#dock .ic-svg { width: 1.6rem; height: 1.6rem; display: block; }

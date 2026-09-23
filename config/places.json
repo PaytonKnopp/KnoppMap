@@ -289,21 +289,6 @@
       "featured": false
     },
     {
-      "id": "spot-15",
-      "name": "",
-      "icon": "photo",
-      "story": "",
-      "hero": "20260905_153303.jpg",
-      "photos": [
-        "20260905_153303.jpg",
-        "20260905_153319.jpg",
-        "20260905_153903.jpg",
-        "20260905_153922.jpg",
-        "20260905_153932.jpg"
-      ],
-      "featured": false
-    },
-    {
       "id": "spot-16",
       "name": "",
       "icon": "photo",
@@ -592,18 +577,6 @@
       "featured": false
     },
     {
-      "id": "spot-39",
-      "name": "",
-      "icon": "photo",
-      "story": "",
-      "hero": "20260905_152225.jpg",
-      "photos": [
-        "20260905_152225.jpg",
-        "20260905_152228.jpg"
-      ],
-      "featured": false
-    },
-    {
       "id": "spot-40",
       "name": "",
       "icon": "photo",
@@ -877,6 +850,27 @@
         "20260905_164509.jpg"
       ],
       "featured": false
+    },
+    {
+      "id": "brush-piles",
+      "name": "Brush Piles",
+      "icon": "wood",
+      "story": "",
+      "hero": "20260905_153932.jpg",
+      "photos": [
+        "20260905_153303.jpg",
+        "20260905_153319.jpg",
+        "20260905_153903.jpg",
+        "20260905_153922.jpg",
+        "20260905_153932.jpg",
+        "20260905_152225.jpg",
+        "20260905_152228.jpg"
+      ],
+      "featured": true,
+      "coords": [
+        -114.652703,
+        52.226213
+      ]
     }
   ]
 }

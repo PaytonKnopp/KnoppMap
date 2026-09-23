@@ -311,7 +311,7 @@
   let trailsOn = true;
   let photosOn = true;
   let labelsOn = true;
-  const ADV_DEFAULTS = { colourMode: "simple", thickness: 1, placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all",
+  const ADV_DEFAULTS = { colourMode: "simple", thickness: 1, lineOpacity: 100, placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all",
     trailDay: "all", cluster: true, boundaryFill: true };
   const adv = { ...ADV_DEFAULTS, hiddenTypes: [] };
   const saveAdv = () => {};
@@ -356,8 +356,8 @@
     const w = ((road ? 5 : 3.5) + boost) * k + (hi ? 2.5 : 0);
     const color = hi ? L_.sel : trailColour(f);
     return {
-      line: { color, weight: w, opacity: 1, lineCap: "round", lineJoin: "round", dashArray: !road && !hi && L_.dash ? L_.dash : null },
-      casing: { color: road ? L_.roadCase : L_.trailCase, weight: w + 3.5 * k, opacity: hi ? 0.95 : L_.caseOp, lineCap: "round", lineJoin: "round" },
+      line: { color, weight: w, opacity: hi ? 1 : adv.lineOpacity / 100, lineCap: "round", lineJoin: "round", dashArray: !road && !hi && L_.dash ? L_.dash : null },
+      casing: { color: road ? L_.roadCase : L_.trailCase, weight: w + 3.5 * k, opacity: hi ? 0.95 : L_.caseOp * adv.lineOpacity / 100, lineCap: "round", lineJoin: "round" },
     };
   }
   function restyle(t) {
@@ -424,7 +424,7 @@
         const { at, heading } = alongLine(cs, fa + (fb - fa) * k);
         if (k === 0.5) {
           group.addLayer(L.marker(at, { interactive: false, keyboard: false, zIndexOffset: 400, icon: L.divIcon({ className: "", iconSize: [0, 0],
-            html: `<div class="dir-tag"><span class="dir-arrow" style="transform:rotate(${heading - 90}deg)">➜</span>${esc(d.label)}</div>` }) }));
+            html: `<div class="trail-label dir-tag">${esc(d.label)}</div>` }) }));
         } else {
           group.addLayer(L.marker(at, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [0, 0],
             html: `<div class="dir-chev" style="transform:translate(-50%,-50%) rotate(${heading - 90}deg)">›</div>` }) }));
@@ -676,36 +676,61 @@
   // ================================================================ photo pins layer
   // Photos group more when zoomed out and split apart as you zoom in; a group whose photos were all
   // taken at practically the same spot fans out ("spiderfies") when tapped instead of zooming further.
-  const photoCluster = L.markerClusterGroup({
-    maxClusterRadius: (z) => (z < 16 ? 70 : z < 17.5 ? 55 : z < 19 ? 42 : z < 20.5 ? 30 : 18),
-    showCoverageOnHover: false, zoomToBoundsOnClick: false, spiderfyOnMaxZoom: true, spiderfyDistanceMultiplier: 1.9,
-    animateAddingMarkers: false, chunkedLoading: true,
-    iconCreateFunction: (c) => {
-      const kids = c.getAllChildMarkers();
-      const p = kids[0].options.photo;
-      const n = kids.length;
-      const size = n < 5 ? 46 : n < 15 ? 54 : 62;
-      return L.divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2],
-        html: `<div class="ph-cluster" style="width:${size}px;height:${size}px"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"><b>${n}</b></div>` });
-    },
-  });
-  photoCluster.on("clusterclick", (e) => {
-    const c = e.layer;
-    const b = c.getBounds();
-    const spread = distM(b.getSouthWest(), b.getNorthEast());
-    if (spread < 12 || map.getZoom() >= 20.5) c.spiderfy();
-    else c.zoomToBounds({ padding: [60, 60], maxZoom: 22 });
-  });
+  // One cluster group per place: photos only ever group with photos from the same place, so a group near the
+  // house never swallows deck or shed photos and nearby photos from the same place always join their group.
+  function makeCluster() {
+    const cg = L.markerClusterGroup({
+      maxClusterRadius: (z) => (z < 16 ? 80 : z < 17.5 ? 70 : z < 19 ? 60 : z < 20.5 ? 44 : z < 21.5 ? 30 : 20),
+      showCoverageOnHover: false, zoomToBoundsOnClick: false, spiderfyOnMaxZoom: true, spiderfyDistanceMultiplier: 1.9,
+      animateAddingMarkers: false, chunkedLoading: true,
+      iconCreateFunction: (c) => {
+        const kids = c.getAllChildMarkers();
+        const pl = places.get(kids[0].options.photo.place);
+        const cover = (pl && kids.find((k) => k.options.photo.file === pl.f.properties.hero)) || kids[0];
+        const n = kids.length;
+        const size = n < 5 ? 46 : n < 15 ? 54 : 62;
+        return L.divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+          html: `<div class="ph-cluster" style="width:${size}px;height:${size}px"><img src="${esc(photoUrl(cover.options.photo, "thumb"))}" alt="" loading="lazy"><b>${n}</b></div>` });
+      },
+    });
+    cg.on("clusterclick", (e) => {
+      const c = e.layer;
+      const bb = c.getBounds();
+      const spread = distM(bb.getSouthWest(), bb.getNorthEast());
+      if (spread < 12 || map.getZoom() >= 20.5) c.spiderfy();
+      else c.zoomToBounds({ padding: [60, 60], maxZoom: 22 });
+    });
+    if (canHover) cg.on("clustermouseover", (e) => {
+      const kids = e.layer.getAllChildMarkers();
+      const pl = places.get(kids[0].options.photo.place);
+      e.layer.bindTooltip(`<div class="peek"><img src="${esc(photoUrl((pl && heroOf(pl)) || kids[0].options.photo, "thumb"))}" alt="">
+        <b>${esc(pl ? placeTitle(pl) : "Photos")}</b><small>${kids.length} photos here · click to ${map.getZoom() >= 20.5 ? "spread them out" : "zoom in"}</small></div>`,
+        { direction: "top", offset: [0, -26], className: "peek-tip", opacity: 1 }).openTooltip();
+    });
+    return cg;
+  }
+  const photoClusters = new Map();
+  const photoCluster = L.layerGroup();
   const photoPlain = L.layerGroup();
   let photoLayer = adv.cluster ? photoCluster : photoPlain;
   const photoIconFor = (p) => L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 20],
     html: `<div class="ph-single"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"></div>` });
   let photoDay = "all";
   function refreshPhotos() {
+    photoClusters.forEach((cg) => cg.clearLayers());
     [photoCluster, photoPlain].forEach((l) => { l.clearLayers(); if (map.hasLayer(l) && l !== (adv.cluster ? photoCluster : photoPlain)) map.removeLayer(l); });
     photoLayer = adv.cluster ? photoCluster : photoPlain;
-    const ms = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay).map((x) => x.m);
-    if (adv.cluster) photoCluster.addLayers(ms); else ms.forEach((m) => photoPlain.addLayer(m));
+    const shown = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay);
+    if (adv.cluster) {
+      const byPlace = new Map();
+      shown.forEach((x) => { const k = x.p.place || "none"; (byPlace.get(k) || byPlace.set(k, []).get(k)).push(x.m); });
+      byPlace.forEach((ms, k) => {
+        if (!photoClusters.has(k)) photoClusters.set(k, makeCluster());
+        const cg = photoClusters.get(k);
+        cg.addLayers(ms);
+        photoCluster.addLayer(cg);
+      });
+    } else shown.forEach((x) => photoPlain.addLayer(x.m));
     const want = photosOn && map.getZoom() >= Z.photos;
     syncZoomClass();
     if (want && !map.hasLayer(photoLayer)) photoLayer.addTo(map);
@@ -975,13 +1000,14 @@
       ${sec("colours", "🖍️", "Trail colours & lines", "Colour, thickness, brightness", `
         <h4>Colour trails by</h4><div class="seg" id="a-colour"></div>
         <h4>Line thickness</h4><div class="seg" id="a-thick"></div>
-        <h4>Map brightness</h4><div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>`, "adv")}
+        <h4>Trail see-through</h4><div class="range-row"><span class="rr-l">Faint</span><input type="range" id="a-lineop" min="20" max="100" step="5" aria-label="Trail opacity"><span class="rr-l">Solid</span></div>
+        <h4>Map brightness</h4><div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>`, "advsec")}
       ${sec("filter", "🔎", "Filter trails & places", "Length, kinds of places", `
         <h4>Trail length</h4><div class="seg" id="a-length"></div>
-        <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>`, "adv")}
-      ${sec("labels", "🏷️", "Labels & extras", "Names, photo spots, shading", `<div id="a-checks"></div>`, "adv")}
-      ${sec("pick", "🥾", "Trails one by one", "Turn single trails on or off", `<div id="m-tracks"></div>`, "adv")}
-      ${sec("legend", "📖", "Legend", "What the lines and pins mean", `<div class="legend" id="m-legend"></div>`, "adv")}`;
+        <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>`, "advsec")}
+      ${sec("labels", "🏷️", "Labels & extras", "Names, photo spots, shading", `<div id="a-checks"></div>`, "advsec")}
+      ${sec("pick", "〰️", "Trails one by one", "Turn single trails on or off", `<div id="m-tracks"></div>`, "advsec")}
+      ${sec("legend", "📖", "Legend", "What the lines and pins mean", `<div class="legend" id="m-legend"></div>`, "advsec")}`;
     $$(".opt-sec", body).forEach((d) => d.addEventListener("toggle", () => { if (d.open) openSections.add(d.dataset.sec); else openSections.delete(d.dataset.sec); }));
     const setSum = (id, text) => { const el = $(`[data-sum="${id}"]`, body); if (el) el.textContent = text; };
 
@@ -1036,6 +1062,9 @@
     const dimEl = $("#a-dim", body);
     dimEl.value = dim;
     dimEl.oninput = () => { dim = +dimEl.value; applyMapLook(); };
+    const opEl = $("#a-lineop", body);
+    opEl.value = adv.lineOpacity;
+    opEl.oninput = () => { adv.lineOpacity = +opEl.value; tracks.forEach(restyle); };
     const refilter = () => { refreshTracks(); refreshPlaces(); declutter(); };
     seg($("#a-length", body), [["all", "All"], ["short", "Under 250 m"], ["medium", "250–600 m"], ["long", "Over 600 m"]],
       adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
@@ -1066,15 +1095,15 @@
       else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over 800 m" : "Up to " + lim + " m"}</span>`).join("");
       else trailRows = line(adv.colourMode === "each" ? "#00e5ff" : L_.trail) + `<span>Trails${adv.colourMode === "each" ? " (each has its own colour)" : ""}</span>`;
       $("#m-legend", body).innerHTML = `
-        ${line(L_.boundary || "#fff", "border-top-style:dashed;")}<span>Property boundary</span>
-        ${line("#ff9800", "border-top-style:dashed;")}<span>Acreage parcel</span>
+        ${line(L_.boundary || "#fff", "border-top-style:dashed;")}<span>Quarter section perimeter</span>
+        ${line("#ff9800", "border-top-style:dashed;")}<span>Acreage perimeter</span>
         ${line(L_.road, "border-top-width:6px;")}<span>Roads and yard</span>
         ${trailRows}
         ${line(L_.sel, "border-top-width:6px;")}<span>The trail you picked</span>
-        <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>House and cabin</span>
-        <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">📷</span></span></span><span>A named place – tap it for photos</span>
+        <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
+        <span class="sym"><span class="ph-cluster" style="width:1.9rem;height:1.9rem;display:grid;place-items:center;background:var(--paper-2)"><b style="position:static;border:0">5</b></span></span><span>A group of photos – zoom in to spread them out</span>
         <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
-        <span class="sym"><span class="me-dot" style="position:relative;display:inline-block"><span class="arrow" style="position:relative;left:0;top:0;display:block;width:20px;height:20px"></span></span></span><span>You (after tapping “Me”)</span>`;
+        <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”)</span>`;
     };
     drawLegend();
 
@@ -1388,21 +1417,42 @@
   }
 
   // ================================================================ print
+  // Printing resizes the map to the paper, so remember exactly what was on screen and fit that area to the page.
+  let printView = null;
+  function visibleBounds() {
+    const size = map.getSize();
+    let left = 0, bottom = size.y;
+    if (!$("#sheet").hidden) {
+      if (isPhone()) bottom = Math.max(120, size.y - $("#sheet").offsetHeight);
+      else left = Math.min(size.x - 120, $("#sheet").getBoundingClientRect().right + 8);
+    }
+    return L.latLngBounds(map.containerPointToLatLng([left, 0]), map.containerPointToLatLng([size.x, bottom]));
+  }
   function fillPrintHead() {
     const t = THEMES[theme];
     $("#print-head").innerHTML = `<b>${esc($("#site-title").textContent)}</b><span>${esc(t.label)} look · ${esc(BASEMAPS[baseKey]?.label || "")} · printed ${esc(fmtDate(new Date().toISOString(), false))}</span>`;
   }
-  window.addEventListener("beforeprint", () => { fillPrintHead(); map.invalidateSize(); });
+  function fitForPrint() {
+    if (!printView) printView = { bounds: visibleBounds(), center: map.getCenter(), zoom: map.getZoom() };
+    map.invalidateSize({ animate: false });
+    map.fitBounds(printView.bounds, { animate: false, padding: [0, 0] });
+  }
+  window.addEventListener("beforeprint", () => { fillPrintHead(); fitForPrint(); });
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("printing");
+    map.invalidateSize({ animate: false });
+    if (printView) map.setView(printView.center, printView.zoom, { animate: false });
+    printView = null;
+  });
   function printMap() {
+    printView = { bounds: visibleBounds(), center: map.getCenter(), zoom: map.getZoom() };
     closeSheet();
     fillPrintHead();
     document.body.classList.add("printing");
-    map.invalidateSize();
+    fitForPrint();
     toast("Getting the map ready to print…", 1500);
-    // give tiles a moment to load at the print size
     setTimeout(() => { window.print(); }, 1200);
   }
-  window.addEventListener("afterprint", () => { document.body.classList.remove("printing"); map.invalidateSize(); });
 
   // ================================================================ welcome
   function showWelcome() { $("#welcome").hidden = false; $("#welcome-tour").focus(); }
