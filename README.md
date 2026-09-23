@@ -16,7 +16,7 @@ GitHub Pages from the `docs/` folder.
 | 📍 **Places** | List of named places and trails. Tap one to fly there and see its photos. |
 | ▶️ **Tour** | A 14-stop slideshow walk around the quarter with big Back / Next buttons. |
 | 〰️ **Trails** | Show or hide trail lines. Tap any trail for length, climb, an elevation chart, connecting trails and photos. |
-| 🧭 **Me** | Your live position (when you're at the quarter) with the nearest place and direction. |
+| 🧭 **Me** | Your live position (when you're at the quarter) with the nearest place and direction. A blue beam on the dot shows which way you're facing, like Google Maps (iPhones ask to allow motion & orientation). |
 | 🔍 **Search** | Find places, trails and photo captions. |
 | 📏 **Measure** | Tap points on the map to measure distance; keep tapping to add legs. Points snap to named places, can be dragged, and Undo / Clear / Done are always shown. |
 | 🗺️ **Legend** | What the lines and pins mean (folded-map button, top right). |
