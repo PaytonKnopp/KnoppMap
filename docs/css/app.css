@@ -93,7 +93,8 @@ body { font-family: var(--body-font); color: var(--ink); }
 .sheet-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--line); }
 .sheet-head h2 { flex: 1; margin: 0; font-size: 1.25rem; }
 .sheet-head .round { box-shadow: none; background: var(--paper-2); width: 2.6rem; height: 2.6rem; }
-#sheet-body { overflow-y: auto; padding: 0.8rem 1rem 1.2rem; -webkit-overflow-scrolling: touch; }
+#sheet-grip { display: none; }
+#sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0.8rem 1rem 1.2rem; -webkit-overflow-scrolling: touch; }
 #sheet-body h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 1.2rem 0 0.5rem; }
 #sheet-body h3:first-child { margin-top: 0.2rem; }
 
@@ -576,6 +577,13 @@ body.print-poster #print-poster { display: block; position: fixed; top: 0; left:
   #options-btn { font-size: 0.9rem; min-height: 2.5rem; padding: 0.4rem 0.8rem; }
   #info-stack { bottom: calc(6.2rem + env(safe-area-inset-bottom)); }
   #sheet { top: auto; }
+  /* Drag the grip or the header to make the sheet any height, from just the header up to nearly full screen. */
+  #sheet-grip { display: block; flex: none; height: 1.1rem; margin-bottom: -0.45rem; touch-action: none; cursor: grab; }
+  #sheet-grip::before { content: ""; display: block; width: 2.8rem; height: 5px; margin: 0.5rem auto 0; border-radius: 999px; background: var(--line); }
+  #sheet .sheet-head { touch-action: none; cursor: grab; }
+  #sheet.sized { max-height: calc(100% - env(safe-area-inset-top) - 0.5rem); transition: height .2s ease; }
+  #sheet.dragging { transition: none; user-select: none; -webkit-user-select: none; }
+  #sheet.dragging, #sheet.dragging .sheet-head, #sheet.dragging #sheet-grip { cursor: grabbing; }
 }
 
 /* ---------- more textures */
