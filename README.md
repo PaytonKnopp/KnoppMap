@@ -55,7 +55,7 @@ overwritten by the build. New photos not listed in any place are grouped into te
 ## Looks, map styles, layers and filters
 
 Everything resets to normal each time the map is opened (only text size is remembered).
-**Options** (top left, under the title) holds, in order: Reset, Look (22 themes), Map style, Extra layers
+**Options** (top left, under the title) holds, in order: Reset, Look (20 themes), Map style, Extra layers
 (hills shading, live RainViewer rain radar, current Open-Meteo weather), what shows on the map, text size, Print,
 offline saving, and a collapsed **Advanced** box (trail colouring, thickness, brightness, length filter, kinds of
 places, labels, legend, per-trail switches).
