@@ -703,11 +703,6 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 .rp-wide { border: 1.5px solid var(--line); background: var(--field); color: var(--ink); border-radius: 10px; height: 2.2rem; padding: 0 0.6rem; font-weight: 700; font-size: 0.8rem; white-space: nowrap; }
 .rp-fc { background: #7c4dff; color: #fff; font-size: 0.7rem; font-weight: 800; padding: 0.05rem 0.4rem; border-radius: 999px; text-transform: uppercase; letter-spacing: .05em; }
 .rp-x { border: 0; background: var(--paper-2); color: var(--ink); width: 2rem; height: 2rem; border-radius: 50%; flex: none; }
-/* "More / Less" only matters on phones, where the panel starts with just the essentials. */
-.rp-more { display: none; align-items: center; gap: 0.2rem; border: 1.5px solid var(--line); background: var(--field); color: var(--ink); border-radius: 999px;
-  height: 2rem; padding: 0 0.5rem 0 0.7rem; font-weight: 700; font-size: 0.8rem; flex: none; }
-.rp-more svg { width: 1rem; height: 1rem; transition: transform .2s; }
-#radar-panel.more .rp-more svg { transform: rotate(180deg); }
 /* play, the time slider (with the time shown above it) and "Now" sit on one row */
 .rp-play-row { display: flex; align-items: center; gap: 0.55rem; }
 .rp-play-row > button { flex: none; height: 2.6rem; border-radius: 10px; font-weight: 700; border: 1.5px solid var(--line); background: var(--field); color: var(--ink); }
@@ -723,19 +718,49 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
 .rp-ticks i.on { background: var(--ink); height: 10px; }
 .rp-btns { display: flex; gap: 0.3rem; flex-wrap: wrap; }
 .rp-btns button { border: 1.5px solid var(--line); background: var(--field); color: var(--ink); border-radius: 10px; min-width: 2.6rem; height: 2.5rem; font-weight: 700; }
-.rp-btns .rp-wide { display: none; }
 .rp-btns .rp-speed { margin-left: auto; font-size: 0.8rem; padding: 0 0.6rem; }
 .rp-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; font-size: 0.8rem; color: var(--muted); }
 .rp-keys { display: flex; align-items: center; gap: 0.35rem 0.7rem; flex-wrap: wrap; }
 .rp-key { display: flex; align-items: center; gap: 0.35rem; }
 .rp-key i { width: 3.8rem; height: 0.55rem; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
 /* RainViewer "Universal Blue" (colour scheme 2): rain runs blue → yellow → red → pink, snow is drawn in its own icy tones. */
-.rp-key i.rain { background: linear-gradient(90deg, #88ddee, #0099cc, #005588, #ffee00, #ff4400, #c10000, #ffaaff); }
-.rp-key i.snow { background: linear-gradient(90deg, #f2fbff, #c8ecff, #8fd3ff, #5ea8e8, #7c6fd6); }
+.rp-key i.rain, .lg-precip.rain { background: linear-gradient(90deg, #88ddee, #0099cc, #005588, #ffee00, #ff4400, #c10000, #ffaaff); }
+.rp-key i.snow, .lg-precip.snow { background: linear-gradient(90deg, #f2fbff, #c8ecff, #8fd3ff, #5ea8e8, #7c6fd6); }
 .rp-scale { font-size: 0.75rem; }
 .rp-op { display: flex; align-items: center; gap: 0.35rem; }
 .rp-op input { width: 5.5rem; accent-color: var(--green); }
-.rp-foot .rp-speed { display: none; }
+.pb-ic { width: 1.15rem; height: 1.15rem; display: block; margin: auto; }
+.rp-play .pb-ic, .rpp-play .pb-ic { width: 1.35rem; height: 1.35rem; }
+.lg-precip { display: block; width: 2rem; height: 0.55rem; border-radius: 999px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+
+/* Phones: a slim bar over the map while the radar plays... */
+#radar-pill { display: none; align-items: center; gap: 0.35rem; padding: 0.3rem 0.35rem 0.3rem 0.25rem; border-radius: 999px; }
+.rpp-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; border: 0; background: none; color: inherit; text-align: left;
+  padding: 0.15rem 0.3rem 0.15rem 0.45rem; min-height: 2.6rem; border-radius: 999px; }
+.rpp-icon { font-size: 1.35rem; line-height: 1; flex: none; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--body-font); }
+.rpp-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.rpp-txt b, .rpp-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rpp-txt b { font-size: 0.88rem; }
+.rpp-txt small { font-size: 0.76rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rpp-play { flex: none; width: 2.6rem; height: 2.6rem; border: 0; border-radius: 50%; background: var(--green); color: var(--on-accent); font-size: 1rem; line-height: 1; }
+#radar-pill .rpp-x { width: 2.3rem; height: 2.3rem; }
+/* ...and the full controls laid out roomily in the sheet when the bar is tapped. */
+#radar-panel.in-sheet { width: auto; background: none; box-shadow: none; border-radius: 0; padding: 0; gap: 0.9rem; font-size: 1rem; }
+#radar-panel.in-sheet .rp-head { display: none; }
+#radar-panel.in-sheet .rp-now { font-size: 0.95rem; background: var(--paper-2); border-radius: 12px; padding: 0.65rem 0.75rem; }
+#radar-panel.in-sheet .rp-play-row > button { height: 3rem; }
+#radar-panel.in-sheet .rp-play { width: 3.4rem; font-size: 1.25rem; }
+#radar-panel.in-sheet .rp-time { font-size: 0.95rem; margin-bottom: 0.1rem; }
+#radar-panel.in-sheet .rp-slider { height: 2rem; }
+#radar-panel.in-sheet .rp-btns { flex-wrap: nowrap; gap: 0.4rem; }
+#radar-panel.in-sheet .rp-btns button { flex: 1; min-width: 0; height: 2.8rem; }
+#radar-panel.in-sheet .rp-btns .rp-speed { flex: 2.2; margin-left: 0; font-size: 0.85rem; }
+#radar-panel.in-sheet .rp-foot { flex-direction: column; align-items: stretch; gap: 0.7rem; font-size: 0.9rem; border-top: 1px solid var(--line); padding-top: 0.8rem; }
+#radar-panel.in-sheet .rp-keys { gap: 0.5rem 1rem; }
+#radar-panel.in-sheet .rp-key i { width: 4.5rem; height: 0.65rem; }
+#radar-panel.in-sheet .rp-op { gap: 0.7rem; }
+#radar-panel.in-sheet .rp-op input { flex: 1; width: auto; height: 2rem; }
+.rp-sheet .rp-off { margin-top: 1.1rem; }
 .wx-short { display: none; }
 
 /* =================================================================== hover preview on pins */
@@ -966,22 +991,9 @@ html, body { overscroll-behavior: none; }
 #sheet-body, .tips-body, #legend-pop, #info-stack, .overlay { overscroll-behavior: contain; }
 
 @media (max-width: 700px), (max-height: 500px) {
-  /* Weather keeps to the essentials (what's falling at the farm, play, the time slider) until "More" is tapped. */
-  #radar-panel { gap: 0.4rem; padding: 0.55rem 0.7rem 0.6rem; }
-  .rp-more { display: inline-flex; }
-  #radar-panel:not(.more) .rp-extra { display: none; }
-  .rp-now .rp-wide { display: none; }
-  .rp-btns .rp-wide { display: inline-block; }
-  /* Phones: step buttons and Wider view on one row; Speed moves down next to See-through. */
-  .rp-btns { flex-wrap: nowrap; }
-  .rp-btns button { flex: 1; height: 2.3rem; min-width: 0; }
-  .rp-btns .rp-wide { flex: 2.4; font-size: 0.8rem; padding: 0 0.4rem; }
-  .rp-btns .rp-speed { display: none; }
-  .rp-foot { gap: 0.4rem 0.6rem; }
-  .rp-foot .rp-speed { display: inline-block; margin-left: auto; border: 1.5px solid var(--line); background: var(--field); color: var(--ink);
-    border-radius: 10px; height: 2.1rem; padding: 0 0.55rem; font-weight: 700; font-size: 0.78rem; white-space: nowrap; }
-  .rp-now { font-size: 0.85rem; }
-  .rp-play-row > button { height: 2.4rem; }
+  /* The radar shows as the slim bar; its controls open in the sheet. */
+  #info-stack > #radar-panel { display: none; }
+  #radar-pill { display: flex; }
   .info-chip { font-size: 0.88rem; padding: 0.45rem 0.7rem; }
   .wx-long { display: none; }
   .wx-short { display: inline; }
