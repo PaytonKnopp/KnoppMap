@@ -29,14 +29,19 @@
     const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
     return (Math.atan2(y, x) / r + 360) % 360;
   }
+  const compassShort = (deg) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(deg / 45) % 8];
   const compass = (deg) => ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(deg / 45) % 8];
 
   // ================================================================ text size
+  // Phones (and short landscape screens) start on Small so the panels leave room for the map; computers start on Normal.
+  // Only a size someone picks is remembered. (The old "size" key was saved on every visit, so it can't tell a choice
+  // from the default and is dropped.)
   const SIZES = [16, 18, 21];
-  let sizeIdx = Math.min(2, store.get("size", 1));
+  const smallScreen = window.matchMedia("(max-width: 700px), (max-height: 500px)").matches;
+  store.set("size", null);
+  let sizeIdx = Math.min(2, store.get("textSize", smallScreen ? 0 : 1));
   function applySize() {
     document.documentElement.style.fontSize = SIZES[sizeIdx] + "px";
-    store.set("size", sizeIdx);
     setTimeout(declutter, 50);
   }
   const SIZE_NAMES = ["Small", "Normal", "Large"];
@@ -1337,7 +1342,7 @@
     check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutterSoon(); });
     check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutterSoon(); });
     check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
-    seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); setSum("text", SIZE_NAMES[i]); });
+    seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; store.set("textSize", i); applySize(); setSum("text", SIZE_NAMES[i]); });
     $("#m-print", body).onclick = printMap;
     offlinePanel($("#m-offline", body));
 
@@ -1708,8 +1713,7 @@
   // Radar is only detailed down to about zoom 7, so one tap zooms out to the surrounding area and back.
   const isWide = () => map.getZoom() < 10;
   function updateWideBtn() {
-    const b = $('[data-rp="wide"]');
-    if (b) b.textContent = isWide() ? "🏠 Back to farm" : "🔭 Wider view";
+    $$('[data-rp="wide"]').forEach((b) => { b.textContent = isWide() ? "🏠 Back to farm" : "🔭 Wider view"; });
   }
   map.on("zoomend", () => { if (overlays.radar) updateWideBtn(); });
   (() => {
@@ -1720,6 +1724,14 @@
       if (act === "close") return setRadar(false);
       if (act === "wide") return isWide() ? fitFarm() : map.flyTo(farmBounds.getCenter(), 8);
       if (act === "play") return radar.timer ? stopRadarPlay() : startRadarPlay();
+      if (act === "more") {
+        // Phones show only the essentials until "More" is tapped; computers always show everything.
+        const more = panel.classList.toggle("more");
+        const b = e.target.closest("[data-rp]");
+        b.setAttribute("aria-expanded", more);
+        b.firstChild.textContent = more ? "Less " : "More ";
+        return;
+      }
       stopRadarPlay();
       if (act === "first") showRadarFrame(0);
       if (act === "back") showRadarFrame(radar.idx - 1);
@@ -1729,7 +1741,7 @@
         const speeds = [[1100, "Slow"], [700, "Normal"], [350, "Fast"]];
         const i = (speeds.findIndex(([ms]) => ms === radar.speed) + 1) % speeds.length;
         radar.speed = speeds[i][0];
-        e.target.closest("[data-rp]").textContent = "Speed: " + speeds[i][1];
+        $$('[data-rp="speed"]', panel).forEach((b) => { b.textContent = "Speed: " + speeds[i][1]; });
       }
     });
     $(".rp-slider", panel).oninput = (e) => { stopRadarPlay(); showRadarFrame(+e.target.value); };
@@ -1811,7 +1823,7 @@
         const [emo, text] = WX[cur.weather_code] || ["🌡️", ""];
         const sunset = d.sunset?.[0] ? clock(d.sunset[0]) : "";
         chip.innerHTML = `<b>${emo} ${Math.round(cur.temperature_2m)}°C</b> ${esc(text)} · feels ${Math.round(cur.apparent_temperature)}°<br>
-          <small>Wind ${Math.round(cur.wind_speed_10m)} km/h from the ${compass(cur.wind_direction_10m)} · High ${Math.round(d.temperature_2m_max[0])}° Low ${Math.round(d.temperature_2m_min[0])}°${sunset ? " · Sunset " + sunset : ""}</small>`;
+          <small>Wind ${Math.round(cur.wind_speed_10m)} km/h <span class="wx-long">from the ${compass(cur.wind_direction_10m)}</span><span class="wx-short">${compassShort(cur.wind_direction_10m)}</span> · High ${Math.round(d.temperature_2m_max[0])}° Low ${Math.round(d.temperature_2m_min[0])}°${sunset ? " · Sunset " + sunset : ""}</small>`;
       } catch { chip.textContent = "Weather isn't available right now."; }
     };
     await load();
