@@ -23,6 +23,9 @@ GitHub Pages from the `docs/` folder.
 | 💡 **Tips** | The welcome guide. |
 | ⚙️ **Options** | Looks, map styles, weather, what's shown, text size, print & offline, and advanced filters. **Reset to original settings** is at the top. |
 
+- **Panels on a phone** (Places, Options, place cards and the rest) can be dragged up or down by their header to
+  show as much or as little of the map as you like. Tap the little grip bar to jump between nearly full screen and
+  the normal height. Closing the panel puts it back to normal.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
   Google Maps driving directions instead.

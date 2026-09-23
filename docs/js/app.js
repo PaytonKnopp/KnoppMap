@@ -553,7 +553,7 @@
     const z = zoom ?? Math.max(map.getZoom(), 17.5);
     let pt = map.project(ll, z);
     if (!$("#sheet").hidden) {
-      if (isPhone()) pt = pt.add([0, window.innerHeight * 0.3]);
+      if (isPhone()) pt = pt.add([0, $("#sheet").offsetHeight / 2]);
       else pt = pt.subtract([($("#sheet").offsetWidth + 24) / 2, 0]);
     }
     map.flyTo(map.unproject(pt, z), z, { duration: 0.8 });
@@ -791,6 +791,7 @@
     body.replaceChildren(sheetCurrent.content);
     body.scrollTop = 0;
     $("#sheet-back").hidden = sheetStack.length === 0;
+    applySheetHeight();
     sheet.hidden = false;
     document.body.classList.add("sheet-open");
     if (isPhone() && !$("#legend-pop").hidden) $("#legend-pop .lp-x").click();
@@ -800,6 +801,7 @@
     sheet.hidden = true;
     sheetStack.length = 0;
     sheetCurrent = null;
+    sheetH = null;
     document.body.classList.remove("sheet-open");
     $$("#dock button.active, #options-btn.active").forEach((b) => b.classList.remove("active"));
     selectPlace(null);
@@ -818,6 +820,50 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && $("#lightbox").hidden && !sheet.hidden) closeSheet();
   });
+
+  // Phone: drag the grip or the header up or down to show as much or as little of the map as wanted. Tapping the grip
+  // jumps between nearly full screen and the normal height. The size lasts until the sheet is closed.
+  let sheetH = null;
+  let sheetDrag = null;
+  const sheetMaxH = () => window.innerHeight - 8;
+  const sheetMinH = () => $("#sheet-grip").offsetHeight + $(".sheet-head", sheet).offsetHeight;
+  function applySheetHeight() {
+    const on = isPhone() && sheetH != null;
+    if (on) sheetH = Math.max(sheetMinH(), Math.min(sheetMaxH(), sheetH));
+    sheet.classList.toggle("sized", on);
+    sheet.style.height = on ? `${sheetH}px` : "";
+  }
+  function sheetDragStart(e) {
+    if (!isPhone() || e.button > 0 || e.target.closest("button")) return;
+    sheetDrag = { id: e.pointerId, y: e.clientY, h: sheet.offsetHeight, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function sheetDragMove(e) {
+    if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
+    const dy = sheetDrag.y - e.clientY;
+    if (!sheetDrag.moved && Math.abs(dy) < 5) return;
+    sheetDrag.moved = true;
+    sheet.classList.add("dragging");
+    sheetH = sheetDrag.h + dy;
+    applySheetHeight();
+  }
+  function sheetDragEnd(e) {
+    if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
+    const tapped = !sheetDrag.moved;
+    sheetDrag = null;
+    sheet.classList.remove("dragging");
+    if (tapped && e.type === "pointerup" && e.currentTarget.id === "sheet-grip") {
+      sheetH = sheet.offsetHeight < sheetMaxH() * 0.8 ? sheetMaxH() : null;
+      applySheetHeight();
+    }
+  }
+  [$("#sheet-grip"), $(".sheet-head", sheet)].forEach((el) => {
+    el.addEventListener("pointerdown", sheetDragStart);
+    el.addEventListener("pointermove", sheetDragMove);
+    el.addEventListener("pointerup", sheetDragEnd);
+    el.addEventListener("pointercancel", sheetDragEnd);
+  });
+  window.addEventListener("resize", () => { if (!sheet.hidden) applySheetHeight(); });
   function setDockActive(act) {
     $("#options-btn").classList.remove("active");
     $$("#dock button").forEach((b) => b.classList.toggle("active", b.dataset.act === act));
