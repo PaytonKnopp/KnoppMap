@@ -368,6 +368,12 @@ def build_tracks():
         t.update(name=c["name"], category=c.get("category", "trails"), color=c.get("color", "#ffd400"),
                  loop=c.get("loop", False), snap=c.get("snap", True))
         t["parts"] = join_segments(t["segs"], t["loop"], log_join, t["name"])
+        ext = c.get("extend") or {}
+        if ext.get("start"):
+            t["parts"][0].insert(0, tuple(ext["start"]))
+        if ext.get("end"):
+            t["parts"][-1].append(tuple(ext["end"]))
+        t["directions"] = c.get("directions")
 
     for t in tracks:
         if t["loop"]:
@@ -415,6 +421,7 @@ def build_tracks():
                 "name": t["name"], "category": t["category"], "color": t["color"],
                 "length_m": round(sum(line_length(p) for p in parts)),
                 "recorded": t["start"],
+                **({"directions": t["directions"]} if t.get("directions") else {}),
                 **dict(zip(("profile", "gain_m", "loss_m"), profile(t["prof"]))),
             },
             "geometry": geom,

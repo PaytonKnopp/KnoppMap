@@ -1,7 +1,7 @@
 {
   "categories": {
     "boundary": {
-      "label": "Property Boundaries",
+      "label": "Property Perimeters",
       "order": 1
     },
     "roads": {
@@ -20,7 +20,7 @@
       "color": "#ffd400"
     },
     "Roper trail": {
-      "name": "Roper trail",
+      "name": "Roper Trail",
       "category": "trails",
       "color": "#00e5ff"
     },
@@ -45,9 +45,20 @@
       "color": "#ff8c1a"
     },
     "Saturday Afternoon Walking": {
-      "name": "Saturday Afternoon Walking",
+      "name": "Brush Pile Trail",
       "category": "trails",
-      "color": "#b388ff"
+      "color": "#b388ff",
+      "snap": false,
+      "extend": {
+        "start": [
+          -114.653908,
+          52.226057
+        ],
+        "end": [
+          -114.651947,
+          52.226179
+        ]
+      }
     },
     "Tree Farm Trail": {
       "name": "Tree Farm Trail",
@@ -55,13 +66,13 @@
       "color": "#4fc3ff"
     },
     "Perimeter": {
-      "name": "Quarter Section Boundary",
+      "name": "Quarter Section Perimeter",
       "category": "boundary",
       "color": "#ffffff",
       "loop": true
     },
     "TrailHead": {
-      "name": "TrailHead",
+      "name": "Trailhead",
       "category": "trails",
       "color": "#ff5252"
     },
@@ -77,12 +88,12 @@
       "color": "#c6ff00"
     },
     "Lor Trail": {
-      "name": "Lor Trail",
+      "name": "Loraly Trail",
       "category": "trails",
       "color": "#ffab91"
     },
     "Hill behind house": {
-      "name": "Hill behind house",
+      "name": "Hill Behind House Trails",
       "category": "trails",
       "color": "#64ffda"
     },
@@ -92,12 +103,22 @@
       "color": "#f48fb1"
     },
     "Payton and Caine": {
-      "name": "Payton and Caine",
+      "name": "Payton and Caine Trail",
       "category": "trails",
-      "color": "#ffd400"
+      "color": "#ffd400",
+      "directions": [
+        {
+          "label": "Payton Trail",
+          "reverse": true
+        },
+        {
+          "label": "Caine Trail",
+          "reverse": false
+        }
+      ]
     },
     "Golf range trail": {
-      "name": "Golf range trail",
+      "name": "Golf Range",
       "category": "trails",
       "color": "#ff4fd8"
     },
@@ -107,7 +128,7 @@
       "color": "#7cff4f"
     },
     "Trail Home": {
-      "name": "Trail Home",
+      "name": "Backroad Trail",
       "category": "trails",
       "color": "#ff8c1a"
     },
@@ -132,12 +153,12 @@
       "color": "#c6ff00"
     },
     "Brittany Trail": {
-      "name": "Brittany Trail",
+      "name": "Brittney Trail",
       "category": "trails",
       "color": "#ffab91"
     },
     "Shooting range": {
-      "name": "Shooting range",
+      "name": "Shooting Range",
       "category": "trails",
       "color": "#64ffda"
     },
@@ -172,7 +193,7 @@
       "color": "#00e5ff"
     },
     "Achreage perimeter": {
-      "name": "Acreage Parcel",
+      "name": "Acreage Perimeter",
       "category": "boundary",
       "color": "#ff9800",
       "loop": true
