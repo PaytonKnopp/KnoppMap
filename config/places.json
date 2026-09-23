@@ -50,7 +50,7 @@
     {
       "id": "spot-02",
       "name": "Back Deck",
-      "icon": "garden",
+      "icon": "bench",
       "story": "",
       "hero": "20260823_142102.jpg",
       "photos": [
@@ -84,7 +84,7 @@
     {
       "id": "spot-03",
       "name": "Hill Behind House",
-      "icon": "bench",
+      "icon": "hill",
       "story": "",
       "hero": "20260823_142411.jpg",
       "photos": [
@@ -143,7 +143,7 @@
     {
       "id": "spot-06",
       "name": "Main Culvert",
-      "icon": "pasture",
+      "icon": "well",
       "story": "",
       "hero": "20260823_161247.jpg",
       "photos": [
@@ -216,7 +216,7 @@
     {
       "id": "spot-10",
       "name": "Driveway Entry",
-      "icon": "gate",
+      "icon": "road",
       "story": "",
       "hero": "20260823_140246.jpg",
       "photos": [
@@ -320,7 +320,7 @@
     {
       "id": "spot-17",
       "name": "Acreage Entrance",
-      "icon": "field",
+      "icon": "gate",
       "story": "",
       "hero": "20260823_144945.jpg",
       "photos": [
@@ -359,7 +359,7 @@
     {
       "id": "spot-20",
       "name": "The Pond",
-      "icon": "field",
+      "icon": "pond",
       "story": "",
       "hero": "20260823_154823.jpg",
       "photos": [

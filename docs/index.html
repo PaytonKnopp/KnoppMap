@@ -71,21 +71,37 @@
   </aside>
 
   <div id="welcome" class="overlay" hidden>
-    <div class="welcome-card">
-      <div class="welcome-art" aria-hidden="true">🏡</div>
-      <h2>Welcome to Knopp Map</h2>
-      <ul class="howto">
-        <li><span>👆</span> Drag the map with one finger to move around.</li>
-        <li><span>🔍</span> Use the big <b>+</b> and <b>−</b> buttons to zoom in and out.</li>
-        <li><span>📍</span> Tap a round picture on the map to see that place and its photos.</li>
-        <li><span>▶️</span> Tap <b>Tour</b> for a slideshow walk around the farm.</li>
-        <li><span>🏠</span> Lost? Tap <b>Farm</b> at the bottom to come back.</li>
-        <li><span>⚙️</span> <b>Options</b> (top left) changes the look, map style and filters. <b>Reset</b> puts it all back.</li>
-      </ul>
-      <div class="btn-row">
+    <div class="welcome-card tips" role="dialog" aria-labelledby="tips-title">
+      <button id="welcome-x" class="round tips-x" aria-label="Close tips">✕</button>
+      <div class="tips-head">
+        <div class="welcome-art" aria-hidden="true">🏡</div>
+        <div><h2 id="tips-title">Welcome to Knopp Map</h2><p class="tips-sub">A map of the farm, its trails and photos. Here's how it works.</p></div>
+      </div>
+      <div class="tips-body">
+        <section>
+          <h3>Getting around</h3>
+          <div class="tip"><span class="t-ic">👆</span><div><b>Move the map</b><small>Drag with one finger. Pinch, or use the <b>+</b> and <b>−</b> buttons, to zoom.</small></div></div>
+          <div class="tip"><span class="t-ic">🏠</span><div><b>Lost?</b><small>Tap <b>Farm</b> at the bottom to jump back to the whole property.</small></div></div>
+          <div class="tip"><span class="t-ic">🧭</span><div><b>Where am I?</b><small>Tap <b>Me</b> when you're at the farm to see yourself on the map.</small></div></div>
+        </section>
+        <section>
+          <h3>Seeing places &amp; photos</h3>
+          <div class="tip"><span class="t-ic">📍</span><div><b>Named places</b><small>Tap a round picture, like the house or cabin, to see its photos and story.</small></div></div>
+          <div class="tip"><span class="t-ic"><span class="t-bubble">5</span></span><div><b>Photo groups</b><small>The number is how many photos are there. Zoom in and they spread apart; tap one to open it.</small></div></div>
+          <div class="tip"><span class="t-ic">🥾</span><div><b>Trails</b><small>Tap any trail line for its length, hills and photos along the way.</small></div></div>
+        </section>
+        <section>
+          <h3>More to try</h3>
+          <div class="tip"><span class="t-ic">▶️</span><div><b>Tour</b><small>A slideshow walk around the farm, one stop at a time.</small></div></div>
+          <div class="tip"><span class="t-ic">🔍</span><div><b>Search</b><small>Find any place or trail by name (top right).</small></div></div>
+          <div class="tip"><span class="t-ic">⚙️</span><div><b>Options</b><small>Change the look, map style, text size and weather. <b>Reset</b> puts it all back.</small></div></div>
+        </section>
+      </div>
+      <div class="tips-foot">
         <button id="welcome-tour" class="big">▶️ Start the tour</button>
         <button id="welcome-ok" class="big ghost">Explore on my own</button>
       </div>
+      <p class="tips-note">You can open these tips again anytime with <b>💡 Tips</b> in the top right.</p>
     </div>
   </div>
 

@@ -6,7 +6,7 @@
   const isPhone = () => window.matchMedia("(max-width: 700px)").matches;
 
   // Zoom levels at which things appear.
-  const Z = { farmPin: 14.5, trails: 13.5, places: 14.5, minorPlaces: 17, roadLabels: 16, trailLabels: 17 };
+  const Z = { farmPin: 14.5, trails: 13.5, places: 14.5, photos: 16.75, minorPlaces: 17, roadLabels: 16, trailLabels: 17 };
 
   // ================================================================ small helpers
   let toastTimer;
@@ -309,7 +309,7 @@
   // ================================================================ state
   let farmBounds = null, farmPin = null;
   let trailsOn = true;
-  let photosOn = false;
+  let photosOn = true;
   let labelsOn = true;
   const ADV_DEFAULTS = { colourMode: "simple", thickness: 1, placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all",
     trailDay: "all", cluster: true, boundaryFill: true };
@@ -438,7 +438,8 @@
     <rect x="12" y="32" width="40" height="24" fill="#a0673a"/><g stroke="#6b4222" stroke-width="2.4"><path d="M12 38h40M12 44h40M12 50h40"/></g>
     <rect x="28" y="40" width="9" height="16" fill="#4a2c14"/><rect x="16" y="37" width="8" height="7" fill="#ffd978" stroke="#4a2c14" stroke-width="1.5"/>
     <rect x="41" y="37" width="8" height="7" fill="#ffd978" stroke="#4a2c14" stroke-width="1.5"/></svg>`;
-  const pinEmoji = (p) => (p.icon === "cabin" ? CABIN_SVG : SPECIAL_PINS.has(p.icon) ? icon(p.icon) : "📷");
+  // Named places get their own picture; small unnamed spots all share the camera.
+  const pinEmoji = (p) => (p.icon === "cabin" ? CABIN_SVG : p.featured || SPECIAL_PINS.has(p.icon) ? icon(p.icon) : "📷");
   const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   function placeIcon(f, sel = false) {
     const p = f.properties;
@@ -446,7 +447,7 @@
     return L.divIcon({
       className: "", iconSize: [0, 0], iconAnchor: [0, 0],
       html: `<div class="place-pin${minor ? " minor" : ""}${sel ? " sel" : ""}" style="margin-top:${minor ? "-0.85rem" : "-1.3rem"}">
-        <div class="bubble">${pinEmoji(p)}</div>${minor || (!adv.placeNames && !sel) ? "" : `<div class="name">${esc(p.name)}</div>`}</div>`,
+        <div class="bubble">${pinEmoji(p)}${!minor && p.photos.length ? `<i class="pin-count">${p.photos.length}</i>` : ""}</div>${minor || (!adv.placeNames && !sel) ? "" : `<div class="name">${esc(p.name)}</div>`}</div>`,
     });
   }
   function addPlace(f) {
@@ -629,18 +630,42 @@
   }
 
   // ================================================================ photo pins layer
-  const photoCluster = L.markerClusterGroup({ maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 19 });
+  // Photos group more when zoomed out and split apart as you zoom in; a group whose photos were all
+  // taken at practically the same spot fans out ("spiderfies") when tapped instead of zooming further.
+  const photoCluster = L.markerClusterGroup({
+    maxClusterRadius: (z) => (z < 16 ? 70 : z < 17.5 ? 55 : z < 19 ? 42 : z < 20.5 ? 30 : 18),
+    showCoverageOnHover: false, zoomToBoundsOnClick: false, spiderfyOnMaxZoom: true, spiderfyDistanceMultiplier: 1.9,
+    animateAddingMarkers: false, chunkedLoading: true,
+    iconCreateFunction: (c) => {
+      const kids = c.getAllChildMarkers();
+      const p = kids[0].options.photo;
+      const n = kids.length;
+      const size = n < 5 ? 46 : n < 15 ? 54 : 62;
+      return L.divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+        html: `<div class="ph-cluster" style="width:${size}px;height:${size}px"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"><b>${n}</b></div>` });
+    },
+  });
+  photoCluster.on("clusterclick", (e) => {
+    const c = e.layer;
+    const b = c.getBounds();
+    const spread = distM(b.getSouthWest(), b.getNorthEast());
+    if (spread < 12 || map.getZoom() >= 20.5) c.spiderfy();
+    else c.zoomToBounds({ padding: [60, 60], maxZoom: 22 });
+  });
   const photoPlain = L.layerGroup();
   let photoLayer = adv.cluster ? photoCluster : photoPlain;
-  const photoIcon = L.divIcon({ className: "", html: '<div class="photo-pin">📷</div>', iconSize: [24, 24], iconAnchor: [12, 12] });
+  const photoIconFor = (p) => L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 20],
+    html: `<div class="ph-single"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"></div>` });
   let photoDay = "all";
   function refreshPhotos() {
     [photoCluster, photoPlain].forEach((l) => { l.clearLayers(); if (map.hasLayer(l) && l !== (adv.cluster ? photoCluster : photoPlain)) map.removeLayer(l); });
     photoLayer = adv.cluster ? photoCluster : photoPlain;
     const ms = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay).map((x) => x.m);
     if (adv.cluster) photoCluster.addLayers(ms); else ms.forEach((m) => photoPlain.addLayer(m));
-    if (photosOn && !map.hasLayer(photoLayer)) photoLayer.addTo(map);
-    if (!photosOn && map.hasLayer(photoLayer)) map.removeLayer(photoLayer);
+    const want = photosOn && map.getZoom() >= Z.photos;
+    syncZoomClass();
+    if (want && !map.hasLayer(photoLayer)) photoLayer.addTo(map);
+    if (!want && map.hasLayer(photoLayer)) map.removeLayer(photoLayer);
     refreshPlaces();
   }
 
@@ -874,7 +899,7 @@
     dim = 100;
     photoDay = "all";
     labelsOn = true;
-    setPhotos(false);
+    setPhotos(true);
     if (!trailsOn) setTrails(true);
     setHills(false); setRadar(false); setWeather(false);
     applyTheme("farmhouse", { pickBase: true });
@@ -892,7 +917,7 @@
         <summary><span class="os-ic">${ic}</span><span class="os-txt"><b>${title}</b><small data-sum="${id}">${sub}</small></span><span class="os-chev">›</span></summary>
         <div class="os-body">${inner}</div></details>`;
     body.innerHTML = `
-      <button class="big reset-top" id="m-reset">↺ Reset everything to normal</button>
+      <button class="big reset-top" id="m-reset">↺ Reset to original settings</button>
       ${sec("look", "🎨", "Look", esc(THEMES[theme].label), `<div class="theme-grid" id="m-theme"></div>`)}
       ${sec("style", "🗺️", "Map style", esc(BASEMAPS[baseKey]?.label || ""), `<div class="style-grid" id="m-base"></div>`)}
       ${sec("layers", "🌦️", "Weather & extra layers", "Rain radar, weather, hills", `<div id="m-over"></div>`)}
@@ -953,7 +978,7 @@
     check(basic, "🥾 Trails &amp; roads", trailsOn, (v) => setTrails(v));
     check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutter(); });
     check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
-    check(basic, "📷 Show every photo separately <small>(instead of grouped by place)</small>", photosOn, (v) => setPhotos(v));
+    check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
     seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); setSum("text", SIZE_NAMES[i]); });
     $("#m-print", body).onclick = printMap;
     offlinePanel($("#m-offline", body));
@@ -987,7 +1012,7 @@
     const ac = $("#a-checks", body);
     check(ac, "Small photo spots (when zoomed in)", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
     check(ac, "Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
-    check(ac, "Group nearby photos together (when showing every photo)", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
+    check(ac, "Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
 
     const drawLegend = () => {
       const L_ = THEMES[theme].lines;
@@ -1038,7 +1063,7 @@
       sync();
       list.append(head, sub);
     });
-    $("#m-reset", body).onclick = () => { resetAll(); toast("Everything is back to normal."); moreSheet(); };
+    $("#m-reset", body).onclick = () => { resetAll(); toast("Back to the original settings."); moreSheet(); };
     openSheet("⚙️ Options", body);
     $("#options-btn").classList.add("active");
   }
@@ -1339,6 +1364,9 @@
   function showWelcome() { $("#welcome").hidden = false; $("#welcome-tour").focus(); }
   const doneWelcome = () => { $("#welcome").hidden = true; store.set("welcomed", true); };
   $("#welcome-ok").onclick = doneWelcome;
+  $("#welcome-x").onclick = doneWelcome;
+  $("#welcome").addEventListener("click", (e) => { if (e.target.id === "welcome") doneWelcome(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#welcome").hidden) doneWelcome(); });
   $("#welcome-tour").onclick = () => { doneWelcome(); startTour(0); };
   $("#help-btn").onclick = showWelcome;
 
@@ -1482,7 +1510,13 @@
     if (!farmBounds) return;
     $("#back-to-farm").hidden = !(!map.getBounds().intersects(farmBounds) || map.getZoom() < 12.5);
   }
-  map.on("zoomend", () => { refreshTracks(); refreshPlaces(); });
+  const syncZoomClass = () => map.getContainer().classList.toggle("photos-shown", photosOn && map.getZoom() >= Z.photos);
+  map.on("zoomend", () => {
+    syncZoomClass();
+    refreshTracks(); refreshPlaces();
+    const want = photosOn && map.getZoom() >= Z.photos;
+    if (want !== map.hasLayer(photoLayer)) refreshPhotos();
+  });
   map.on("moveend zoomend", () => { refreshBackToFarm(); declutter(); });
   map.on("click", () => { if (selectedTrack && sheet.hidden) highlightTrack(null); });
   window.addEventListener("resize", () => setTimeout(declutter, 100));
@@ -1514,7 +1548,12 @@
     data.photos.features.forEach((f) => {
       const p = f.properties;
       photoById.set(p.file, p);
-      const m = L.marker([f.geometry.coordinates[1], f.geometry.coordinates[0]], { icon: photoIcon, title: "Photo" });
+      const m = L.marker([f.geometry.coordinates[1], f.geometry.coordinates[0]], { icon: photoIconFor(p), title: "Photo", photo: p });
+      if (canHover) m.bindTooltip(() => {
+        const pl = places.get(p.place);
+        const title = pl ? placeTitle(pl) : p.near ? "Near " + p.near : "Photo";
+        return `<div class="peek"><img src="${esc(photoUrl(p, "thumb"))}" alt=""><b>${esc(title)}</b><small>${esc(fmtDate(p.taken))} · click to open</small></div>`;
+      }, { direction: "top", offset: [0, -20], className: "peek-tip", opacity: 1 });
       m.on("click", () => {
         const pl = places.get(p.place);
         if (pl) openLightbox(pl.photos, pl.photos.indexOf(p), placeTitle(pl));

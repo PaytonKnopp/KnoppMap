@@ -98,7 +98,7 @@
 
 ## Tour
 
-13 stops (automatic order).
+13 stops (config/tour.json).
 
 ## Places
 

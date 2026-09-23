@@ -1,0 +1,57 @@
+{
+  "title": "Tour of the farm",
+  "stops": [
+    {
+      "place": "spot-10",
+      "text": "Welcome! This is where the gravel road turns in and the driveway begins."
+    },
+    {
+      "place": "spot-01",
+      "text": "The house and main yard – the heart of the farm."
+    },
+    {
+      "place": "spot-02",
+      "text": "The back deck, looking out over the yard and garden."
+    },
+    {
+      "place": "spot-03",
+      "text": "The hill behind the house, with its sitting area and flower beds."
+    },
+    {
+      "place": "spot-07",
+      "text": "The greenhouse, shop and sheds on the north side of the yard."
+    },
+    {
+      "place": "spot-13",
+      "text": "The target range, just west of the yard."
+    },
+    {
+      "place": "spot-12",
+      "text": "Cougar Bridge – watch for the cougar on the roof."
+    },
+    {
+      "place": "spot-05",
+      "text": "The cabin, tucked into the trees at the end of Cabin Trail."
+    },
+    {
+      "place": "spot-18",
+      "text": "The southwest gate in the far corner of the quarter (government access)."
+    },
+    {
+      "place": "spot-06",
+      "text": "The main culvert, where the creek passes under the trail by the pasture."
+    },
+    {
+      "place": "spot-19",
+      "text": "The lone tree, where the horses like to graze along the fence."
+    },
+    {
+      "place": "spot-20",
+      "text": "The pond in the north field."
+    },
+    {
+      "place": "spot-17",
+      "text": "The acreage entrance in the northeast corner – the end of the tour."
+    }
+  ]
+}
