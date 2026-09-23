@@ -1643,7 +1643,7 @@
       <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
       <span class="sym"><span class="lg-group">5</span></span><span>A group of photos – zoom in to spread them out</span>
       <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
-      <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”)</span>`;
+      <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”) – the blue beam shows which way you’re facing</span>`;
   }
   const legendPop = $("#legend-pop"), legendBtn = $("#legend-btn");
   function refreshLegend() { if (!legendPop.hidden) $(".legend", legendPop).innerHTML = legendHtml(); }
@@ -1660,9 +1660,53 @@
 
   // ================================================================ live location
   let watchId = null, meMarker = null, meAcc = null, firstFix = true;
-  function meIcon(heading) {
-    const rot = heading == null ? "" : `style="transform:rotate(${heading}deg)"`;
-    return L.divIcon({ className: "me-dot", iconSize: [0, 0], html: `<div class="arrow${heading == null ? "" : " heading"}" ${rot}></div>` });
+  function meIcon() {
+    return L.divIcon({ className: "me-dot", iconSize: [0, 0], html: `<div class="me-beam" hidden></div><div class="arrow"></div>` });
+  }
+  // Which way you're facing: the phone's compass, or the GPS course when moving faster than walking pace.
+  const ORIENT_EVT = "ondeviceorientationabsolute" in window ? "deviceorientationabsolute" : "deviceorientation";
+  let compassOn = false, compassDeg = null, gpsDeg = null, shownDeg = null, headingFrame = 0;
+  function onOrientation(e) {
+    let deg = null;
+    if (e.webkitCompassHeading != null) deg = e.webkitCompassHeading; // iPhone / iPad
+    else if (e.absolute && e.alpha != null) deg = 360 - e.alpha;      // Android
+    if (deg == null) return;
+    const screenTurn = screen.orientation?.angle ?? window.orientation ?? 0;
+    compassDeg = (deg + screenTurn + 360) % 360;
+    if (!headingFrame) headingFrame = requestAnimationFrame(drawHeading);
+  }
+  function startCompass() {
+    if (compassOn || !window.DeviceOrientationEvent) return;
+    const listen = () => {
+      if (watchId == null || compassOn) return;
+      compassOn = true;
+      window.addEventListener(ORIENT_EVT, onOrientation);
+    };
+    // iPhones ask first, and only from a tap – so this runs straight from the button press.
+    if (typeof DeviceOrientationEvent.requestPermission === "function")
+      DeviceOrientationEvent.requestPermission().then((r) => r === "granted" && listen()).catch(() => {});
+    else listen();
+  }
+  function stopCompass() {
+    window.removeEventListener(ORIENT_EVT, onOrientation);
+    cancelAnimationFrame(headingFrame);
+    compassOn = false;
+    compassDeg = gpsDeg = shownDeg = null;
+    headingFrame = 0;
+  }
+  function drawHeading() {
+    cancelAnimationFrame(headingFrame);
+    headingFrame = 0;
+    const beam = meMarker?.getElement()?.querySelector(".me-beam");
+    if (!beam) return;
+    const target = gpsDeg ?? compassDeg;
+    if (target == null) { beam.hidden = true; shownDeg = null; return; }
+    // Turn the short way round (no spinning through north) and ease the compass so the beam doesn't jitter.
+    const turn = ((target - (shownDeg ?? target)) % 360 + 540) % 360 - 180;
+    shownDeg = shownDeg == null ? target : shownDeg + turn * (gpsDeg != null ? 1 : 0.3);
+    beam.style.transform = `rotate(${shownDeg}deg)`;
+    beam.hidden = false;
+    if (gpsDeg == null && Math.abs(turn) > 0.5) headingFrame = requestAnimationFrame(drawHeading);
   }
   function startFollow() {
     if (!navigator.geolocation) return toast("This device can't share its location.");
@@ -1670,9 +1714,11 @@
     $('#dock [data-act="locate"]').setAttribute("aria-pressed", "true");
     toast("Finding where you are…", 2500);
     watchId = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+    startCompass();
   }
   function stopFollow() {
     stopNav(true);
+    stopCompass();
     if (watchId != null) navigator.geolocation.clearWatch(watchId);
     watchId = null;
     [meMarker, meAcc].forEach((l) => l && map.removeLayer(l));
@@ -1682,14 +1728,16 @@
   }
   function onPos(pos) {
     const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
-    const heading = pos.coords.heading != null && !isNaN(pos.coords.heading) && (pos.coords.speed ?? 0) > 0.4 ? pos.coords.heading : null;
+    const { heading, speed } = pos.coords;
+    gpsDeg = heading != null && !isNaN(heading) && (speed ?? 0) > (compassDeg == null ? 0.4 : 2) ? heading : null;
     if (!meMarker) {
       meAcc = L.circle(ll, { radius: pos.coords.accuracy, color: "#1e88e5", weight: 1, fillOpacity: 0.1, interactive: false }).addTo(map);
-      meMarker = L.marker(ll, { icon: meIcon(heading), zIndexOffset: 3000, keyboard: false, title: "You are here" }).addTo(map);
+      meMarker = L.marker(ll, { icon: meIcon(), zIndexOffset: 3000, keyboard: false, title: "You are here" }).addTo(map);
     } else {
-      meMarker.setLatLng(ll).setIcon(meIcon(heading));
+      meMarker.setLatLng(ll);
       meAcc.setLatLng(ll).setRadius(pos.coords.accuracy);
     }
+    drawHeading();
     const onFarm = farmBounds && farmBounds.pad(0.5).contains(ll);
     if (firstFix) {
       firstFix = false;

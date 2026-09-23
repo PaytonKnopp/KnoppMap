@@ -248,10 +248,13 @@ body { font-family: var(--body-font); color: var(--ink); }
   position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%; background: #1e88e5; border: 3px solid #fff;
   box-shadow: 0 0 0 6px rgba(30,136,229,.25), 0 2px 6px rgba(0,0,0,.5);
 }
-.me-dot .arrow.heading::after {
-  content: ""; position: absolute; left: 50%; top: -13px; transform: translateX(-50%);
-  border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid #1e88e5;
+/* Google Maps style beam behind the dot, rotated by app.js to the way you're facing */
+.me-dot .me-beam {
+  position: absolute; left: -48px; top: -48px; width: 96px; height: 96px; pointer-events: none;
+  background: radial-gradient(circle 48px at 50% 50%, rgba(30,136,229,.85) 20%, rgba(30,136,229,0) 100%);
+  clip-path: polygon(50% 50%, 20% 0, 80% 0);
 }
+.me-dot .me-beam[hidden] { display: none; }
 #toast {
   position: fixed; z-index: 2500; left: 50%; transform: translateX(-50%); bottom: calc(6.6rem + env(safe-area-inset-bottom));
   background: #1f231d; color: #fff; padding: 0.7rem 1.1rem; border-radius: 12px; box-shadow: var(--shadow); max-width: calc(100vw - 2rem); text-align: center;
