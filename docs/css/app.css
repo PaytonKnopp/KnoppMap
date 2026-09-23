@@ -129,7 +129,7 @@ body { font-family: var(--body-font); color: var(--ink); }
 .legend .line { width: 2rem; height: 0; border-top: 4px solid; }
 
 /* place card */
-.place-hero { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; display: block; background: var(--line); cursor: zoom-in; }
+.place-hero { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; display: block; background: var(--line) center / cover no-repeat; cursor: zoom-in; }
 .place-story { font-size: 1.05rem; margin: 0.8rem 0; }
 .place-meta { color: var(--muted); font-size: 0.9rem; margin: 0.3rem 0 0.8rem; }
 .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
@@ -197,7 +197,8 @@ body { font-family: var(--body-font); color: var(--ink); }
 .lb-cap b { font-size: 1.15rem; }
 .lb-cap small { color: #bbb; font-size: 0.9rem; }
 .lb-stage { flex: 1; position: relative; overflow: hidden; touch-action: none; display: grid; place-items: center; min-height: 0; }
-.lb-stage img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center; user-select: none; will-change: transform; }
+/* Fills the stage and fits the photo inside it, so the small stand-in copy and the full photo show at the same size. */
+.lb-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform-origin: center; user-select: none; will-change: transform; }
 .lb-stage.zoomed { cursor: grab; }
 .lb-nav {
   position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; border: 0; background: rgba(255,255,255,.92); color: #1f231d;
@@ -350,7 +351,8 @@ body { font-family: var(--body-font); color: var(--ink); }
 :root[data-theme="contrast"] .elev text { fill: #fff; }
 
 /* =================================================================== map style filters & textures */
-.leaflet-hill-pane { mix-blend-mode: multiply; filter: contrast(2.4) brightness(1.12); }
+/* Only while a hill layer is in it: blending even an empty pane makes the browser composite the whole map an extra time. */
+.leaflet-hill-pane:not(:empty) { mix-blend-mode: multiply; filter: contrast(2.4) brightness(1.12); }
 [data-filter="relief"] .leaflet-tile-pane { filter: saturate(0.65) brightness(calc(var(--dim, 1) * 1.04)) contrast(1.05); }
 [data-dim] .leaflet-tile-pane { filter: brightness(var(--dim, 1)); }
 [data-filter="theme"] .leaflet-tile-pane { filter: var(--theme-filter) brightness(var(--dim, 1)); }
@@ -870,7 +872,7 @@ body.sheet-open #legend-pop { right: auto; left: 0.75rem; }
 #nav-panel.arrived .nv-dist { color: #2e7d32; }
 #nav-panel.arrived .nv-see { display: none; }
 #nav-panel.arrived .nv-stop { background: #2e7d32; border-color: #2e7d32; }
-.nv-line { animation: nv-dash 1s linear infinite; }
+.nv-line[stroke-dasharray] { animation: nv-dash 1s linear infinite; }   /* only the dotted part moves; a solid line would repaint for nothing */
 @keyframes nv-dash { to { stroke-dashoffset: -12; } }
 .nv-flag { position: absolute; left: -20px; top: -52px; width: 40px; height: 40px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
   background: #1e88e5; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5); display: grid; place-items: center; }

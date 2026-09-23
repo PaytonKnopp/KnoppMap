@@ -12,6 +12,17 @@
   <link rel="icon" href="icons/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
   <title>Knopp Map</title>
+  <script>
+    // Start loading the map data now, while the stylesheets and scripts below are still downloading (js/common.js picks it up).
+    window.kmBoot = (() => {
+      const get = (u) => fetch(u, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(u + " " + r.status); return r.json(); });
+      const meta = get("data/site.json");
+      const data = meta.then((m) => (m.locked ? null : get("data/bundle.json?v=" + m.version)));
+      data.catch(() => {});
+      return { meta, data };
+    })();
+  </script>
+  <link rel="preconnect" href="https://server.arcgisonline.com">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
