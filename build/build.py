@@ -126,10 +126,11 @@ def write_bundle():
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
         salt, iv, iters = os.urandom(16), os.urandom(12), 250_000
-        key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iters).derive(pw.encode())
+        key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iters).derive(pw.strip().lower().encode())
         (DATA_OUT / "bundle.enc").write_bytes(AESGCM(key).encrypt(iv, raw, None))
         meta = {"locked": True, "salt": base64.b64encode(salt).decode(), "iv": base64.b64encode(iv).decode(), "iter": iters}
-    meta["title"] = SITE_CFG.get("title", "Knopp Farm")
+    meta["title"] = SITE_CFG.get("title", "Knopp Map")
+    meta["keys"] = {k: v for k, v in (SITE_CFG.get("keys") or {}).items() if v}
     meta["version"] = hashlib.sha256(raw).hexdigest()[:12]
     (DATA_OUT / "site.json").write_text(json.dumps(meta) + "\n")
 

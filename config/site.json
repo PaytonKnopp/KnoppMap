@@ -1,4 +1,9 @@
 {
   "title": "Knopp Map",
-  "password": null
+  "password": null,
+  "keys": {
+    "maptiler": "",
+    "thunderforest": "",
+    "stadia": false
+  }
 }
