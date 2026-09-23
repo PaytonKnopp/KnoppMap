@@ -5,7 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#2f5d3a">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏡</text></svg>">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Knopp Farm">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <title>Knopp Farm Map</title>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
@@ -16,26 +20,30 @@
   <div id="map" aria-label="Map of the farm"></div>
 
   <header id="topbar">
-    <h1>Knopp Farm</h1>
+    <h1 id="site-title">Knopp Farm</h1>
     <div class="top-actions">
+      <button id="search-btn" class="round" aria-label="Search">🔍</button>
       <button id="text-smaller" class="round" aria-label="Make text smaller">A−</button>
       <button id="text-bigger" class="round" aria-label="Make text bigger">A+</button>
       <button id="help-btn" class="round" aria-label="Help">?</button>
     </div>
   </header>
 
+  <button id="loc-chip" hidden></button>
   <button id="back-to-farm" hidden>🏠 Back to the farm</button>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <div id="offline-badge" hidden>📴 No internet – showing saved map</div>
 
   <nav id="dock" aria-label="Main">
     <button data-act="farm"><span class="ic">🏠</span><span>Farm</span></button>
     <button data-act="places"><span class="ic">📍</span><span>Places</span></button>
+    <button data-act="tour"><span class="ic">▶️</span><span>Tour</span></button>
     <button data-act="trails" aria-pressed="true"><span class="ic">🥾</span><span>Trails</span></button>
-    <button data-act="photos" aria-pressed="false"><span class="ic">📷</span><span>Photos</span></button>
-    <button data-act="locate"><span class="ic">🧭</span><span>Me</span></button>
+    <button data-act="locate" aria-pressed="false"><span class="ic">🧭</span><span>Me</span></button>
     <button data-act="more"><span class="ic">☰</span><span>More</span></button>
   </nav>
 
-  <aside id="sheet" aria-live="polite" hidden>
+  <aside id="sheet" hidden>
     <div class="sheet-head">
       <button id="sheet-back" class="round" aria-label="Back" hidden>‹</button>
       <h2 id="sheet-title"></h2>
@@ -44,27 +52,52 @@
     <div id="sheet-body"></div>
   </aside>
 
-  <div id="welcome" hidden>
+  <div id="welcome" class="overlay" hidden>
     <div class="welcome-card">
+      <div class="welcome-art" aria-hidden="true">🏡</div>
       <h2>Welcome to the Knopp Farm map</h2>
       <ul class="howto">
         <li><span>👆</span> Drag the map with one finger to move around.</li>
         <li><span>🔍</span> Use the big <b>+</b> and <b>−</b> buttons to zoom in and out.</li>
-        <li><span>📍</span> Tap a picture on the map to see that place and its photos.</li>
+        <li><span>📍</span> Tap a round picture on the map to see that place and its photos.</li>
+        <li><span>▶️</span> Tap <b>Tour</b> for a slideshow walk around the farm.</li>
         <li><span>🏠</span> Lost? Tap <b>Farm</b> at the bottom to come back.</li>
       </ul>
-      <button id="welcome-ok" class="big">Let's go</button>
+      <div class="btn-row">
+        <button id="welcome-tour" class="big">▶️ Start the tour</button>
+        <button id="welcome-ok" class="big ghost">Explore on my own</button>
+      </div>
     </div>
   </div>
 
+  <div id="lock" class="overlay" hidden>
+    <form class="welcome-card" id="lock-form">
+      <div class="welcome-art" aria-hidden="true">🔒</div>
+      <h2>Family map</h2>
+      <p>Please type the family password to open the map.</p>
+      <input id="lock-pw" type="password" autocomplete="current-password" aria-label="Password" required>
+      <label class="check-row"><input type="checkbox" id="lock-remember" checked> Remember me on this device</label>
+      <p id="lock-err" class="err" hidden>That password didn't work. Please try again.</p>
+      <button class="big" type="submit">Open the map</button>
+    </form>
+  </div>
+
   <div id="lightbox" hidden>
-    <button class="lb-close round" aria-label="Close photo">✕</button>
+    <div class="lb-top">
+      <div class="lb-cap"></div>
+      <button class="lb-close round" aria-label="Close photo">✕</button>
+    </div>
+    <div class="lb-stage"><img alt="" draggable="false"></div>
     <button class="lb-nav lb-prev" aria-label="Previous photo">‹</button>
-    <figure>
-      <img alt="">
-      <figcaption></figcaption>
-    </figure>
     <button class="lb-nav lb-next" aria-label="Next photo">›</button>
+    <div class="lb-bottom">
+      <div class="lb-tools">
+        <button class="lb-btn" data-lb="zoom">🔍 Zoom</button>
+        <button class="lb-btn" data-lb="map">📍 Show on map</button>
+        <button class="lb-btn" data-lb="share">📤 Share</button>
+      </div>
+      <div class="lb-strip"></div>
+    </div>
   </div>
 
   <script src="vendor/leaflet/leaflet.js"></script>

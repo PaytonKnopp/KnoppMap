@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const { ICONS, icon, esc, fmtDate, store, getJSON } = KM;
+  const { ICONS, icon, esc, fmtDate, store, loadBundle, photoUrl } = KM;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
@@ -91,7 +91,7 @@
         <div class="photos">${pl.photos.map((f) => {
           const p = photos.get(f);
           return `<div class="ph${selected.has(f) ? " sel" : ""}${pl.hero === f ? " hero" : ""}" data-f="${esc(f)}" title="${esc(fmtDate(p?.taken))}">
-            <img src="photos/thumb/${esc(f.replace(/\.jpg$/i, ""))}.jpg" loading="lazy" alt="">
+            <img src="${esc(p ? photoUrl(p, "thumb") : "")}" loading="lazy" alt="">
             <span class="tools"><button class="star" data-a="hero" title="Use as cover photo">⭐</button><button data-a="view" title="View large">🔍</button></span></div>`;
         }).join("")}</div>
         <div class="actions">
@@ -120,7 +120,7 @@
         const a = e.target.closest("[data-a]")?.dataset.a;
         const ph = e.target.closest(".ph");
         if (a === "hero" && ph) { pl.hero = ph.dataset.f; touched(pl); $$(".ph", card).forEach((x) => x.classList.toggle("hero", x === ph)); return; }
-        if (a === "view" && ph) { $("#viewer img").src = `photos/web/${ph.dataset.f.replace(/\.jpg$/i, "")}.jpg`; $("#viewer").hidden = false; return; }
+        if (a === "view" && ph) { $("#viewer img").src = photoUrl(photos.get(ph.dataset.f)); $("#viewer").hidden = false; return; }
         if (ph && !a) {
           const f = ph.dataset.f;
           if (selected.has(f)) selected.delete(f); else selected.add(f);
@@ -216,9 +216,11 @@
   };
 
   // ---------------------------------------------------------------- load
-  Promise.all([getJSON("data/places.geojson"), getJSON("data/photos.geojson")]).then(([pfc, phfc]) => {
+  loadBundle(async (retry) => ({ password: prompt(retry ? "Wrong password, try again:" : "Map password:") || "", remember: true }))
+  .then(({ data }) => {
+    const pfc = data.places, phfc = data.photos;
     phfc.features.forEach((f) => photos.set(f.properties.file + ".jpg",
-      { file: f.properties.file, taken: f.properties.taken, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
+      { file: f.properties.file, src: f.properties.src, taken: f.properties.taken, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
     const draft = store.get("tagDraft", null);
     places = draft || pfc.features.map((f) => {
       const p = f.properties;

@@ -94,6 +94,10 @@
 
 - none
 
+## Tour
+
+25 stops (automatic order).
+
 ## Places
 
 63 places (25 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).

@@ -5,7 +5,11 @@ Usage:  python3 build/build.py            (full build)
         python3 build/build.py --tracks   (tracks only, skips photo resizing)
 """
 import argparse
+import base64
+import hashlib
+import hmac
 import json
+import os
 import math
 import re
 import sys
@@ -93,6 +97,62 @@ def simplify(line, tol):
     return [p for p, k in zip(line, keep) if k]
 
 
+BUNDLE = {}
+SITE_CFG = {}
+
+
+def write_data(key, obj):
+    BUNDLE[key] = obj
+
+
+def photo_name(stem):
+    """With a password set, photo files get unguessable names so they can't be found without unlocking."""
+    pw = SITE_CFG.get("password")
+    if not pw:
+        return stem
+    return hmac.new(pw.encode(), stem.encode(), hashlib.sha256).hexdigest()[:20]
+
+
+def write_bundle():
+    raw = json.dumps(BUNDLE, separators=(",", ":"), ensure_ascii=False).encode()
+    pw = SITE_CFG.get("password")
+    for old in ("bundle.json", "bundle.enc", "tracks.geojson", "photos.geojson", "places.geojson"):
+        (DATA_OUT / old).unlink(missing_ok=True)
+    if not pw:
+        (DATA_OUT / "bundle.json").write_bytes(raw)
+        meta = {"locked": False}
+    else:
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+        salt, iv, iters = os.urandom(16), os.urandom(12), 250_000
+        key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=iters).derive(pw.encode())
+        (DATA_OUT / "bundle.enc").write_bytes(AESGCM(key).encrypt(iv, raw, None))
+        meta = {"locked": True, "salt": base64.b64encode(salt).decode(), "iv": base64.b64encode(iv).decode(), "iter": iters}
+    meta["title"] = SITE_CFG.get("title", "Knopp Farm")
+    meta["version"] = hashlib.sha256(raw).hexdigest()[:12]
+    (DATA_OUT / "site.json").write_text(json.dumps(meta) + "\n")
+
+
+def build_tour(place_feats):
+    cfg = load_json(CONFIG_DIR / "tour.json", None)
+    ids = {f["id"] for f in place_feats}
+    if cfg:
+        stops = [s for s in cfg.get("stops", []) if s.get("place") in ids]
+    else:
+        # Default: every named place, walking from the house to whatever is closest next.
+        todo = [f for f in place_feats if f["properties"]["featured"]]
+        start = next((f for f in todo if f["properties"]["icon"] == "house"), todo[0] if todo else None)
+        stops, cur = [], start
+        while cur:
+            stops.append({"place": cur["id"]})
+            todo.remove(cur)
+            c = cur["geometry"]["coordinates"]
+            cur = min(todo, key=lambda f: dist(c, f["geometry"]["coordinates"]), default=None)
+    write_data("tour", {"title": (cfg or {}).get("title", "Tour of the farm"), "stops": stops})
+    return [f"## Tour\n", f"{len(stops)} stops ({'config/tour.json' if cfg else 'automatic order'}).\n"]
+
+
 def slug(s):
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
@@ -114,18 +174,21 @@ def parse_gpx():
                           "coord": (float(w.get("lon")), float(w.get("lat")))})
     for t in root.findall("g:trk", NS):
         name = (t.findtext("g:name", "", NS) or "").strip()
-        segs, times = [], []
+        segs, times, prof = [], [], []
         for s in t.findall("g:trkseg", NS):
             pts = []
             for p in s.findall("g:trkpt", NS):
                 pts.append((float(p.get("lon")), float(p.get("lat"))))
+                ele = p.findtext("g:ele", None, NS)
+                if ele is not None:
+                    prof.append((pts[-1], float(ele)))
                 tm = p.findtext("g:time", None, NS)
                 if tm:
                     times.append(tm)
             if len(pts) >= 2:
                 segs.append(pts)
         if segs:
-            tracks.append({"raw_name": name, "segs": segs,
+            tracks.append({"raw_name": name, "segs": segs, "prof": prof,
                            "start": min(times) if times else None})
     return tracks, waypoints
 
@@ -187,6 +250,53 @@ def snap_end(line, others, at_start):
     return new, {"with": oname, "moved": d, "trimmed": trimmed}
 
 
+def profile(prof, n=60):
+    """Smoothed elevation profile [[distance m, elevation m], ...] plus total climb and descent."""
+    if len(prof) < 3:
+        return None, 0, 0
+    d, dist_along = 0.0, [0.0]
+    for (a, _), (b, _) in zip(prof, prof[1:]):
+        d += dist(a, b)
+        dist_along.append(d)
+    raw = [e for _, e in prof]
+    k = 3
+    smooth = [sum(raw[max(0, i - k):i + k + 1]) / len(raw[max(0, i - k):i + k + 1]) for i in range(len(raw))]
+    gain = loss = 0.0
+    ref = smooth[0]
+    for e in smooth[1:]:
+        if e - ref >= 1.0:
+            gain += e - ref
+            ref = e
+        elif ref - e >= 1.0:
+            loss += ref - e
+            ref = e
+    step = max(1, len(smooth) // n)
+    idx = list(range(0, len(smooth), step))
+    if idx[-1] != len(smooth) - 1:
+        idx.append(len(smooth) - 1)
+    return [[round(dist_along[i]), round(smooth[i], 1)] for i in idx], round(gain), round(loss)
+
+
+def connections(features, tol=8.0):
+    """Tracks whose ends touch (or cross near) another track are listed as connected."""
+    lines = {}
+    for f in features:
+        g = f["geometry"]
+        lines[f["id"]] = [g["coordinates"]] if g["type"] == "LineString" else g["coordinates"]
+    for f in features:
+        own = lines[f["id"]]
+        ends = [p for part in own for p in (part[0], part[-1])]
+        near = set()
+        for oid, other in lines.items():
+            if oid == f["id"]:
+                continue
+            o_ends = [p for part in other for p in (part[0], part[-1])]
+            if any(nearest_on_line(p, part)[1] <= tol for p in ends for part in other) or \
+               any(nearest_on_line(p, part)[1] <= tol for p in o_ends for part in own):
+                near.add(oid)
+        f["properties"]["connects"] = sorted(near)
+
+
 def build_tracks():
     tracks, waypoints = parse_gpx()
     cfg = track_config(tracks)
@@ -246,9 +356,11 @@ def build_tracks():
                 "name": t["name"], "category": t["category"], "color": t["color"],
                 "length_m": round(sum(line_length(p) for p in parts)),
                 "recorded": t["start"],
+                **dict(zip(("profile", "gain_m", "loss_m"), profile(t["prof"]))),
             },
             "geometry": geom,
         })
+    connections(features)
     for w in waypoints:
         features.append({"type": "Feature", "id": slug(w["name"]),
                          "properties": {"name": w["name"], "category": "waypoint"},
@@ -256,7 +368,7 @@ def build_tracks():
 
     out = {"type": "FeatureCollection", "categories": cfg["categories"], "features": features}
     DATA_OUT.mkdir(parents=True, exist_ok=True)
-    (DATA_OUT / "tracks.geojson").write_text(json.dumps(out, separators=(",", ":"), ensure_ascii=False))
+    write_data("tracks", out)
 
     report = [f"## Tracks\n", f"{len(tracks)} tracks, {len(waypoints)} waypoint(s). "
               f"Points: {raw_pts} raw -> {out_pts} after {SIMPLIFY_M:g} m simplification.\n",
@@ -310,13 +422,14 @@ def build_photos(track_features, resize=True):
                     dt = dt.replace(tzinfo=timezone(sign * timedelta(hours=int(h), minutes=int(m))))
                 iso = dt.isoformat()
             stem = src.stem
-            if resize and not (WEB_OUT / f"{stem}.jpg").exists():
+            out = photo_name(stem)
+            if resize and not (WEB_OUT / f"{out}.jpg").exists():
                 img = ImageOps.exif_transpose(im).convert("RGB")
                 web = img.copy()
                 web.thumbnail((WEB_PX, WEB_PX), Image.LANCZOS)
-                web.save(WEB_OUT / f"{stem}.jpg", "JPEG", quality=WEB_Q, optimize=True, progressive=True)
+                web.save(WEB_OUT / f"{out}.jpg", "JPEG", quality=WEB_Q, optimize=True, progressive=True)
                 img.thumbnail((THUMB_PX, THUMB_PX), Image.LANCZOS)
-                img.save(THUMB_OUT / f"{stem}.jpg", "JPEG", quality=THUMB_Q, optimize=True)
+                img.save(THUMB_OUT / f"{out}.jpg", "JPEG", quality=THUMB_Q, optimize=True)
         near, near_d = None, float("inf")
         for name, line in lines:
             _, d = nearest_on_line((lon, lat), line)
@@ -327,7 +440,7 @@ def build_photos(track_features, resize=True):
             "type": "Feature",
             "id": stem,
             "properties": {
-                "file": stem, "taken": iso, "title": cap.get("title"), "caption": cap.get("caption"),
+                "file": stem, "src": out, "taken": iso, "title": cap.get("title"), "caption": cap.get("caption"),
                 "near": near if near_d <= NEAR_TRACK_M else None,
             },
             "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]},
@@ -404,8 +517,8 @@ def build_places(photo_feats):
             "moved": bool(p.get("coords")),
         }, "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]}})
     loose = [f for f in by_file if f not in claimed]
-    (DATA_OUT / "places.geojson").write_text(json.dumps(
-        {"type": "FeatureCollection", "features": feats}, separators=(",", ":"), ensure_ascii=False))
+    write_data("places", {"type": "FeatureCollection", "features": feats})
+    report += build_tour(feats)
     named = sum(1 for f in feats if f["properties"]["name"])
     report += ["## Places\n", f"{len(feats)} places ({named} named). {len(loose)} photos not in any place. "
                f"{len(new_photos)} new photos grouped into {len(extra)} unnamed spots (name them in the tagger).\n"]
@@ -417,12 +530,23 @@ def main():
     ap.add_argument("--tracks", action="store_true", help="tracks only")
     ap.add_argument("--no-resize", action="store_true", help="skip image resizing")
     args = ap.parse_args()
+    SITE_CFG.update(load_json(CONFIG_DIR / "site.json", {}))
     feats, report = build_tracks()
-    if not args.tracks:
+    if args.tracks:
+        old = DATA_OUT / "bundle.json"
+        if not old.exists():
+            sys.exit("--tracks needs an existing unlocked bundle; run a full build first")
+        BUNDLE.update({k: v for k, v in json.loads(old.read_text()).items() if k != "tracks"})
+    else:
         photo_feats, r = build_photos(feats, resize=not args.no_resize)
         report += r + build_places(photo_feats)
-        (DATA_OUT / "photos.geojson").write_text(json.dumps(
-            {"type": "FeatureCollection", "features": photo_feats}, separators=(",", ":"), ensure_ascii=False))
+        write_data("photos", {"type": "FeatureCollection", "features": photo_feats})
+        keep = {f["properties"]["src"] + ".jpg" for f in photo_feats}
+        for d in (WEB_OUT, THUMB_OUT):
+            for f in d.glob("*.jpg"):
+                if f.name not in keep:
+                    f.unlink()
+    write_bundle()
     REPORT.write_text("# Build report\n\n" + "\n".join(report) + "\n")
     print(f"Done. See {REPORT.relative_to(ROOT)}")
 
