@@ -13,6 +13,7 @@ config/places.json     named places: name, icon, story, cover photo, which photo
 config/photos.json     optional title/caption per photo
 config/tour.json       optional: tour stops and wording (otherwise every named place, nearest-first from the house)
 config/site.json       site title and optional family password
+config/hidden.json     near-duplicate photos hidden from the map (never deleted; remove a line to bring one back)
 build/build.py         turns the raw files into site data
 build/report.md        what the last build did (snaps, trims, loops, missing GPS)
 docs/                  the website (index.html, css, js, data/, photos/web, photos/thumb)

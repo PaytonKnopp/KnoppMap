@@ -98,6 +98,7 @@ def simplify(line, tol):
 
 
 BUNDLE = {}
+HIDDEN_SRCS = set()
 SITE_CFG = {}
 
 
@@ -487,7 +488,10 @@ def build_photos(track_features, resize=True):
     feats, missing, report, fixes = [], [], [], []
     timeline = gpx_timeline()
     times = [p[0] for p in timeline]
-    files = sorted(p for p in PHOTO_DIR.iterdir() if p.suffix.lower() in (".jpg", ".jpeg"))
+    hidden = set(load_json(CONFIG_DIR / "hidden.json", {}).get("hidden", []))
+    all_files = sorted(p for p in PHOTO_DIR.iterdir() if p.suffix.lower() in (".jpg", ".jpeg"))
+    files = [p for p in all_files if p.name not in hidden]
+    HIDDEN_SRCS.update(photo_name(p.stem) + ".jpg" for p in all_files if p.name in hidden)
     for n, src in enumerate(files, 1):
         with Image.open(src) as im:
             ex = im.getexif()
@@ -542,7 +546,8 @@ def build_photos(track_features, resize=True):
         if n % 25 == 0:
             print(f"  photos {n}/{len(files)}", file=sys.stderr)
 
-    report += ["## Photos\n", f"{len(files)} photos found, {len(feats)} placed on the map.\n",
+    report += ["## Photos\n", f"{len(all_files)} photos found, {len(hidden & {p.name for p in all_files})} hidden as near-duplicates "
+               f"(config/hidden.json), {len(feats)} placed on the map.\n",
                "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), "",
                f"### Locations corrected from the GPS track (camera was over {FIX_OFF_M} m off)\n", *(fixes or ["- none"]), ""]
     return feats, report
@@ -604,7 +609,7 @@ def build_places(photo_feats):
             continue
         for m in members:
             m["properties"]["place"] = p["id"]
-        hero = p.get("hero") if p.get("hero") in by_file else (p["photos"][0] if members else None)
+        hero = p.get("hero") if p.get("hero") in by_file else (members[0]["properties"]["file"] + ".jpg" if members else None)
         feats.append({"type": "Feature", "id": p["id"], "properties": {
             "name": p.get("name", ""), "icon": p.get("icon", "photo"), "story": p.get("story", ""),
             "hero": hero[:-4] if hero else None, "photos": [m["properties"]["file"] for m in members],
@@ -636,7 +641,7 @@ def main():
         photo_feats, r = build_photos(feats, resize=not args.no_resize)
         report += r + build_places(photo_feats)
         write_data("photos", {"type": "FeatureCollection", "features": photo_feats})
-        keep = {f["properties"]["src"] + ".jpg" for f in photo_feats}
+        keep = {f["properties"]["src"] + ".jpg" for f in photo_feats} | HIDDEN_SRCS
         for d in (WEB_OUT, THUMB_OUT):
             for f in d.glob("*.jpg"):
                 if f.name not in keep:

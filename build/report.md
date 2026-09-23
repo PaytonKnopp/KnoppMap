@@ -86,7 +86,7 @@
 
 ## Photos
 
-258 photos found, 258 placed on the map.
+258 photos found, 27 hidden as near-duplicates (config/hidden.json), 231 placed on the map.
 
 ### Missing GPS
 
@@ -102,5 +102,5 @@
 
 ## Places
 
-62 places (13 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
+61 places (13 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
 
