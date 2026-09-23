@@ -34,10 +34,16 @@ window.KM = (() => {
     return JSON.parse(new TextDecoder().decode(plain));
   }
 
-  /** Loads the map data. askPassword(retry) must resolve to {password, remember} when the site is locked. */
-  async function loadBundle(askPassword) {
-    const meta = await getJSON("data/site.json");
-    if (!meta.locked) return { meta, data: await getJSON("data/bundle.json?v=" + meta.version) };
+  /** Loads the map data. askPassword(retry) must resolve to {password, remember} when the site is locked.
+   *  onMeta(meta) runs as soon as site.json is in, before the (bigger) data bundle. */
+  async function loadBundle(askPassword, onMeta) {
+    // index.html may already have started both downloads; if those failed, try again here.
+    const boot = window.kmBoot || {};
+    window.kmBoot = null;
+    const reuse = (p) => (p ? p.catch(() => null) : null);
+    const meta = (await reuse(boot.meta)) || (await getJSON("data/site.json"));
+    onMeta?.(meta);
+    if (!meta.locked) return { meta, data: (await reuse(boot.data)) || (await getJSON("data/bundle.json?v=" + meta.version)) };
     let saved = store.get("pw", null);
     for (let attempt = 0; ; attempt++) {
       let pw = saved, remember = true;

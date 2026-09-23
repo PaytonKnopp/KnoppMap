@@ -1,5 +1,5 @@
 // Offline support: the app shell and data are network-first (so updates arrive), photos and map tiles are cache-first.
-const SHELL = "km-shell-v16";
+const SHELL = "km-shell-v17";
 const MEDIA = "km-media-v1";
 const CORE = [
   "./", "index.html", "css/app.css", "js/common.js", "js/app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-32.png",
@@ -11,32 +11,43 @@ self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => ![SHELL, MEDIA].includes(k)).map((k) => caches.delete(k))))
-    .then(() => self.clients.claim()));
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => ![SHELL, MEDIA].includes(k)).map((k) => caches.delete(k)));
+    // The page request starts while this worker is still waking up, instead of after.
+    await self.registration.navigationPreload?.enable();
+    await self.clients.claim();
+  })());
 });
 
 const isMedia = (url) => url.pathname.includes("/photos/") || url.hostname.endsWith("arcgisonline.com");
+// Shell files are stored under their plain address (no ?v=…), so there is one copy of each and offline gets the newest.
+const shellKey = (url) => url.origin + url.pathname;
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
   if (isMedia(url)) {
+    // Looked up by exact address: ignoring the "?…" part makes the browser scan every saved tile and photo each time.
     e.respondWith(caches.open(MEDIA).then(async (c) => {
-      const hit = await c.match(e.request, { ignoreSearch: true });
+      const hit = await c.match(e.request, { ignoreVary: true });
       if (hit) return hit;
       const res = await fetch(e.request);
-      if (res.ok && url.pathname.includes("/photos/thumb/")) c.put(e.request, res.clone());
+      if (res.ok && url.pathname.includes("/photos/thumb/")) e.waitUntil(c.put(e.request, res.clone()));
       return res;
     }));
     return;
   }
   if (url.origin !== location.origin) return;
-  e.respondWith(fetch(e.request).then((res) => {
-    if (res.ok) { const copy = res.clone(); caches.open(SHELL).then((c) => c.put(e.request, copy)); }
-    return res;
-  }).catch(() => caches.match(e.request, { ignoreSearch: true })
-    .then((hit) => hit || (e.request.mode === "navigate" ? caches.match("index.html") : Response.error()))));
+  e.respondWith((async () => {
+    try {
+      const res = (e.request.mode === "navigate" && (await e.preloadResponse)) || (await fetch(e.request));
+      if (res.ok) { const copy = res.clone(); e.waitUntil(caches.open(SHELL).then((c) => c.put(shellKey(url), copy))); }
+      return res;
+    } catch {
+      return (await caches.match(shellKey(url))) || (e.request.mode === "navigate" ? (await caches.match("index.html")) || Response.error() : Response.error());
+    }
+  })());
 });
 
 self.addEventListener("message", (e) => {
@@ -50,7 +61,7 @@ self.addEventListener("message", (e) => {
       while (i < urls.length) {
         const u = urls[i++];
         try {
-          if (!(await c.match(u, { ignoreSearch: true }))) {
+          if (!(await c.match(u, { ignoreVary: true }))) {
             const res = await fetch(u, { mode: new URL(u, location.href).origin === location.origin ? "same-origin" : "cors" });
             if (!res.ok) throw new Error(res.status);
             await c.put(u, res);

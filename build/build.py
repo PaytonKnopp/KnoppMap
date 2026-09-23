@@ -100,6 +100,7 @@ def simplify(line, tol):
 BUNDLE = {}
 HIDDEN_SRCS = set()
 SITE_CFG = {}
+FARM_BOUNDS = []
 
 
 def write_data(key, obj):
@@ -122,6 +123,10 @@ def write_bundle():
     if not pw:
         (DATA_OUT / "bundle.json").write_bytes(raw)
         meta = {"locked": False}
+        if FARM_BOUNDS:
+            # Lets the map open on the farm (and start loading imagery) before the data bundle arrives.
+            # Left out when locked so the location stays behind the password.
+            meta["bounds"] = FARM_BOUNDS
     else:
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -358,6 +363,23 @@ def connections(features, tol=8.0):
         f["properties"]["connects"] = sorted(near)
 
 
+def farm_bounds(features):
+    """[[south, west], [north, east]] of the quarter section outline (or of everything), as the app computes it."""
+    feats = [f for f in features if f["id"] == "quarter-section-perimeter"] or features
+    pts = []
+    for f in feats:
+        g = f["geometry"]
+        if g["type"] == "Point":
+            pts.append(g["coordinates"])
+        elif g["type"] == "LineString":
+            pts += g["coordinates"]
+        else:
+            pts += [p for part in g["coordinates"] for p in part]
+    if not pts:
+        return []
+    return [[min(p[1] for p in pts), min(p[0] for p in pts)], [max(p[1] for p in pts), max(p[0] for p in pts)]]
+
+
 def build_tracks():
     tracks, waypoints = parse_gpx()
     cfg = track_config(tracks)
@@ -435,6 +457,7 @@ def build_tracks():
     out = {"type": "FeatureCollection", "categories": cfg["categories"], "features": features}
     DATA_OUT.mkdir(parents=True, exist_ok=True)
     write_data("tracks", out)
+    FARM_BOUNDS[:] = farm_bounds(features)
 
     report = [f"## Tracks\n", f"{len(tracks)} tracks, {len(waypoints)} waypoint(s). "
               f"Points: {raw_pts} raw -> {out_pts} after {SIMPLIFY_M:g} m simplification.\n",

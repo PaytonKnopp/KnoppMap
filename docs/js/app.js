@@ -102,8 +102,11 @@
   const CARTO = "https://{s}.basemaps.cartocdn.com/";
   // Tiles keep old imagery on screen while zooming instead of flashing grey, and don't fetch mid-animation.
   const TILE_OPTS = { maxZoom: 22, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
-  const esriLayer = (svc, key, attribution, extra = {}) =>
-    L.tileLayer(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
+  let madeKeys = null;   // which Esri services the map style being built uses (see setBase)
+  const esriLayer = (svc, key, attribution, extra = {}) => {
+    madeKeys?.add(key);
+    return L.tileLayer(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
+  };
   const IMG_ATTR = "Imagery © Esri, Maxar, Earthstar Geographics";
   const OSM_ATTR = "© OpenStreetMap contributors";
   const img = () => esriLayer("World_Imagery", "img", IMG_ATTR);
@@ -167,13 +170,13 @@
   }
 
   // ---- how deep the real imagery goes here (Esri shows a grey "Map data not yet available" tile beyond it)
-  const PROBE = { img: "World_Imagery", topo: "World_Topo_Map", ref: "Reference/World_Transportation",
-    hill: "Elevation/World_Hillshade", terrain: "World_Terrain_Base" };
-  const FLAT_OK = new Set(["hill", "terrain"]);   // these are naturally grey, so only a missing tile counts
+  const PROBE = { img: "World_Imagery", topo: "World_Topo_Map", ref: "Reference/World_Transportation", hill: "Elevation/World_Hillshade" };
+  const FLAT_OK = new Set(["hill"]);   // naturally grey, so only a missing tile counts
   const native = store.get("nativeZoom", {});
+  const probeFresh = (key) => native[key] && Date.now() - native[key].at < 7 * 864e5;
   function nativeZoom(key) {
     const n = native[key];
-    return n && n.z ? n.z : { hill: 15, terrain: 13 }[key] || 17;
+    return n && n.z ? n.z : { hill: 15 }[key] || 17;
   }
   function probeTile(svc, z, lat, lng, flatOk = false) {
     const n = 2 ** z;
@@ -203,16 +206,27 @@
       img.src = `${ESRI}${svc}/MapServer/tile/${z}/${y}/${x}?blankTile=false`;
     });
   }
-  async function probeImagery() {
-    if (!farmBounds || !navigator.onLine) return;
+  // Only the services the current map style uses are checked (at most weekly), and only once the tiles on screen
+  // have finished loading, so the check never competes with them on a slow connection.
+  let probing = false;
+  async function probeImagery(keys) {
+    const todo = [...keys].filter((k) => PROBE[k] && !probeFresh(k));
+    if (!todo.length || probing || !farmBounds || !navigator.onLine) return;
+    probing = true;
+    try {
+      await tilesSettled(8000);
+      await new Promise((r) => (window.requestIdleCallback ? requestIdleCallback(r, { timeout: 2000 }) : setTimeout(r, 200)));
+      await probeKeys(todo);
+    } finally { probing = false; }
+  }
+  async function probeKeys(keys) {
     const b = farmBounds;
     const pts = [b.getCenter(), b.getNorthWest(), b.getNorthEast(), b.getSouthWest(), b.getSouthEast()];
     let changed = false;
     // If even a low-zoom tile can't be read (offline, or no CORS), don't guess.
     if (!(await probeTile("World_Imagery", 12, pts[0].lat, pts[0].lng))) return;
-    for (const [key, svc] of Object.entries(PROBE)) {
-      const old = native[key];
-      if (old && Date.now() - old.at < 7 * 864e5) continue;
+    for (const key of keys) {
+      const svc = PROBE[key], old = native[key];
       let found = null;
       for (let z = 20; z >= 12; z--) {
         const res = await Promise.all(pts.map((p) => probeTile(svc, z, p.lat, p.lng, FLAT_OK.has(key))));
@@ -231,6 +245,7 @@
   map.createPane("texture").style.zIndex = 250;
   const texture = L.DomUtil.create("div", "map-texture", map.getPane("texture"));
   const placeTexture = () => {
+    if (!map.getContainer().dataset.texture) return;   // runs on every frame of a pan, so skip it when unused
     const s = map.getSize();
     texture.style.width = s.x + "px";
     texture.style.height = s.y + "px";
@@ -241,29 +256,37 @@
   // Every visit starts from the normal look; nothing below is remembered between visits.
   let baseKey = null;
   let baseLayer = null;
+  let baseKeys = new Set();
   let dim = 100;
   function applyMapLook() {
     const el = map.getContainer();
     const m = BASEMAPS[baseKey];
     const t = THEMES[theme];
-    el.dataset.filter = m?.filter || "";
+    // A look with no tint (Farmhouse) gets no CSS filter at all: even a do-nothing filter makes the browser
+    // redraw the whole map through an extra layer on every frame of a pan or zoom.
+    el.dataset.filter = m?.filter === "theme" && !t.mapFilter ? "" : m?.filter || "";
     el.dataset.texture = m?.filter === "theme" ? t.texture || "" : m?.filter || "";
-    el.style.setProperty("--theme-filter", t.mapFilter || "saturate(1)");
+    el.style.setProperty("--theme-filter", t.mapFilter || "none");
     el.style.setProperty("--dim", dim / 100);
     if (dim < 100) el.dataset.dim = ""; else delete el.dataset.dim;
+    placeTexture();
   }
   function setBase(k) {
     if (!BASEMAPS[k]) k = "themed";
     if (baseLayer) map.removeLayer(baseLayer);
+    madeKeys = new Set();
     baseLayer = BASEMAPS[k].make().addTo(map);
+    baseKeys = madeKeys;
+    madeKeys = null;
     baseKey = k;
     applyMapLook();
+    probeImagery(baseKeys);
   }
 
   // ================================================================ themes (looks)
-  // mapFilter tints the satellite photo under the "Match the look" map style; texture adds an overlay.
+  // mapFilter tints the satellite photo under the "Match the look" map style (none: the photo as it is); texture adds an overlay.
   const THEMES = {
-    farmhouse: { label: "Farmhouse", note: "Warm cream and green on real satellite", sw: ["#fbf8f1", "#2f5d3a", "#f2c200"], mapFilter: "saturate(1)",
+    farmhouse: { label: "Farmhouse", note: "Warm cream and green on real satellite", sw: ["#fbf8f1", "#2f5d3a", "#f2c200"],
       lines: { trail: "#fff3c4", trailCase: "#10140e", road: "#eadcbc", roadCase: "#2b2418", sel: "#f2c200", caseOp: 0.6 } },
     middleearth: { label: "Middle-earth", note: "Old parchment and ink, like a fantasy map", sw: ["#f1e2bd", "#6b3e1f", "#9c2f1c"],
       mapFilter: "grayscale(1) sepia(0.95) saturate(0.85) contrast(1.15) brightness(1.08)", texture: "parchment",
@@ -349,10 +372,10 @@
     tracks.forEach((tr) => restyle(tr));
   }
   document.documentElement.dataset.theme = theme;
-  setBase(baseKey);
 
   // ================================================================ state
   let farmBounds = null, farmPin = null;
+  setBase(baseKey);
   let trailsOn = true;
   let photosOn = true;
   let labelsOn = true;
@@ -397,11 +420,12 @@
     if (adv.colourMode === "length" && !road) return ramp(RAMP_LEN, f.properties.length_m);
     return road ? L_.road : adv.trailColour || L_.trail;
   }
+  // Lines get a little thicker at two zoom steps; only crossing one of them needs the lines restyled.
+  const zoomBoost = () => { const z = map.getZoom(); return z >= 18 ? 1.5 : z >= 16 ? 0.75 : 0; };
   function styles(f, hi = false) {
-    const z = map.getZoom();
     const L_ = THEMES[theme].lines;
     const k = adv.thickness * (L_.extra || 1);
-    const boost = z >= 18 ? 1.5 : z >= 16 ? 0.75 : 0;
+    const boost = zoomBoost();
     const c = cat(f);
     if (c === "boundary") {
       const col = f.id === "quarter-section-perimeter" && L_.boundary ? L_.boundary : f.properties.color;
@@ -422,6 +446,7 @@
     const s = styles(t.f, selectedTrack === t.f.id);
     t.line.setStyle(s.line);
     t.casing.setStyle(s.casing);
+    t.boost = zoomBoost();
   }
 
   function lineCoords(g) {
@@ -524,7 +549,7 @@
       const show = trackShouldShow(t);
       if (show && !map.hasLayer(t.group)) t.group.addTo(map);
       if (!show && map.hasLayer(t.group)) map.removeLayer(t.group);
-      if (show) restyle(t);
+      if (show && t.boost !== zoomBoost()) restyle(t);
       if (t.dirs) {
         const d = adv.dirArrows && show && map.getZoom() >= 16.5;
         if (d && !map.hasLayer(t.dirs)) t.dirs.addTo(map);
@@ -594,7 +619,7 @@
     if (prev && places.has(prev)) places.get(prev).marker.setIcon(placeIcon(places.get(prev).f));
     if (id && places.has(id)) places.get(id).marker.setIcon(placeIcon(places.get(id).f, true));
     refreshPlaces();
-    setTimeout(declutter, 0);
+    declutterSoon();
   }
   function placeTitle(pl) {
     if (pl.f.properties.name) return pl.f.properties.name;
@@ -602,6 +627,9 @@
     return near ? `Photo spot on ${near}` : "Photo spot";
   }
   const heroOf = (pl) => pl.photos.find((x) => x.file === pl.f.properties.hero) || pl.photos[0];
+  // A big photo shows its small copy (usually already loaded) until the full one has arrived.
+  const heroImg = (p, alt) => `<img class="place-hero" src="${esc(photoUrl(p))}" alt="${esc(alt)}" decoding="async"
+    style="background-image:url(&quot;${esc(photoUrl(p, "thumb"))}&quot;)">`;
   const featuredPlaces = () => [...places.values()].filter((pl) => pl.f.properties.featured);
 
   /** Fly so the point sits in the part of the screen not covered by the sheet. */
@@ -642,7 +670,7 @@
 
     const body = document.createElement("div");
     body.innerHTML = `
-      ${hero ? `<img class="place-hero" src="${esc(photoUrl(hero))}" alt="${esc(title)}">` : ""}
+      ${hero ? heroImg(hero, title) : ""}
       ${p.story ? `<p class="place-story">${esc(p.story)}</p>` : ""}
       <p class="place-meta">${pl.photos.length} photo${pl.photos.length === 1 ? "" : "s"} · taken ${esc(days)}</p>
       <div class="btn-row"><button class="big" data-act="go">🧭 Take me there</button><button class="big ghost" data-act="zoom">🔍 Zoom in</button></div>
@@ -737,7 +765,7 @@
     $('[data-act="fit"]', body).onclick = fit;
     openSheet(p.name, body, { back: back ?? false, titleIcon: TRAIL_SVG });
     if (fly) fit();
-    setTimeout(declutter, 50);
+    declutterSoon();
   }
 
   // ================================================================ photo pins layer
@@ -774,7 +802,26 @@
         <b>${esc(pl ? placeTitle(pl) : "Photos")}</b><small>${kids.length} photos here · click to ${map.getZoom() >= 20.5 ? "spread them out" : "zoom in"}</small></div>`,
         { direction: "top", offset: [0, -26], className: "peek-tip", opacity: 1 }).openTooltip();
     });
+    instantZoomSplits(cg);
     return cg;
+  }
+  // Groups split and merge at once when the zoom changes instead of sliding apart: each of the ~60 groups (one per
+  // place) otherwise forces a full page layout on every zoom, which made zooming stutter. The fan-out when a tight
+  // group is tapped keeps its animation. This is markercluster 1.5's own zoom handling with its non-animated steps.
+  function instantZoomSplits(cg) {
+    const still = cg._noAnimation;
+    cg._mergeSplitClusters = function () {
+      const z = Math.round(this._map._zoom);
+      this._processQueue();
+      if (this._zoom < z && this._currentShownBounds.intersects(this._getExpandedVisibleBounds())) {
+        this._topClusterLevel._recursivelyRemoveChildrenFromMap(this._currentShownBounds, Math.floor(this._map.getMinZoom()), this._zoom, this._getExpandedVisibleBounds());
+        still._animationZoomIn.call(this, this._zoom, z);
+      } else if (this._zoom > z) {
+        still._animationZoomOut.call(this, this._zoom, z);
+      } else {
+        this._moveEnd();
+      }
+    };
   }
   const photoClusters = new Map();
   const photoCluster = L.layerGroup();
@@ -782,21 +829,26 @@
   let photoLayer = adv.cluster ? photoCluster : photoPlain;
   const photoIconFor = (p) => L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 20],
     html: `<div class="ph-single"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"></div>` });
+  let photosGrouped = null;   // true/false once the markers are in their groups
   function refreshPhotos() {
-    photoClusters.forEach((cg) => cg.clearLayers());
-    [photoCluster, photoPlain].forEach((l) => { l.clearLayers(); if (map.hasLayer(l) && l !== (adv.cluster ? photoCluster : photoPlain)) map.removeLayer(l); });
-    photoLayer = adv.cluster ? photoCluster : photoPlain;
-    const shown = allPhotos;
-    if (adv.cluster) {
-      const byPlace = new Map();
-      shown.forEach((x) => { const k = x.p.place || "none"; (byPlace.get(k) || byPlace.set(k, []).get(k)).push(x.m); });
-      byPlace.forEach((ms, k) => {
-        if (!photoClusters.has(k)) photoClusters.set(k, makeCluster());
-        const cg = photoClusters.get(k);
-        cg.addLayers(ms);
-        photoCluster.addLayer(cg);
-      });
-    } else shown.forEach((x) => photoPlain.addLayer(x.m));
+    // The markers are only regrouped when "Group nearby photos" changes; zooming in and out just shows or hides
+    // the layer, so the groups keep what they've already worked out.
+    if (photosGrouped !== adv.cluster && allPhotos.length) {
+      photosGrouped = adv.cluster;
+      photoClusters.forEach((cg) => cg.clearLayers());
+      [photoCluster, photoPlain].forEach((l) => { l.clearLayers(); if (map.hasLayer(l) && l !== (adv.cluster ? photoCluster : photoPlain)) map.removeLayer(l); });
+      photoLayer = adv.cluster ? photoCluster : photoPlain;
+      if (adv.cluster) {
+        const byPlace = new Map();
+        allPhotos.forEach((x) => { const k = x.p.place || "none"; (byPlace.get(k) || byPlace.set(k, []).get(k)).push(x.m); });
+        byPlace.forEach((ms, k) => {
+          if (!photoClusters.has(k)) photoClusters.set(k, makeCluster());
+          const cg = photoClusters.get(k);
+          cg.addLayers(ms);
+          photoCluster.addLayer(cg);
+        });
+      } else allPhotos.forEach((x) => photoPlain.addLayer(x.m));
+    }
     const want = photosOn && map.getZoom() >= Z.photos;
     syncZoomClass();
     if (want && !map.hasLayer(photoLayer)) photoLayer.addTo(map);
@@ -805,29 +857,35 @@
   }
 
   // ================================================================ declutter
+  // Hides pins, place names and trail names that would sit on top of a more important one. Hiding only changes
+  // visibility, never size or position, so everything is measured in one go and the classes are set afterwards
+  // (measuring between changes made the browser lay the page out again for every pin and label).
+  let declutterFrame = 0;
+  const declutterSoon = () => { if (!declutterFrame) declutterFrame = requestAnimationFrame(declutter); };
   function declutter() {
-    const boxes = [];
-    const overlaps = (r, pad = 3) => boxes.some((b) => r.left < b.right + pad && r.right > b.left - pad && r.top < b.bottom + pad && r.bottom > b.top - pad);
+    cancelAnimationFrame(declutterFrame);
+    declutterFrame = 0;
     const rank = (pl) => (pl.f.id === selectedPlace ? 1e6 : 0) + (pl.f.properties.featured ? 1e3 : 0) + pl.photos.length;
-    const pins = [...places.values()].filter((pl) => map.hasLayer(pl.marker)).sort((a, b) => rank(b) - rank(a));
-    for (const pl of pins) {
-      const pin = pl.marker.getElement()?.querySelector(".place-pin");
-      if (!pin) continue;
-      pin.classList.remove("declutter-hide");
-      const name = pin.querySelector(".name");
-      name?.classList.remove("declutter-hide");
-      const br = pin.querySelector(".bubble").getBoundingClientRect();
-      if (overlaps(br, 1)) { pin.classList.add("declutter-hide"); continue; }
-      boxes.push(br);
-      if (name) { const nr = name.getBoundingClientRect(); if (overlaps(nr)) name.classList.add("declutter-hide"); else boxes.push(nr); }
+    const pins = [...places.values()].filter((pl) => map.hasLayer(pl.marker)).sort((a, b) => rank(b) - rank(a))
+      .map((pl) => pl.marker.getElement()?.querySelector(".place-pin")).filter(Boolean)
+      .map((pin) => { const name = pin.querySelector(".name"); return { pin, name, br: pin.querySelector(".bubble").getBoundingClientRect(), nr: name?.getBoundingClientRect() }; });
+    const labels = [...tracks.values()].filter((t) => map.hasLayer(t.label))
+      .sort((a, b) => (b.f.id === selectedTrack) - (a.f.id === selectedTrack))
+      .map((t) => t.label.getElement()).filter(Boolean).map((el) => ({ el, r: el.getBoundingClientRect() }));
+    const boxes = [], hide = new Map();
+    const overlaps = (r, pad = 3) => boxes.some((b) => r.left < b.right + pad && r.right > b.left - pad && r.top < b.bottom + pad && r.bottom > b.top - pad);
+    for (const { pin, name, br, nr } of pins) {
+      const off = overlaps(br, 1);
+      hide.set(pin, off);
+      if (!off) boxes.push(br);
+      if (name) { const nameOff = !off && overlaps(nr); hide.set(name, nameOff); if (!off && !nameOff) boxes.push(nr); }
     }
-    const labels = $$(".leaflet-tooltip.trail-label");
-    labels.sort((a, b) => (b.textContent === tracks.get(selectedTrack)?.f.properties.name) - (a.textContent === tracks.get(selectedTrack)?.f.properties.name));
-    for (const el of labels) {
-      el.classList.remove("declutter-hide");
-      const r = el.getBoundingClientRect();
-      if (overlaps(r, 6)) el.classList.add("declutter-hide"); else boxes.push(r);
+    for (const { el, r } of labels) {
+      const off = overlaps(r, 6);
+      hide.set(el, off);
+      if (!off) boxes.push(r);
     }
+    hide.forEach((off, el) => el.classList.toggle("declutter-hide", off));
   }
 
   // ================================================================ sheet
@@ -882,15 +940,15 @@
   let sheetDrag = null;
   const sheetMaxH = () => window.innerHeight - 8;
   const sheetMinH = () => $("#sheet-grip").offsetHeight + $(".sheet-head", sheet).offsetHeight;
-  function applySheetHeight() {
+  function applySheetHeight(minH) {
     const on = isPhone() && sheetH != null;
-    if (on) sheetH = Math.max(sheetMinH(), Math.min(sheetMaxH(), sheetH));
+    if (on) sheetH = Math.max(minH ?? sheetMinH(), Math.min(sheetMaxH(), sheetH));
     sheet.classList.toggle("sized", on);
     sheet.style.height = on ? `${sheetH}px` : "";
   }
   function sheetDragStart(e) {
     if (!isPhone() || e.button > 0 || e.target.closest("button")) return;
-    sheetDrag = { id: e.pointerId, y: e.clientY, h: sheet.offsetHeight, moved: false };
+    sheetDrag = { id: e.pointerId, y: e.clientY, h: sheet.offsetHeight, minH: sheetMinH(), moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
   function sheetDragMove(e) {
@@ -900,7 +958,7 @@
     sheetDrag.moved = true;
     sheet.classList.add("dragging");
     sheetH = sheetDrag.h + dy;
-    applySheetHeight();
+    applySheetHeight(sheetDrag.minH);   // measured once per drag, so a move only writes
   }
   function sheetDragEnd(e) {
     if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
@@ -1078,7 +1136,7 @@
       <div class="tour-step">Stop ${tourIdx + 1} of ${n}</div>
       <div class="progress"><span style="width:${((tourIdx + 1) / n) * 100}%"></span></div>
       <div class="tour-name">${icon(pl.f.properties.icon)} ${esc(title)}</div>
-      ${hero ? `<img class="place-hero" src="${esc(photoUrl(hero))}" alt="${esc(title)}">` : ""}
+      ${hero ? heroImg(hero, title) : ""}
       ${text ? `<p class="place-story">${esc(text)}</p>` : ""}
       <div class="btn-row tour-btns"><button class="big ghost" data-act="all">📷 All ${pl.photos.length} photos</button><button class="big ghost" data-act="go">🧭 Take me there</button></div>
       <div class="tour-nav">
@@ -1197,7 +1255,7 @@
     applyTheme("farmhouse", { pickBase: true });
     refreshPhotos(); refreshTracks(); refreshPlaces();
     places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f)));
-    declutter();
+    declutterSoon();
   }
 
   const openSections = new Set(isPhone() ? [] : ["look"]);
@@ -1276,8 +1334,8 @@
 
     const basic = $("#m-basic", body);
     check(basic, `${TRAIL_SVG} Trails &amp; driveway`, trailsOn, (v) => setTrails(v));
-    check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutter(); });
-    check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
+    check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutterSoon(); });
+    check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutterSoon(); });
     check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
     seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); setSum("text", SIZE_NAMES[i]); });
     $("#m-print", body).onclick = printMap;
@@ -1327,7 +1385,7 @@
       const fp = featuredPlaces(), shownP = fp.filter((pl) => !adv.hiddenTypes.includes(pl.f.properties.icon)).length;
       countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · <b>${shownP} of ${fp.length}</b> places`;
     };
-    const refilter = () => { refreshTracks(); refreshPlaces(); declutter(); updateCount(); };
+    const refilter = () => { refreshTracks(); refreshPlaces(); declutterSoon(); updateCount(); };
     seg($("#a-length", body), [["all", "Any"], ["short", "Under " + fmtLen(250)], ["medium", fmtLen(250) + "–" + fmtLen(600)], ["long", "Over " + fmtLen(600)]],
       adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
     seg($("#a-steep", body), [["all", "Any"], ["flat", "Flat"], ["gentle", "Gentle"], ["hilly", "Hilliest"]],
@@ -1352,7 +1410,7 @@
     $("#a-types-none", body).onclick = () => allTypes(false);
     updateCount();
 
-    seg($("#a-lsize", body), [[0.85, "Small"], [1, "Normal"], [1.25, "Large"], [1.5, "Huge"]], adv.labelSize, (v) => { adv.labelSize = v; applyLabelLook(); declutter(); });
+    seg($("#a-lsize", body), [[0.85, "Small"], [1, "Normal"], [1.25, "Large"], [1.5, "Huge"]], adv.labelSize, (v) => { adv.labelSize = v; applyLabelLook(); declutterSoon(); });
     seg($("#a-units", body), [["metric", "Metres & km"], ["imperial", "Feet & miles"]], adv.units, (v) => {
       setUnits(v);
       const sc = $("#sheet-body").scrollTop;
@@ -1362,7 +1420,7 @@
     const ac = $("#a-checks", body);
     check(ac, "⭕ Distance rings around the house", adv.rings, setRings);
     check(ac, "➜ Direction arrows on named trails", adv.dirArrows, (v) => { adv.dirArrows = v; refreshTracks(); });
-    check(ac, "📏 Trail lengths next to trail names", adv.labelLengths, (v) => { adv.labelLengths = v; applyLabelLook(); declutter(); });
+    check(ac, "📏 Trail lengths next to trail names", adv.labelLengths, (v) => { adv.labelLengths = v; applyLabelLook(); declutterSoon(); });
     check(ac, "🧭 Compass and scale bar", adv.compass, (v) => { adv.compass = v; placeCornerControls(); });
     check(ac, "📷 Small photo spots <small>(when zoomed in)</small>", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
     check(ac, "🗂️ Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
@@ -1405,13 +1463,13 @@
   function setTrackHidden(id, hide) {
     if (hide) hiddenTracks.add(id); else hiddenTracks.delete(id);
     refreshTracks();
-    declutter();
+    declutterSoon();
   }
   function setTrails(on) {
     trailsOn = on;
     $('#dock [data-act="trails"]').setAttribute("aria-pressed", on);
     refreshTracks();
-    declutter();
+    declutterSoon();
     toast(on ? "Trails are showing" : "Trails are hidden", 1500);
   }
   function setPhotos(on) {
@@ -1433,8 +1491,11 @@
   }
   function clampPan() {
     const r = stage.getBoundingClientRect();
-    const lx = Math.max(0, (lbImg.offsetWidth * zs - r.width) / 2);
-    const ly = Math.max(0, (lbImg.offsetHeight * zs - r.height) / 2);
+    // The photo is fitted inside the stage (letterboxed), so work out the size it is actually drawn at.
+    const iw = lbImg.naturalWidth || r.width, ih = lbImg.naturalHeight || r.height;
+    const fit = Math.min(r.width / iw, r.height / ih);
+    const lx = Math.max(0, (iw * fit * zs - r.width) / 2);
+    const ly = Math.max(0, (ih * fit * zs - r.height) / 2);
     zx = Math.max(-lx, Math.min(lx, zx));
     zy = Math.max(-ly, Math.min(ly, zy));
   }
@@ -1460,10 +1521,20 @@
     lb.hidden = false;
     $(".lb-close", lb).focus();
   }
+  let lbWant = "";
   function drawLightbox() {
     const p = lbList[lbIdx];
     resetZoom();
-    lbImg.src = photoUrl(p);
+    // Flicking through never waits on a blank screen: a photo that's ready shows at once; otherwise its small copy
+    // (usually already loaded for the map or gallery) shows until the full photo has arrived and been decoded.
+    const full = photoUrl(p), hi = new Image();
+    lbWant = full;
+    hi.src = full;
+    if (hi.complete && hi.naturalWidth) lbImg.src = full;
+    else {
+      lbImg.src = photoUrl(p, "thumb");
+      hi.decode().then(() => { if (lbWant === full) lbImg.src = full; }, () => {});
+    }
     lbImg.alt = p.title || lbTitle;
     const cap = p.title || lbTitle;
     $(".lb-cap", lb).innerHTML = `<b>${esc(cap)}</b>${p.caption ? `<br>${esc(p.caption)}` : ""}<br><small>${esc(fmtDate(p.taken))}${lbList.length > 1 ? ` · photo ${lbIdx + 1} of ${lbList.length}` : ""}</small>`;
@@ -1472,7 +1543,7 @@
     $(".lb-next", lb).hidden = !multi;
     $$(".lb-strip button", lb).forEach((b, i) => b.classList.toggle("on", i === lbIdx));
     $(".lb-strip button.on", lb)?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-    if (multi) new Image().src = photoUrl(lbList[(lbIdx + 1) % lbList.length]);
+    if (multi) [1, -1].forEach((d) => { new Image().src = photoUrl(lbList[(lbIdx + d + lbList.length) % lbList.length]); });   // the ones either side
   }
   const step = (d) => { lbIdx = (lbIdx + d + lbList.length) % lbList.length; drawLightbox(); };
   const closeLb = () => { lb.hidden = true; resetZoom(); };
@@ -1887,11 +1958,11 @@
     printView = null;
     declutter();
   }
-  const tilesSettled = () => new Promise((res) => {
+  const tilesSettled = (max = 4000) => new Promise((res) => {
     const layers = []; baseLayer.eachLayer ? baseLayer.eachLayer((l) => layers.push(l)) : layers.push(baseLayer);
     const busy = () => layers.some((l) => l._loading);
     const t0 = Date.now();
-    (function wait() { if (!busy() || Date.now() - t0 > 4000) setTimeout(res, 250); else setTimeout(wait, 150); })();
+    (function wait() { if (!busy() || Date.now() - t0 > max) setTimeout(res, 250); else setTimeout(wait, 150); })();
   });
   window.addEventListener("beforeprint", () => { if (!document.body.classList.contains("printing")) enterPrint("map"); });
   window.addEventListener("afterprint", exitPrint);
@@ -2064,13 +2135,14 @@
   }
 
   // ================================================================ take me there
-  // Walks the trail network: every trail vertex is a node, shared junction vertices join the trails.
+  // Walks the trail network: every trail vertex is a node, shared junction vertices join the trails. Built once, with
+  // every node also kept in flat map units so finding the nearest trail on each GPS update is quick.
   let navGraph = null;
   function buildGraph() {
-    const nodes = [], idx = new Map(), adj = [], segs = [];
+    const crs = map.options.crs, nodes = [], pts = [], idx = new Map(), adj = [], segs = [];
     const node = (lng, lat) => {
       const k = lng.toFixed(6) + "," + lat.toFixed(6);
-      if (!idx.has(k)) { idx.set(k, nodes.length); nodes.push(L.latLng(lat, lng)); adj.push([]); }
+      if (!idx.has(k)) { idx.set(k, nodes.length); nodes.push(L.latLng(lat, lng)); pts.push(crs.project(nodes[nodes.length - 1])); adj.push([]); }
       return idx.get(k);
     };
     const link = (a, b) => { if (a === b) return; const d = distM(nodes[a], nodes[b]); adj[a].push([b, d]); adj[b].push([a, d]); segs.push([a, b]); };
@@ -2080,27 +2152,51 @@
       const lines = g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : [];
       lines.forEach((cs) => { for (let i = 1; i < cs.length; i++) link(node(cs[i - 1][0], cs[i - 1][1]), node(cs[i][0], cs[i][1])); });
     });
-    return { nodes, adj, segs };
+    return { nodes, pts, adj, segs };
   }
   /** Nearest point on the network: {ll, a, b, d} where a–b is the segment it lies on. */
   function snapToNet(ll) {
-    const G = navGraph, p = map.options.crs.project(ll);
-    let best = null;
+    const G = navGraph, crs = map.options.crs, p = crs.project(ll);
+    // Over an area this small the flat map keeps distances in proportion, so the closest point there is the closest on the ground.
+    let best = null, bestD2 = Infinity;
     for (const [a, b] of G.segs) {
-      const A = map.options.crs.project(G.nodes[a]), B = map.options.crs.project(G.nodes[b]);
+      const A = G.pts[a], B = G.pts[b];
       const dx = B.x - A.x, dy = B.y - A.y, len = dx * dx + dy * dy;
       const t = len ? Math.max(0, Math.min(1, ((p.x - A.x) * dx + (p.y - A.y) * dy) / len)) : 0;
-      const q = map.options.crs.unproject(L.point(A.x + t * dx, A.y + t * dy));
-      const d = distM(ll, q);
-      if (!best || d < best.d) best = { ll: q, a, b, d };
+      const ex = A.x + t * dx - p.x, ey = A.y + t * dy - p.y, d2 = ex * ex + ey * ey;
+      if (d2 < bestD2) { bestD2 = d2; best = { a, b, t }; }
     }
-    return best;
+    const A = G.pts[best.a], B = G.pts[best.b];
+    const q = crs.unproject(L.point(A.x + best.t * (B.x - A.x), A.y + best.t * (B.y - A.y)));
+    return { ll: q, a: best.a, b: best.b, d: distM(ll, q) };
   }
+  // Smallest-first queue of [distance, node] for the route search.
+  function heapPush(h, item) {
+    h.push(item);
+    for (let i = h.length - 1; i > 0;) { const up = (i - 1) >> 1; if (h[up][0] <= h[i][0]) break; [h[up], h[i]] = [h[i], h[up]]; i = up; }
+  }
+  function heapPop(h) {
+    const top = h[0], last = h.pop();
+    if (h.length) {
+      h[0] = last;
+      for (let i = 0; ;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < h.length && h[l][0] < h[m][0]) m = l;
+        if (r < h.length && h[r][0] < h[m][0]) m = r;
+        if (m === i) break;
+        [h[m], h[i]] = [h[i], h[m]]; i = m;
+      }
+    }
+    return top;
+  }
+  let destSnap = null;   // where the destination sits on the trails, worked out once per destination
   function routeBetween(from, to) {
     if (!navGraph) navGraph = buildGraph();
     const direct = distM(from, to);
     if (!navGraph.segs.length) return { pts: [from, to], len: direct, onTrail: false };
-    const s = snapToNet(from), e = snapToNet(to);
+    if (destSnap?.to !== to) destSnap = { to, snap: snapToNet(to) };
+    const s = snapToNet(from), e = destSnap.snap;
     // Dijkstra with two temporary nodes (S, E) sitting on their segments.
     const G = navGraph, n = G.nodes.length, S = n, E = n + 1;
     const nodeLL = (i) => (i === S ? s.ll : i === E ? e.ll : G.nodes[i]);
@@ -2108,26 +2204,26 @@
     const addX = (x, y, d) => { extra.get(x)?.push([y, d]); if (!extra.has(y)) extra.set(y, []); extra.get(y).push([x, d]); };
     for (const [T, sn] of [[S, s], [E, e]]) { addX(T, sn.a, distM(sn.ll, G.nodes[sn.a])); addX(T, sn.b, distM(sn.ll, G.nodes[sn.b])); }
     if ((s.a === e.a && s.b === e.b) || (s.a === e.b && s.b === e.a)) addX(S, E, distM(s.ll, e.ll));
-    const dist = new Map([[S, 0]]), prev = new Map(), done = new Set();
+    const dist = new Float64Array(n + 2).fill(Infinity), prev = new Int32Array(n + 2).fill(-1), done = new Uint8Array(n + 2);
+    dist[S] = 0;
     const heap = [[0, S]];
+    const relax = (du, u, edges) => {
+      for (const [v, w] of edges) if (du + w < dist[v]) { dist[v] = du + w; prev[v] = u; heapPush(heap, [dist[v], v]); }
+    };
     while (heap.length) {
-      let bi = 0; for (let i = 1; i < heap.length; i++) if (heap[i][0] < heap[bi][0]) bi = i;
-      const [du, u] = heap.splice(bi, 1)[0];
-      if (done.has(u)) continue;
-      done.add(u);
+      const [du, u] = heapPop(heap);
+      if (done[u]) continue;
+      done[u] = 1;
       if (u === E) break;
-      for (const [v, w] of [...(u < n ? G.adj[u] : []), ...(extra.get(u) || [])]) {
-        const nd = du + w;
-        if (nd < (dist.get(v) ?? Infinity)) { dist.set(v, nd); prev.set(v, u); heap.push([nd, v]); }
-      }
+      if (u < n) relax(du, u, G.adj[u]);
+      if (extra.has(u)) relax(du, u, extra.get(u));
     }
-    const trailLen = dist.get(E);
-    const total = trailLen == null ? Infinity : s.d + trailLen + e.d;
+    const total = s.d + dist[E] + e.d;
     // Walking straight is better when the trail route is a long way round, or the trails are far away.
     if (!isFinite(total) || total > direct * 2.2 + 60 || s.d > direct * 0.8) return { pts: [from, to], len: direct, onTrail: false };
     const path = [];
-    for (let u = E; u != null; u = prev.get(u)) path.unshift(nodeLL(u));
-    return { pts: [from, ...path, to], len: total, onTrail: true, offStart: s.d };
+    for (let u = E; u !== -1; u = prev[u]) path.push(nodeLL(u));
+    return { pts: [from, ...path.reverse(), to], len: total, onTrail: true, offStart: s.d };
   }
 
   const nav = { to: null, name: "", layer: L.layerGroup(), last: null, arrived: false, fitDone: false };
@@ -2156,17 +2252,21 @@
     if (!nav.to) return;
     nav.layer.clearLayers();
     map.removeLayer(nav.layer);
-    nav.to = null;
+    nav.to = nav.line = nav.lineCase = null;
     navPanel.hidden = true;
     document.body.classList.remove("navigating");
     if (!quiet) toast("Directions stopped.");
   }
+  // The same two lines are moved along with each GPS update rather than drawn afresh.
   function drawRoute(r) {
-    [nav.line, nav.lineCase, nav.lead].forEach((l) => l && nav.layer.removeLayer(l));
-    const pts = r.pts;
-    nav.lineCase = L.polyline(pts, { color: "#0b3d91", weight: 11, opacity: 0.55, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(nav.layer);
-    nav.line = L.polyline(pts, { color: "#4fc3ff", weight: 6, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round",
-      dashArray: r.onTrail ? null : "2 10", className: "nv-line" }).addTo(nav.layer);
+    if (!nav.line) {
+      nav.lineCase = L.polyline(r.pts, { color: "#0b3d91", weight: 11, opacity: 0.55, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(nav.layer);
+      nav.line = L.polyline(r.pts, { color: "#4fc3ff", weight: 6, opacity: 1, interactive: false, lineCap: "round", lineJoin: "round", className: "nv-line" }).addTo(nav.layer);
+    } else {
+      nav.lineCase.setLatLngs(r.pts);
+      nav.line.setLatLngs(r.pts);
+    }
+    nav.line.setStyle({ dashArray: r.onTrail ? null : "2 10" });   // dotted while walking cross-country to the trail
   }
   function updateNav(me) {
     if (!nav.to) return;
@@ -2310,12 +2410,12 @@
     const want = photosOn && map.getZoom() >= Z.photos;
     if (want !== map.hasLayer(photoLayer)) refreshPhotos();
   });
-  map.on("moveend zoomend", () => { refreshBackToFarm(); declutter(); });
+  map.on("moveend", () => { refreshBackToFarm(); declutterSoon(); });   // moveend also follows every zoom
   map.on("click", (e) => {
     if (measure.on) return addMeasurePoint(e.latlng, e.containerPoint);
     if (selectedTrack && sheet.hidden) highlightTrack(null);
   });
-  window.addEventListener("resize", () => setTimeout(declutter, 100));
+  window.addEventListener("resize", declutterSoon);
 
   // ================================================================ load
   function askPassword(retry) {
@@ -2368,18 +2468,19 @@
 
     $('#dock [data-act="trails"]').setAttribute("aria-pressed", trailsOn);
     applyTheme(theme);
-    fitFarm(false);
-    setTimeout(probeImagery, 1500);
+    if (!farmView) fitFarm(false);
+    probeImagery(baseKeys);
     refreshTracks();
     refreshPlaces();
     refreshPhotos();
     refreshBackToFarm();
-    declutter();
+    declutterSoon();
 
     window.addEventListener("hashchange", () => {
       const [hk, hv] = decodeURIComponent(location.hash.slice(1)).split("=");
       if (hk === "place" && places.has(hv) && selectedPlace !== hv) openPlace(hv);
       else if (hk === "trail" && tracks.has(hv) && selectedTrack !== hv) openTrail(hv);
+      else if (hk === "tour" && tourIdx !== (parseInt(hv, 10) || 1) - 1) startTour((parseInt(hv, 10) || 1) - 1);
     });
     const h = decodeURIComponent(location.hash.slice(1));
     const [k, v] = h.split("=");
@@ -2389,7 +2490,17 @@
     else if (!store.get("welcomed", false)) showWelcome();
   }
 
-  loadBundle(askPassword).then(start).catch((err) => {
+  // site.json carries the farm's outline, so the map opens there and starts on the imagery while the data is on its way.
+  let farmView = null;
+  function presetView(meta) {
+    const b = meta.bounds && L.latLngBounds(meta.bounds);
+    if (!b?.isValid() || farmBounds) return;
+    farmBounds = b;
+    fitFarm(false);
+    farmView = { center: map.getCenter(), zoom: map.getZoom() };
+  }
+
+  loadBundle(askPassword, presetView).then(start).catch((err) => {
     console.error(err);
     alert(navigator.onLine ? "Sorry, the map couldn't load. Please refresh the page." : "You're offline and this map hasn't been saved on this device yet.");
   });
