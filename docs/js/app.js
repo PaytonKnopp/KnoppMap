@@ -46,6 +46,16 @@
   const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 22, minZoom: 5 });
   L.control.zoom({ position: "topright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" }).addTo(map);
   L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
+  const COMPASS_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <circle cx="50" cy="50" r="46" class="c-ring"/><circle cx="50" cy="50" r="38" class="c-face"/>
+    <g class="c-ticks">${Array.from({ length: 16 }, (_, i) => `<line x1="50" y1="${i % 4 ? 15 : 12}" x2="50" y2="19" transform="rotate(${i * 22.5} 50 50)"/>`).join("")}</g>
+    <path d="M50 18 58 50 50 46 42 50Z" class="c-n"/><path d="M50 82 58 50 50 54 42 50Z" class="c-s"/>
+    <path d="M18 50 50 44 46 50 50 56Z" class="c-ew"/><path d="M82 50 50 44 54 50 50 56Z" class="c-ew"/>
+    <circle cx="50" cy="50" r="4" class="c-hub"/>
+    <text x="50" y="11" class="c-lbl c-lbl-n">N</text><text x="50" y="97" class="c-lbl">S</text><text x="94" y="54" class="c-lbl">E</text><text x="6" y="54" class="c-lbl">W</text></svg>`;
+  const Compass = L.Control.extend({ options: { position: "bottomright" },
+    onAdd() { const d = L.DomUtil.create("div", "map-compass"); d.title = "North is up"; d.innerHTML = COMPASS_SVG; L.DomEvent.disableClickPropagation(d); return d; } });
+  new Compass().addTo(map);
   window.kmMap = map;
   map.createPane("hill").style.zIndex = 240;
   map.createPane("radar").style.zIndex = 380;
@@ -862,7 +872,7 @@
       const q = input.value.trim().toLowerCase();
       out.replaceChildren();
       if (!q) { out.innerHTML = `<p class="note">For example: cabin, gate, garden, Roger…</p>`; return; }
-      const pl = [...places.values()].filter((x) => (placeTitle(x) + " " + (x.f.properties.story || "")).toLowerCase().includes(q));
+      const pl = [...places.values()].filter((x) => x.f.properties.featured && (placeTitle(x) + " " + (x.f.properties.story || "")).toLowerCase().includes(q));
       const tr = [...tracks.values()].filter((t) => t.f.properties.name.toLowerCase().includes(q));
       const ph = allPhotos.map((x) => x.p).filter((p) => ((p.title || "") + " " + (p.caption || "")).toLowerCase().includes(q));
       if (pl.length) { out.insertAdjacentHTML("beforeend", "<h3>Places</h3>"); pl.slice(0, 20).forEach((x) => out.append(placeRow(x))); }
@@ -1417,42 +1427,85 @@
   }
 
   // ================================================================ print
-  // Printing resizes the map to the paper, so remember exactly what was on screen and fit that area to the page.
+  // The map is redrawn at the exact paper size *before* printing (a map that is only resized by print CSS keeps its
+  // old layout and prints a cropped corner). Then the area that was on screen is fitted into it.
   let printView = null;
   function visibleBounds() {
     const size = map.getSize();
-    let left = 0, bottom = size.y;
+    let left = 0, bottom = size.y, top = 0;
     if (!$("#sheet").hidden) {
       if (isPhone()) bottom = Math.max(120, size.y - $("#sheet").offsetHeight);
       else left = Math.min(size.x - 120, $("#sheet").getBoundingClientRect().right + 8);
     }
-    return L.latLngBounds(map.containerPointToLatLng([left, 0]), map.containerPointToLatLng([size.x, bottom]));
+    return L.latLngBounds(map.containerPointToLatLng([left, top]), map.containerPointToLatLng([size.x, bottom]));
   }
-  function fillPrintHead() {
+  function printTitle() {
     const t = THEMES[theme];
-    $("#print-head").innerHTML = `<b>${esc($("#site-title").textContent)}</b><span>${esc(t.label)} look · ${esc(BASEMAPS[baseKey]?.label || "")} · printed ${esc(fmtDate(new Date().toISOString(), false))}</span>`;
+    return { title: $("#site-title").textContent, sub: `${t.label} look · ${BASEMAPS[baseKey]?.label || ""} · printed ${fmtDate(new Date().toISOString(), false)}` };
   }
-  function fitForPrint() {
+  function fillPoster() {
+    const L_ = THEMES[theme].lines;
+    const { title, sub } = printTitle();
+    const line = (c, dash = "") => `<i class="pl-line" style="border-color:${c};${dash ? "border-top-style:dashed;" : ""}"></i>`;
+    const named = featuredPlaces().sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
+    $("#print-poster").innerHTML = `
+      <h1>${esc(title)}</h1><p class="pp-sub">${esc(sub.split(" · printed ")[1] ? "Printed " + sub.split(" · printed ")[1] : "")}</p>
+      <div class="pp-compass">${COMPASS_SVG}</div>
+      <h2>Legend</h2>
+      <div class="pp-legend">
+        ${line(L_.boundary || "#fff", 1)}<span>Quarter section perimeter</span>
+        ${line("#ff9800", 1)}<span>Acreage perimeter</span>
+        ${line(L_.road)}<span>Roads and yard</span>
+        ${line(adv.colourMode === "each" ? "#00e5ff" : L_.trail)}<span>Trails</span>
+      </div>
+      <h2>Places</h2>
+      <div class="pp-places">${named.map((pl) => `<span>${pl.f.properties.icon === "cabin" ? "🏡" : icon(pl.f.properties.icon)} ${esc(placeTitle(pl))}</span>`).join("")}</div>
+      <p class="pp-foot">${esc(THEMES[theme].label)} look · ${esc(BASEMAPS[baseKey]?.label || "")}</p>`;
+  }
+  function enterPrint(kind) {
     if (!printView) printView = { bounds: visibleBounds(), center: map.getCenter(), zoom: map.getZoom() };
-    map.invalidateSize({ animate: false });
+    const { title, sub } = printTitle();
+    $("#print-head").innerHTML = `<b>${esc(title)}</b><span>${esc(sub)}</span>`;
+    if (kind === "poster") fillPoster();
+    closeSheet();
+    document.body.classList.add("printing", kind === "poster" ? "print-poster" : "print-map");
+    map.invalidateSize({ animate: false, pan: false });
     map.fitBounds(printView.bounds, { animate: false, padding: [0, 0] });
+    declutter();
   }
-  window.addEventListener("beforeprint", () => { fillPrintHead(); fitForPrint(); });
-  window.addEventListener("afterprint", () => {
-    document.body.classList.remove("printing");
-    map.invalidateSize({ animate: false });
+  function exitPrint() {
+    if (!document.body.classList.contains("printing")) return;
+    document.body.classList.remove("printing", "print-poster", "print-map");
+    map.invalidateSize({ animate: false, pan: false });
     if (printView) map.setView(printView.center, printView.zoom, { animate: false });
     printView = null;
+    declutter();
+  }
+  const tilesSettled = () => new Promise((res) => {
+    const layers = []; baseLayer.eachLayer ? baseLayer.eachLayer((l) => layers.push(l)) : layers.push(baseLayer);
+    const busy = () => layers.some((l) => l._loading);
+    const t0 = Date.now();
+    (function wait() { if (!busy() || Date.now() - t0 > 4000) setTimeout(res, 250); else setTimeout(wait, 150); })();
   });
+  window.addEventListener("beforeprint", () => { if (!document.body.classList.contains("printing")) enterPrint("map"); });
+  window.addEventListener("afterprint", exitPrint);
   function printMap() {
     printView = { bounds: visibleBounds(), center: map.getCenter(), zoom: map.getZoom() };
-    closeSheet();
-    fillPrintHead();
-    document.body.classList.add("printing");
-    fitForPrint();
-    toast("Getting the map ready to print…", 1500);
-    setTimeout(() => { window.print(); }, 1200);
+    $("#print-dialog").hidden = false;
   }
+  $("#print-dialog").addEventListener("click", async (e) => {
+    const kind = e.target.closest("[data-print]")?.dataset.print;
+    if (e.target.id === "print-dialog" || kind === "cancel") { $("#print-dialog").hidden = true; printView = null; return; }
+    if (!kind || document.body.classList.contains("printing")) return;
+    $("#print-dialog").hidden = true;
+    enterPrint(kind);
+    toast("Getting the map ready to print…", 2000);
+    await tilesSettled();
+    window.print();
+  });
+  // Backup for browsers that don't send afterprint: leaving print media also restores the map.
+  const printMQ = window.matchMedia("print");
+  (printMQ.addEventListener ? printMQ.addEventListener.bind(printMQ, "change") : printMQ.addListener.bind(printMQ))((e) => { if (!e.matches) setTimeout(exitPrint, 100); });
 
   // ================================================================ welcome
   function showWelcome() { $("#welcome").hidden = false; $("#welcome-tour").focus(); }
