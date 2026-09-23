@@ -30,8 +30,8 @@ REPORT = ROOT / "build" / "report.md"
 NS = {"g": "http://www.topografix.com/GPX/1/1"}
 PRECISION = 6
 SIMPLIFY_M = 2.0          # Douglas-Peucker tolerance
-SNAP_M = 20.0             # max distance an end may be moved to meet another track
-TAIL_M = 30.0             # how far back from an end we look for a better junction (trims overshoot)
+SNAP_M = 25.0             # max distance an end may be extended to meet another track
+TAIL_M = 25.0             # longest stub past a crossing that gets trimmed off
 CLOSE_LOOP_M = 60.0       # boundary loops closed when start/end are within this
 JOIN_SEG_M = 50.0         # paused-recording segments joined when the gap is under this
 WEB_PX, WEB_Q = 1600, 80
@@ -224,30 +224,89 @@ def join_segments(segs, is_loop, log, name):
     return out
 
 
-def snap_end(line, others, at_start):
-    """Find the best junction near one end: trims overshoot and extends undershoot."""
+def seg_intersect(p1, p2, q1, q2):
+    """Intersection of segments p1-p2 and q1-q2 as (point, t along p), or None."""
+    (x1, y1), (x2, y2) = to_xy(p1), to_xy(p2)
+    (x3, y3), (x4, y4) = to_xy(q1), to_xy(q2)
+    den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+    if abs(den) < 1e-9:
+        return None
+    t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den
+    u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den
+    if 0 <= t <= 1 and 0 <= u <= 1:
+        return ((x1 + t * (x2 - x1)) / KX, (y1 + t * (y2 - y1)) / KY), t
+    return None
+
+
+def insert_vertex(line, q):
+    """Put q into line as a vertex (or reuse a vertex within 0.3 m) so both tracks share the exact point."""
+    best_i, best_d = 0, float("inf")
+    for i, (a, b) in enumerate(zip(line, line[1:])):
+        _, d = project_on_segment(q, a, b)
+        if d < best_d:
+            best_i, best_d = i, d
+    for v in (line[best_i], line[best_i + 1]):
+        if dist(v, q) < 0.3:
+            return v
+    line.insert(best_i + 1, q)
+    return q
+
+
+def connect_end(line, others, at_start):
+    """Make one end of a track meet its neighbour: trim a stub that runs past a crossing, or extend a short end."""
+    if len(line) < 2:
+        return None
     seq = line if at_start else line[::-1]
-    walked, best = 0.0, None
-    for i, p in enumerate(seq):
-        if i > 0:
-            walked += dist(seq[i - 1], p)
-        if walked > TAIL_M or i > len(seq) * 0.4:
+    length = line_length(seq)
+    end = seq[0]
+    best = None
+    for oname, ol in others:
+        q, d = nearest_on_line(end, ol)
+        if best is None or d < best[1]:
+            best = (q, d, oname, ol)
+    if best and best[1] < 1.0:
+        # Already touching: lock the end onto the neighbour exactly.
+        q = insert_vertex(best[3], best[0])
+        if seq[0] == q:
+            return None
+        seq[0] = q
+        line[:] = seq if at_start else seq[::-1]
+        return {"with": best[2], "how": "joined", "moved": best[1], "trimmed": 0.0}
+    # 1. Overshoot: the end crosses another track and keeps going a little way.
+    walked, cut = 0.0, None
+    for i in range(len(seq) - 1):
+        a, b = seq[i], seq[i + 1]
+        seg = dist(a, b)
+        hits = []
+        for oname, ol in others:
+            for q1, q2 in zip(ol, ol[1:]):
+                r = seg_intersect(a, b, q1, q2)
+                if r:
+                    hits.append((r[1], r[0], oname, ol))
+        hits = [h for h in hits if walked + h[0] * seg > 0.3]
+        if hits:
+            tt, q, oname, ol = min(hits, key=lambda h: h[0])
+            stub = walked + tt * seg
+            if stub <= TAIL_M and stub < length * 0.4:
+                cut = (i, q, oname, ol, stub)
             break
-        for oname, oline in others:
-            q, d = nearest_on_line(p, oline)
-            # Penalise walking back so a recorded end is only trimmed for a clearly better junction.
-            score = d + 0.3 * walked
-            if d <= SNAP_M and (best is None or score < best[4]):
-                best = (i, q, d, oname, score)
-    if best is None:
-        return line, None
-    i, q, d, oname, _ = best
-    kept = seq[i:]
-    trimmed = line_length(seq[: i + 1]) if i else 0.0
-    new = [q] + kept if d > 0.5 else [q] + kept[1:]
-    if not at_start:
-        new = new[::-1]
-    return new, {"with": oname, "moved": d, "trimmed": trimmed}
+        walked += seg
+        if walked > TAIL_M:
+            break
+    if cut:
+        i, q, oname, ol, stub = cut
+        q = insert_vertex(ol, q)
+        new = [q] + seq[i + 1:]
+        line[:] = new if at_start else new[::-1]
+        return {"with": oname, "how": "trimmed at crossing", "moved": 0.0, "trimmed": stub}
+    # 2. Undershoot: the end stops just short of a neighbour.
+    if best and best[1] <= SNAP_M:
+        q, d, oname, ol = best
+        q = insert_vertex(ol, q)
+        new = [q] + seq
+        line[:] = new if at_start else new[::-1]
+        return {"with": oname, "how": "extended", "moved": d, "trimmed": 0.0}
+    return None
 
 
 def profile(prof, n=60):
@@ -308,22 +367,6 @@ def build_tracks():
                  loop=c.get("loop", False), snap=c.get("snap", True))
         t["parts"] = join_segments(t["segs"], t["loop"], log_join, t["name"])
 
-    # Snap ends of non-loop tracks onto neighbouring tracks (using the raw geometry of the others).
-    raw_lines = [(t["name"], part) for t in tracks for part in t["parts"]]
-    for t in tracks:
-        if t["loop"] or not t["snap"]:
-            continue
-        new_parts = []
-        for part in t["parts"]:
-            others = [(n, l) for n, l in raw_lines if l is not part]
-            for at_start in (True, False):
-                part, info = snap_end(part, others, at_start)
-                if info:
-                    log_snap.append(f"| {t['name']} | {'start' if at_start else 'end'} | {info['with']} "
-                                    f"| {info['moved']:.1f} | {info['trimmed']:.1f} |")
-            new_parts.append(part)
-        t["parts"] = new_parts
-
     for t in tracks:
         if t["loop"]:
             part = t["parts"][0]
@@ -334,14 +377,28 @@ def build_tracks():
             else:
                 log_loop.append(f"- **{t['name']}**: NOT closed, start/end are {gap:.0f} m apart")
 
-    features, raw_pts, out_pts = [], 0, 0
+    raw_pts = sum(len(p) for t in tracks for p in t["parts"])
+    # Simplify first so the junction points added below are never moved afterwards.
+    for t in tracks:
+        t["parts"] = [simplify(p, SIMPLIFY_M) for p in t["parts"]]
+    for _ in range(2):
+        for t in tracks:
+            if t["loop"] or not t["snap"]:
+                continue
+            for part in t["parts"]:
+                others = [(o["name"], op) for o in tracks for op in o["parts"] if op is not part]
+                for at_start in (True, False):
+                    info = connect_end(part, others, at_start)
+                    if info:
+                        log_snap.append(f"| {t['name']} | {'start' if at_start else 'end'} | {info['with']} "
+                                        f"| {info['how']} | {info['moved']:.1f} | {info['trimmed']:.1f} |")
+
+    features, out_pts = [], 0
     for t in tracks:
         parts = []
         for part in t["parts"]:
-            raw_pts += len(part)
-            s = simplify(part, SIMPLIFY_M)
-            out_pts += len(s)
-            parts.append([[round(x, PRECISION), round(y, PRECISION)] for x, y in s])
+            out_pts += len(part)
+            parts.append([[round(x, PRECISION), round(y, PRECISION)] for x, y in part])
         closed = t["loop"] and parts[0][0] == parts[0][-1]
         if closed:
             geom = {"type": "Polygon", "coordinates": parts[:1]}
@@ -374,7 +431,7 @@ def build_tracks():
               f"Points: {raw_pts} raw -> {out_pts} after {SIMPLIFY_M:g} m simplification.\n",
               "### Loops\n", *log_loop, "", "### Joined recording segments\n", *(log_join or ["- none"]), "",
               f"### End snapping (within {SNAP_M:g} m, looking back {TAIL_M:g} m for overshoot)\n",
-              "| Track | End | Joined to | Moved (m) | Trimmed (m) |", "|---|---|---|---|---|", *log_snap, ""]
+              "| Track | End | Joined to | How | Moved (m) | Trimmed (m) |", "|---|---|---|---|---|---|", *log_snap, ""]
     return features, report
 
 

@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const { icon, esc, fmtLen, walkMins, fmtDate, store, loadBundle, photoUrl } = KM;
+  const { icon, esc, fmtLen, fmtDate, store, loadBundle, photoUrl } = KM;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const isPhone = () => window.matchMedia("(max-width: 700px)").matches;
@@ -64,26 +64,154 @@
   map.createPane("trails").style.zIndex = 400;
 
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+  const CARTO = "https://{s}.basemaps.cartocdn.com/";
+  // Tiles keep old imagery on screen while zooming instead of flashing grey, and don't fetch mid-animation.
+  const TILE_OPTS = { maxZoom: 21, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
+  const esriLayer = (svc, key, attribution, extra = {}) =>
+    L.tileLayer(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
+  const IMG_ATTR = "Imagery © Esri, Maxar, Earthstar Geographics";
+  const OSM_ATTR = "© OpenStreetMap contributors";
   const BASEMAPS = {
-    satellite: ["Satellite", () => L.tileLayer(ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      { maxZoom: 20, maxNativeZoom: 19, attribution: "Imagery © Esri, Maxar, Earthstar Geographics" })],
-    hybrid: ["Satellite + roads", () => L.layerGroup([BASEMAPS.satellite[1](),
-      L.tileLayer(ESRI + "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", { maxZoom: 20, maxNativeZoom: 19 }),
-      L.tileLayer(ESRI + "Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { maxZoom: 20, maxNativeZoom: 19 })])],
-    topo: ["Topographic", () => L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-      { maxZoom: 20, maxNativeZoom: 17, attribution: "© OpenStreetMap contributors, SRTM | OpenTopoMap" })],
-    street: ["Street map", () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      { maxZoom: 20, maxNativeZoom: 19, attribution: "© OpenStreetMap contributors" })],
+    satellite: { label: "Satellite", swatch: "#3f5b33", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
+    hybrid: { label: "Satellite + roads", swatch: "#4a6a3c", make: () => L.layerGroup([esriLayer("World_Imagery", "img", IMG_ATTR),
+      esriLayer("Reference/World_Transportation", "ref", ""), esriLayer("Reference/World_Boundaries_and_Places", "ref", "")]) },
+    topo: { label: "Topographic", swatch: "#d9d2b0", make: () => L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      { ...TILE_OPTS, maxNativeZoom: 17, attribution: OSM_ATTR + ", SRTM | OpenTopoMap" }) },
+    esritopo: { label: "Detailed topo", swatch: "#e8e4d0", make: () => esriLayer("World_Topo_Map", "topo", "Esri, HERE, Garmin, USGS") },
+    street: { label: "Street map", swatch: "#f2efe9", make: () => L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { ...TILE_OPTS, maxNativeZoom: 19, attribution: OSM_ATTR }) },
+    light: { label: "Clean & light", swatch: "#f5f5f3", make: () => L.tileLayer(CARTO + "rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      { ...TILE_OPTS, maxNativeZoom: 20, attribution: OSM_ATTR + " © CARTO" }) },
+    dark: { label: "Night", swatch: "#1d2327", make: () => L.tileLayer(CARTO + "dark_all/{z}/{x}/{y}{r}.png",
+      { ...TILE_OPTS, maxNativeZoom: 20, attribution: OSM_ATTR + " © CARTO" }) },
+    bw: { label: "Black & white", swatch: "#8a8a8a", filter: "bw", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
+    parchment: { label: "Old parchment map", swatch: "#d8c08f", filter: "parchment", make: () => L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      { ...TILE_OPTS, maxNativeZoom: 17, attribution: OSM_ATTR + ", SRTM | OpenTopoMap" }) },
+    vintage: { label: "Vintage photo", swatch: "#a88b5c", filter: "vintage", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
+    blueprint: { label: "Blueprint", swatch: "#1d4f86", filter: "blueprint", make: () => esriLayer("World_Imagery", "img", IMG_ATTR) },
   };
-  let baseKey = store.get("base", "satellite");
+
+  // ---- how deep the real imagery goes here (Esri shows a grey "Map data not yet available" tile beyond it)
+  const PROBE = { img: "World_Imagery", topo: "World_Topo_Map", ref: "Reference/World_Transportation" };
+  const native = store.get("nativeZoom", {});
+  function nativeZoom(key) {
+    const n = native[key];
+    return n && n.z ? n.z : key === "ref" ? 17 : 17;
+  }
+  function probeTile(svc, z, lat, lng) {
+    const n = 2 ** z;
+    const x = Math.floor(((lng + 180) / 360) * n);
+    const y = Math.floor((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2 * n);
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      const timer = setTimeout(() => resolve(null), 8000);
+      img.onload = () => {
+        clearTimeout(timer);
+        try {
+          // The placeholder tile is almost entirely flat grey.
+          const c = document.createElement("canvas");
+          c.width = c.height = 32;
+          const g = c.getContext("2d");
+          g.drawImage(img, 0, 0, 32, 32);
+          const d = g.getImageData(0, 0, 32, 32).data;
+          let grey = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            if (Math.abs(d[i] - d[i + 1]) < 6 && Math.abs(d[i + 1] - d[i + 2]) < 6 && d[i] > 190 && d[i] < 225) grey++;
+          }
+          resolve(grey / 1024 < 0.6);
+        } catch { resolve(true); }
+      };
+      img.onerror = () => { clearTimeout(timer); resolve(false); };
+      img.src = `${ESRI}${svc}/MapServer/tile/${z}/${y}/${x}?blankTile=false`;
+    });
+  }
+  async function probeImagery() {
+    if (!farmBounds || !navigator.onLine) return;
+    const b = farmBounds;
+    const pts = [b.getCenter(), b.getNorthWest(), b.getNorthEast(), b.getSouthWest(), b.getSouthEast()];
+    let changed = false;
+    // If even a low-zoom tile can't be read (offline, or no CORS), don't guess.
+    if (!(await probeTile("World_Imagery", 12, pts[0].lat, pts[0].lng))) return;
+    for (const [key, svc] of Object.entries(PROBE)) {
+      const old = native[key];
+      if (old && Date.now() - old.at < 7 * 864e5) continue;
+      let found = null;
+      for (let z = 20; z >= 15; z--) {
+        const res = await Promise.all(pts.map((p) => probeTile(svc, z, p.lat, p.lng)));
+        if (res.some((r) => r === null)) { found = undefined; break; }   // network trouble: try again next visit
+        if (res.every(Boolean)) { found = z; break; }
+      }
+      if (found === undefined) continue;
+      native[key] = { z: found ?? 15, at: Date.now() };
+      changed = changed || !old || old.z !== native[key].z;
+    }
+    store.set("nativeZoom", native);
+    if (changed) setBase(baseKey);
+  }
+
+  // ---- map style filters and texture overlay (parchment, blueprint)
+  map.createPane("texture").style.zIndex = 250;
+  const texture = L.DomUtil.create("div", "map-texture", map.getPane("texture"));
+  const placeTexture = () => {
+    const s = map.getSize();
+    texture.style.width = s.x + "px";
+    texture.style.height = s.y + "px";
+    L.DomUtil.setPosition(texture, map.containerPointToLayerPoint([0, 0]));
+  };
+  map.on("move zoomend viewreset resize", placeTexture);
+
+  let baseKey = store.get("base", null);
   let baseLayer = null;
+  let dim = store.get("dim", 100);
+  function applyMapLook() {
+    const el = map.getContainer();
+    const f = BASEMAPS[baseKey]?.filter || "";
+    el.dataset.filter = f;
+    el.style.setProperty("--dim", dim / 100);
+    if (dim < 100) el.dataset.dim = ""; else delete el.dataset.dim;
+  }
   function setBase(k) {
-    if (!BASEMAPS[k]) k = "satellite";
+    if (!BASEMAPS[k]) k = THEMES[theme].base;
     if (baseLayer) map.removeLayer(baseLayer);
-    baseLayer = BASEMAPS[k][1]().addTo(map);
+    baseLayer = BASEMAPS[k].make().addTo(map);
     baseKey = k;
     store.set("base", k);
+    applyMapLook();
   }
+
+  // ================================================================ themes
+  const THEMES = {
+    farmhouse: { label: "Farmhouse", note: "Warm cream and green", base: "satellite", sw: ["#fbf8f1", "#2f5d3a", "#f2c200"],
+      lines: { trail: "#fff3c4", trailCase: "#10140e", road: "#eadcbc", roadCase: "#2b2418", sel: "#f2c200", caseOp: 0.6 } },
+    middleearth: { label: "Middle-earth", note: "Parchment and ink, like an old fantasy map", base: "parchment", sw: ["#f1e2bd", "#6b3e1f", "#9c2f1c"],
+      font: "https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Alegreya:wght@400;700&display=swap",
+      lines: { trail: "#4a2c12", trailCase: "#f3e3bd", road: "#6b3e1f", roadCase: "#f3e3bd", sel: "#9c2f1c", caseOp: 0.75, dash: "7 5", boundary: "#7a1f12" } },
+    night: { label: "Night sky", note: "Dark and easy on the eyes", base: "dark", sw: ["#1c2126", "#3fb68b", "#ffcc4d"],
+      lines: { trail: "#7fdcff", trailCase: "#05080a", road: "#cfd8dc", roadCase: "#05080a", sel: "#ffcc4d", caseOp: 0.8, boundary: "#ffcc4d" } },
+    prairie: { label: "Prairie sky", note: "Bright, clean and modern", base: "hybrid", sw: ["#ffffff", "#1f6feb", "#ff9f1c"],
+      lines: { trail: "#ffffff", trailCase: "#1f6feb", road: "#ffe8b3", roadCase: "#7a4b00", sel: "#ff9f1c", caseOp: 0.85 } },
+    blueprint: { label: "Blueprint", note: "Surveyor's drafting table", base: "blueprint", sw: ["#0f2a4a", "#4aa3ff", "#ffd166"],
+      lines: { trail: "#e6f0ff", trailCase: "#0b2140", road: "#ffffff", roadCase: "#0b2140", sel: "#ffd166", caseOp: 0.7, dash: "2 6", boundary: "#ffd166" } },
+    contrast: { label: "High contrast", note: "Biggest, boldest and easiest to see", base: "satellite", sw: ["#000000", "#ffd400", "#ffffff"],
+      lines: { trail: "#ffd400", trailCase: "#000000", road: "#ffffff", roadCase: "#000000", sel: "#ff3b30", caseOp: 1, extra: 1.5, boundary: "#ffffff" } },
+  };
+  let theme = THEMES[store.get("theme", "farmhouse")] ? store.get("theme", "farmhouse") : "farmhouse";
+  function applyTheme(k, { pickBase = false } = {}) {
+    theme = k;
+    store.set("theme", k);
+    document.documentElement.dataset.theme = k;
+    const t = THEMES[k];
+    if (t.font && !document.querySelector(`link[data-font="${k}"]`)) {
+      const l = document.createElement("link");
+      l.rel = "stylesheet"; l.href = t.font; l.dataset.font = k;
+      document.head.append(l);
+    }
+    document.querySelector('meta[name="theme-color"]').content = t.sw[1];
+    if (pickBase) setBase(t.base);
+    tracks.forEach((tr) => restyle(tr));
+  }
+  document.documentElement.dataset.theme = theme;
   setBase(baseKey);
 
   // ================================================================ state
@@ -91,7 +219,11 @@
   let trailsOn = store.get("trailsOn", true);
   let photosOn = store.get("photosOn", false);
   let labelsOn = store.get("labelsOn", true);
-  let colourful = store.get("colourful", false);
+  const ADV_DEFAULTS = { colourMode: "simple", thickness: 1, placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all",
+    trailDay: "all", cluster: true, boundaryFill: true };
+  const adv = { ...ADV_DEFAULTS, ...store.get("adv", {}) };
+  const saveAdv = () => store.set("adv", adv);
+  const LENGTHS = { all: [0, 1e9], short: [0, 250], medium: [250, 600], long: [600, 1e9] };
   const hiddenTracks = new Set(store.get("hiddenTracks", []));
   const tracks = new Map();   // id -> {f, line, casing, group, label}
   const places = new Map();   // id -> {f, marker, photos}
@@ -105,20 +237,35 @@
   const cat = (f) => f.properties.category;
   const isTrail = (f) => cat(f) !== "boundary";
 
+  const RAMP_STEEP = [[0.5, "#4caf50"], [1.5, "#c6d93b"], [2.5, "#ffc107"], [3.5, "#ff7a1a"], [99, "#e53935"]];
+  const RAMP_LEN = [[150, "#ffe066"], [300, "#ffb347"], [500, "#ff7a45"], [800, "#e8505b"], [1e9, "#b3246b"]];
+  const steepness = (p) => (p.length_m ? (Math.max(p.gain_m || 0, p.loss_m || 0) / p.length_m) * 100 : 0);
+  const ramp = (r, v) => r.find(([lim]) => v <= lim)[1];
+  function trailColour(f) {
+    const L_ = THEMES[theme].lines;
+    const road = cat(f) === "roads";
+    if (adv.colourMode === "each") return f.properties.color;
+    if (adv.colourMode === "steep" && !road) return ramp(RAMP_STEEP, steepness(f.properties));
+    if (adv.colourMode === "length" && !road) return ramp(RAMP_LEN, f.properties.length_m);
+    return road ? L_.road : L_.trail;
+  }
   function styles(f, hi = false) {
     const z = map.getZoom();
+    const L_ = THEMES[theme].lines;
+    const k = adv.thickness * (L_.extra || 1);
     const boost = z >= 18 ? 1.5 : z >= 16 ? 0.75 : 0;
     const c = cat(f);
     if (c === "boundary") {
-      return { line: { color: f.properties.color, weight: 3 + boost + (hi ? 2 : 0), dashArray: hi ? null : "10 7", opacity: 1, fillColor: f.properties.color, fillOpacity: hi ? 0.12 : 0.05 },
-        casing: { opacity: 0, fillOpacity: 0, weight: 0 } };
+      const col = f.id === "quarter-section-boundary" && L_.boundary ? L_.boundary : f.properties.color;
+      return { line: { color: col, weight: (3 + boost) * k + (hi ? 2 : 0), dashArray: hi ? null : "10 7", opacity: 1, fillColor: col,
+        fillOpacity: adv.boundaryFill ? (hi ? 0.12 : 0.05) : 0 }, casing: { opacity: 0, fillOpacity: 0, weight: 0 } };
     }
     const road = c === "roads";
-    const w = (road ? 5 : 3.5) + boost + (hi ? 2.5 : 0);
-    const color = hi ? "#f2c200" : colourful ? f.properties.color : road ? "#eadcbc" : "#fff3c4";
+    const w = ((road ? 5 : 3.5) + boost) * k + (hi ? 2.5 : 0);
+    const color = hi ? L_.sel : trailColour(f);
     return {
-      line: { color, weight: w, opacity: 1, lineCap: "round", lineJoin: "round" },
-      casing: { color: road ? "#2b2418" : "#10140e", weight: w + 3.5, opacity: hi ? 0.9 : 0.6, lineCap: "round", lineJoin: "round" },
+      line: { color, weight: w, opacity: 1, lineCap: "round", lineJoin: "round", dashArray: !road && !hi && L_.dash ? L_.dash : null },
+      casing: { color: road ? L_.roadCase : L_.trailCase, weight: w + 3.5 * k, opacity: hi ? 0.95 : L_.caseOp, lineCap: "round", lineJoin: "round" },
     };
   }
   function restyle(t) {
@@ -163,10 +310,17 @@
     if (prev && tracks.has(prev)) restyle(tracks.get(prev));
     if (id && tracks.has(id)) { restyle(tracks.get(id)); tracks.get(id).line.bringToFront(); }
   }
+  function passesTrailFilters(f) {
+    const [lo, hi] = LENGTHS[adv.lengthFilter] || LENGTHS.all;
+    if (f.properties.length_m < lo || f.properties.length_m >= hi) return false;
+    if (adv.trailDay !== "all" && (f.properties.recorded || "").slice(0, 10) !== adv.trailDay) return false;
+    return true;
+  }
   function trackShouldShow(t) {
+    if (t.f.id === selectedTrack) return true;
     if (hiddenTracks.has(t.f.id)) return false;
     if (!isTrail(t.f)) return true;
-    return (trailsOn || selectedTrack === t.f.id) && map.getZoom() >= Z.trails;
+    return trailsOn && passesTrailFilters(t.f) && map.getZoom() >= Z.trails;
   }
   function labelShouldShow(t) {
     if (!labelsOn || !trackShouldShow(t) || !isTrail(t.f)) return false;
@@ -191,7 +345,7 @@
     return L.divIcon({
       className: "", iconSize: [0, 0], iconAnchor: [0, 0],
       html: `<div class="place-pin${minor ? " minor" : ""}${sel ? " sel" : ""}" style="margin-top:${minor ? "-0.85rem" : "-1.3rem"}">
-        <div class="bubble">${icon(p.icon)}</div>${minor ? "" : `<div class="name">${esc(p.name)}</div>`}</div>`,
+        <div class="bubble">${icon(p.icon)}</div>${minor || (!adv.placeNames && !sel) ? "" : `<div class="name">${esc(p.name)}</div>`}</div>`,
     });
   }
   function addPlace(f) {
@@ -204,7 +358,9 @@
   function refreshPlaces() {
     const z = map.getZoom();
     places.forEach((pl) => {
-      const show = pl.f.id === selectedPlace || (pl.f.properties.featured ? z >= Z.places : z >= Z.minorPlaces && !photosOn);
+      const p = pl.f.properties;
+      const typeOk = !adv.hiddenTypes.includes(p.icon);
+      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= Z.places : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
       if (show && !map.hasLayer(pl.marker)) pl.marker.addTo(map);
       if (!show && map.hasLayer(pl.marker)) map.removeLayer(pl.marker);
     });
@@ -298,7 +454,7 @@
   function trailChip(t) {
     const b = document.createElement("button");
     b.className = "chip";
-    b.innerHTML = `<span class="swatch" style="background:${esc(colourful ? t.f.properties.color : "#c9b98f")}"></span>${esc(t.f.properties.name)}`;
+    b.innerHTML = `<span class="swatch" style="background:${esc(trailColour(t.f))}"></span>${esc(t.f.properties.name)}`;
     b.onclick = () => openTrail(t.f.id, { back: true });
     return b;
   }
@@ -341,8 +497,9 @@
     body.innerHTML = `
       <div class="stats">
         <div class="stat"><b>${fmtLen(p.length_m)}</b><small>${cat(t.f) === "boundary" ? "around" : "long"}</small></div>
-        ${isTrail(t.f) ? `<div class="stat"><b>${walkMins(p.length_m)} min</b><small>easy walk</small></div>` : ""}
-        ${p.gain_m != null && isTrail(t.f) ? `<div class="stat"><b>↗ ${p.gain_m} m</b><small>uphill</small></div>` : ""}
+        ${p.gain_m != null && isTrail(t.f) ? `<div class="stat"><b>↗ ${p.gain_m} m</b><small>total uphill</small></div>
+          <div class="stat"><b>↘ ${p.loss_m} m</b><small>total downhill</small></div>` : ""}
+        ${p.profile && isTrail(t.f) ? `<div class="stat"><b>${Math.round(Math.min(...p.profile.map((x) => x[1])))}–${Math.round(Math.max(...p.profile.map((x) => x[1])))} m</b><small>height above sea</small></div>` : ""}
       </div>
       ${p.profile && isTrail(t.f) ? `<h3>Ups and downs</h3>${elevationSvg(p.profile)}` : ""}
       <div class="btn-row"><button class="big" data-act="fit">🔍 Show the whole ${kind.toLowerCase()}</button><button class="big ghost" data-act="share">📤 Share</button></div>
@@ -366,12 +523,16 @@
   }
 
   // ================================================================ photo pins layer
-  const photoLayer = L.markerClusterGroup({ maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 19 });
+  const photoCluster = L.markerClusterGroup({ maxClusterRadius: 45, showCoverageOnHover: false, disableClusteringAtZoom: 19 });
+  const photoPlain = L.layerGroup();
+  let photoLayer = adv.cluster ? photoCluster : photoPlain;
   const photoIcon = L.divIcon({ className: "", html: '<div class="photo-pin">📷</div>', iconSize: [24, 24], iconAnchor: [12, 12] });
   let photoDay = "all";
   function refreshPhotos() {
-    photoLayer.clearLayers();
-    photoLayer.addLayers(allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay).map((x) => x.m));
+    [photoCluster, photoPlain].forEach((l) => { l.clearLayers(); if (map.hasLayer(l) && l !== (adv.cluster ? photoCluster : photoPlain)) map.removeLayer(l); });
+    photoLayer = adv.cluster ? photoCluster : photoPlain;
+    const ms = allPhotos.filter((x) => photoDay === "all" || x.p.taken?.slice(0, 10) === photoDay).map((x) => x.m);
+    if (adv.cluster) photoCluster.addLayers(ms); else ms.forEach((m) => photoPlain.addLayer(m));
     if (photosOn && !map.hasLayer(photoLayer)) photoLayer.addTo(map);
     if (!photosOn && map.hasLayer(photoLayer)) map.removeLayer(photoLayer);
     refreshPlaces();
@@ -484,7 +645,7 @@
     const p = t.f.properties;
     const b = document.createElement("button");
     b.className = "list-row";
-    b.innerHTML = `<span class="emoji">🥾</span><span class="txt"><b>${esc(p.name)}</b><small>${fmtLen(p.length_m)} · about ${walkMins(p.length_m)} min</small></span><span class="chev">›</span>`;
+    b.innerHTML = `<span class="emoji">🥾</span><span class="txt"><b>${esc(p.name)}</b><small>${fmtLen(p.length_m)}${p.gain_m != null ? ` · ↗ ${p.gain_m} m uphill` : ""}</small></span><span class="chev">›</span>`;
     b.onclick = () => openTrail(t.f.id, { back: true });
     return b;
   }
@@ -564,56 +725,138 @@
   });
 
   // ================================================================ more
+  function seg(el, items, cur, onPick) {
+    items.forEach(([k, label]) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.className = k === cur ? "on" : "";
+      b.onclick = () => { onPick(k); $$(":scope > button", el).forEach((x) => x.classList.toggle("on", x === b)); };
+      el.append(b);
+    });
+  }
+  function check(el, label, value, onChange) {
+    const l = document.createElement("label");
+    l.className = "check-row";
+    l.innerHTML = `<input type="checkbox"> <span class="grow">${label}</span>`;
+    const box = $("input", l);
+    box.checked = value;
+    box.onchange = () => onChange(box.checked);
+    el.append(l);
+    return box;
+  }
+
   function moreSheet() {
     const body = document.createElement("div");
+    const advOpen = store.get("advOpen", false);
     body.innerHTML = `
-      <h3>Map style</h3><div class="seg" id="m-base"></div>
+      <h3>Look</h3><div class="theme-grid" id="m-theme"></div>
+      <h3>Map style</h3><div class="style-grid" id="m-base"></div>
       <h3>Text size</h3><div class="seg" id="m-size"></div>
-      <h3>Trail colours</h3><div class="seg" id="m-colour"></div>
-      <h3>On the map</h3>
-      <label class="check-row"><input type="checkbox" id="m-trails"> <span class="grow">Trails &amp; roads</span></label>
-      <label class="check-row"><input type="checkbox" id="m-labels"> <span class="grow">Trail names (when zoomed in)</span></label>
-      <label class="check-row"><input type="checkbox" id="m-photos"> <span class="grow">Every photo as a camera pin</span></label>
-      <div class="seg" id="m-days" style="margin-top:.4rem"></div>
+      <h3>On the map</h3><div id="m-basic"></div>
       <h3>Use without internet</h3><div id="m-offline"></div>
-      <h3>Legend</h3><div class="legend" id="m-legend"></div>
-      <h3>Choose trails</h3><div id="m-tracks"></div>
+      <details class="adv" id="m-adv" ${advOpen ? "open" : ""}>
+        <summary><span>🎛️ Advanced options &amp; filters</span><small>colours, filters, labels, every trail</small></summary>
+        <h3>Trail colours</h3><div class="seg" id="a-colour"></div>
+        <h3>Line thickness</h3><div class="seg" id="a-thick"></div>
+        <h3>Map brightness</h3>
+        <div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>
+        <h3>Trail length</h3><div class="seg" id="a-length"></div>
+        <h3>Trails recorded on</h3><div class="seg" id="a-tday"></div>
+        <h3>Kinds of places</h3><div class="chips" id="a-types"></div>
+        <h3>Labels &amp; extras</h3><div id="a-checks"></div>
+        <h3>Photo pins</h3><div class="seg" id="a-pday"></div><div id="a-pchecks"></div>
+        <h3>Legend</h3><div class="legend" id="m-legend"></div>
+        <h3>Choose trails one by one</h3><div id="m-tracks"></div>
+        <button class="big ghost" id="a-reset" style="margin-top:1rem">↺ Reset everything to normal</button>
+      </details>
       <h3>Help</h3>
       <div class="btn-row" style="flex-wrap:wrap"><button class="big ghost" id="m-help">Show the welcome tips</button>
         <button class="big ghost" id="m-share">📤 Share this map</button></div>`;
+    $("#m-adv", body).ontoggle = (e) => store.set("advOpen", e.target.open);
 
-    const seg = (el, items, cur, onPick) => {
-      items.forEach(([k, label]) => {
-        const b = document.createElement("button");
-        b.textContent = label;
-        b.className = k === cur ? "on" : "";
-        b.onclick = () => { onPick(k); $$("button", el).forEach((x) => x.classList.toggle("on", x === b)); };
-        el.append(b);
-      });
-    };
-    seg($("#m-base", body), Object.entries(BASEMAPS).map(([k, [l]]) => [k, l]), baseKey, setBase);
-    seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); });
-    seg($("#m-colour", body), [[false, "Simple"], [true, "A colour for each trail"]], colourful, (v) => {
-      colourful = v; store.set("colourful", v); tracks.forEach(restyle); drawLegend();
+    // themes
+    const tg = $("#m-theme", body);
+    Object.entries(THEMES).forEach(([k, t]) => {
+      const b = document.createElement("button");
+      b.className = "theme-card" + (k === theme ? " on" : "");
+      b.innerHTML = `<span class="theme-sw">${t.sw.map((c) => `<i style="background:${c}"></i>`).join("")}</span><b>${esc(t.label)}</b><small>${esc(t.note)}</small>`;
+      b.onclick = () => {
+        applyTheme(k, { pickBase: true });
+        $$(".theme-card", tg).forEach((x) => x.classList.toggle("on", x === b));
+        $$(".style-card", body).forEach((x) => x.classList.toggle("on", x.dataset.k === baseKey));
+        drawLegend();
+      };
+      tg.append(b);
     });
-    const tr = $("#m-trails", body); tr.checked = trailsOn; tr.onchange = () => setTrails(tr.checked);
-    const lb = $("#m-labels", body); lb.checked = labelsOn;
-    lb.onchange = () => { labelsOn = lb.checked; store.set("labelsOn", labelsOn); refreshTracks(); declutter(); };
-    const ph = $("#m-photos", body); ph.checked = photosOn; ph.onchange = () => setPhotos(ph.checked);
-    const dayList = [...new Set(allPhotos.map((x) => x.p.taken?.slice(0, 10)).filter(Boolean))].sort();
-    seg($("#m-days", body), [["all", "All days"], ...dayList.map((d) => [d, fmtDate(d + "T12:00:00-06:00", false)])], photoDay,
-      (k) => { photoDay = k; if (!photosOn) { setPhotos(true); ph.checked = true; } refreshPhotos(); });
-
+    // map styles
+    const bg = $("#m-base", body);
+    Object.entries(BASEMAPS).forEach(([k, m]) => {
+      const b = document.createElement("button");
+      b.className = "style-card" + (k === baseKey ? " on" : "");
+      b.dataset.k = k;
+      b.innerHTML = `<span class="style-sw sw-${k}" style="background:${m.swatch}"></span><span>${esc(m.label)}</span>`;
+      b.onclick = () => { setBase(k); $$(".style-card", bg).forEach((x) => x.classList.toggle("on", x === b)); };
+      bg.append(b);
+    });
+    seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; applySize(); });
+    const basic = $("#m-basic", body);
+    const trBox = check(basic, "Trails &amp; roads", trailsOn, (v) => setTrails(v));
+    void trBox;
+    check(basic, "Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; store.set("labelsOn", v); refreshTracks(); declutter(); });
+    const phBox = check(basic, "Every photo as a camera pin", photosOn, (v) => setPhotos(v));
     offlinePanel($("#m-offline", body));
 
+    // ---- advanced
+    const restyleAll = () => { tracks.forEach(restyle); drawLegend(); saveAdv(); };
+    seg($("#a-colour", body), [["simple", "One colour"], ["each", "Each trail its own"], ["steep", "By steepness"], ["length", "By length"]],
+      adv.colourMode, (v) => { adv.colourMode = v; restyleAll(); });
+    seg($("#a-thick", body), [[0.7, "Thin"], [1, "Normal"], [1.4, "Thick"], [1.9, "Extra thick"]], adv.thickness,
+      (v) => { adv.thickness = v; restyleAll(); });
+    const dimEl = $("#a-dim", body);
+    dimEl.value = dim;
+    dimEl.oninput = () => { dim = +dimEl.value; store.set("dim", dim); applyMapLook(); };
+    const refilter = () => { saveAdv(); refreshTracks(); refreshPlaces(); declutter(); };
+    seg($("#a-length", body), [["all", "All"], ["short", "Short (under 250 m)"], ["medium", "Medium"], ["long", "Long (over 600 m)"]],
+      adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
+    const tdays = [...new Set([...tracks.values()].map((t) => (t.f.properties.recorded || "").slice(0, 10)).filter(Boolean))].sort();
+    seg($("#a-tday", body), [["all", "Any day"], ...tdays.map((d) => [d, fmtDate(d + "T12:00:00-06:00", false)])], adv.trailDay,
+      (v) => { adv.trailDay = v; refilter(); });
+    const types = [...new Set([...places.values()].map((pl) => pl.f.properties.icon))];
+    const tyEl = $("#a-types", body);
+    types.forEach((ty) => {
+      const b = document.createElement("button");
+      const on = () => !adv.hiddenTypes.includes(ty);
+      b.className = "chip toggle" + (on() ? " on" : "");
+      b.innerHTML = `${icon(ty)} ${esc(KM.ICONS[ty]?.[1] || ty)}`;
+      b.onclick = () => {
+        adv.hiddenTypes = on() ? [...adv.hiddenTypes, ty] : adv.hiddenTypes.filter((x) => x !== ty);
+        b.classList.toggle("on", on());
+        refilter();
+      };
+      tyEl.append(b);
+    });
+    const ac = $("#a-checks", body);
+    check(ac, "Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; saveAdv(); places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutter(); });
+    check(ac, "Small photo spots (when zoomed in)", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
+    check(ac, "Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
+    const pdays = [...new Set(allPhotos.map((x) => x.p.taken?.slice(0, 10)).filter(Boolean))].sort();
+    seg($("#a-pday", body), [["all", "All days"], ...pdays.map((d) => [d, fmtDate(d + "T12:00:00-06:00", false)])], photoDay,
+      (k) => { photoDay = k; if (!photosOn) { phBox.checked = true; setPhotos(true); } refreshPhotos(); });
+    check($("#a-pchecks", body), "Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; saveAdv(); refreshPhotos(); });
+
     const drawLegend = () => {
-      const trailC = colourful ? "#00e5ff" : "#fff3c4";
+      const L_ = THEMES[theme].lines;
+      const line = (c, extra = "") => `<span class="sym"><span class="line" style="border-color:${c};${extra}filter:drop-shadow(0 0 1px #000)"></span></span>`;
+      let trailRows = "";
+      if (adv.colourMode === "steep") trailRows = RAMP_STEEP.map(([lim, c], i) => line(c) + `<span>${i === 0 ? "Flat" : i === RAMP_STEEP.length - 1 ? "Steepest" : ["Gentle", "Some hills", "Hilly"][i - 1]}</span>`).join("");
+      else if (adv.colourMode === "length") trailRows = RAMP_LEN.map(([lim, c], i) => line(c) + `<span>${i === RAMP_LEN.length - 1 ? "Over 800 m" : "Up to " + lim + " m"}</span>`).join("");
+      else trailRows = line(adv.colourMode === "each" ? "#00e5ff" : L_.trail) + `<span>Trails${adv.colourMode === "each" ? " (each has its own colour)" : ""}</span>`;
       $("#m-legend", body).innerHTML = `
-        <span class="sym"><span class="line" style="border-top-style:dashed;border-color:#fff;filter:drop-shadow(0 0 1px #000)"></span></span><span>Property boundary</span>
-        <span class="sym"><span class="line" style="border-color:#ff9800;border-top-style:dashed"></span></span><span>Acreage parcel</span>
-        <span class="sym"><span class="line" style="border-color:#eadcbc;border-top-width:6px;filter:drop-shadow(0 0 1px #000)"></span></span><span>Roads and yard</span>
-        <span class="sym"><span class="line" style="border-color:${trailC};filter:drop-shadow(0 0 1px #000)"></span></span><span>Trails${colourful ? " (each has its own colour)" : ""}</span>
-        <span class="sym"><span class="line" style="border-color:#f2c200;border-top-width:6px"></span></span><span>The trail you picked</span>
+        ${line(L_.boundary || "#fff", "border-top-style:dashed;")}<span>Property boundary</span>
+        ${line("#ff9800", "border-top-style:dashed;")}<span>Acreage parcel</span>
+        ${line(L_.road, "border-top-width:6px;")}<span>Roads and yard</span>
+        ${trailRows}
+        ${line(L_.sel, "border-top-width:6px;")}<span>The trail you picked</span>
         <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for photos</span>
         <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">📷</span></span></span><span>Other photo spot</span>
         <span class="sym"><span class="me-dot" style="position:relative;display:inline-block"><span class="arrow" style="position:relative;left:0;top:0;display:block;width:20px;height:20px"></span></span></span><span>You (after tapping “Me”)</span>`;
@@ -634,9 +877,9 @@
       const boxes = items.map((t) => {
         const r = document.createElement("div");
         r.className = "check-row";
-        r.innerHTML = `<input type="checkbox" id="t-${esc(t.f.id)}"> <span class="swatch" style="background:${esc(t.f.properties.color)}"></span>
+        r.innerHTML = `<input type="checkbox" id="t-${esc(t.f.id)}"> <span class="swatch" style="background:${esc(trailColour(t.f))}"></span>
           <label class="grow" for="t-${esc(t.f.id)}">${esc(t.f.properties.name)}</label>
-          <button class="round" style="width:2.4rem;height:2.4rem;box-shadow:none;background:var(--paper-2)" aria-label="About ${esc(t.f.properties.name)}">›</button>`;
+          <button class="round mini" aria-label="About ${esc(t.f.properties.name)}">›</button>`;
         const box = $("input", r);
         box.checked = !hiddenTracks.has(t.f.id);
         box.onchange = () => { setTrackHidden(t.f.id, !box.checked); sync(); };
@@ -649,8 +892,21 @@
       sync();
       list.append(head, sub);
     });
+    $("#a-reset", body).onclick = () => {
+      Object.assign(adv, ADV_DEFAULTS, { hiddenTypes: [] });
+      saveAdv();
+      hiddenTracks.clear(); store.set("hiddenTracks", []);
+      dim = 100; store.set("dim", 100);
+      photoDay = "all"; labelsOn = true; store.set("labelsOn", true);
+      setPhotos(false); if (!trailsOn) setTrails(true);
+      applyTheme("farmhouse", { pickBase: true });
+      refreshPhotos(); refreshTracks(); refreshPlaces();
+      places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f)));
+      toast("Everything is back to normal.");
+      moreSheet();
+    };
     $("#m-help", body).onclick = () => { closeSheet(); showWelcome(); };
-    $("#m-share", body).onclick = () => share($("#site-title").textContent + " map", "");
+    $("#m-share", body).onclick = () => share($("#site-title").textContent, "");
     openSheet("☰ More options", body);
     setDockActive("more");
   }
@@ -875,7 +1131,7 @@
   window.addEventListener("offline", updateOnline);
   updateOnline();
 
-  function farmTiles(z0 = 13, z1 = 19) {
+  function farmTiles(z0 = 13, z1 = nativeZoom("img")) {
     const b = farmBounds.pad(0.15);
     const urls = [];
     for (let z = z0; z <= z1; z++) {
@@ -970,8 +1226,8 @@
   }
 
   function start({ meta, data }) {
-    $("#site-title").textContent = meta.title || "Knopp Farm";
-    document.title = (meta.title || "Knopp Farm") + " Map";
+    $("#site-title").textContent = meta.title || "Knopp Map";
+    document.title = meta.title || "Knopp Map";
     categories = data.tracks.categories || {};
     tour = data.tour || { stops: [] };
     data.tracks.features.filter((f) => f.geometry.type !== "Point").forEach(addTrack);
@@ -992,12 +1248,14 @@
 
     if (!farmBounds) farmBounds = L.geoJSON(data.tracks).getBounds();
     farmPin = L.marker(farmBounds.getCenter(), {
-      icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="farm-pin"><span>🏠 ${esc(meta.title || "Knopp Farm")}</span></div>` }),
-      zIndexOffset: 2000, keyboard: true, title: meta.title || "Knopp Farm",
+      icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="farm-pin"><span>🏠 ${esc(meta.title || "Knopp Map")}</span></div>` }),
+      zIndexOffset: 2000, keyboard: true, title: meta.title || "Knopp Map",
     }).on("click", () => fitFarm());
 
     $('#dock [data-act="trails"]').setAttribute("aria-pressed", trailsOn);
+    applyTheme(theme);
     fitFarm(false);
+    setTimeout(probeImagery, 1500);
     refreshTracks();
     refreshPlaces();
     refreshPhotos();
