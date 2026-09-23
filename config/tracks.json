@@ -164,7 +164,7 @@
     },
     "Ring Road (MM, FF, CC)": {
       "name": "Ring Road (MM, FF, CC)",
-      "category": "roads",
+      "category": "trails",
       "color": "#bdbdbd"
     },
     "Cougar Bridge Trail": {
@@ -179,7 +179,7 @@
     },
     "Field Highway Trail": {
       "name": "Field Highway Trail",
-      "category": "roads",
+      "category": "trails",
       "color": "#d7ccc8"
     },
     "Zoey Trail": {
