@@ -20,6 +20,18 @@
   <div id="map" aria-label="Map of the farm"></div>
 
   <div id="print-head"></div>
+  <aside id="print-poster" aria-hidden="true"></aside>
+  <div id="print-dialog" class="overlay" hidden>
+    <div class="welcome-card pd-card" role="dialog" aria-labelledby="pd-title">
+      <h2 id="pd-title">🖨️ Print this map</h2>
+      <p class="tips-sub">Prints exactly the area you can see now, in the look and style you picked.</p>
+      <div class="pd-opts">
+        <button class="pd-opt" data-print="map"><span class="pd-pic pd-pic-map"></span><b>Just the map</b><small>The whole page is the map, with a title and compass.</small></button>
+        <button class="pd-opt" data-print="poster"><span class="pd-pic pd-pic-poster"></span><b>Framed poster</b><small>Map with a title, compass, legend and list of places – nice for framing.</small></button>
+      </div>
+      <button class="big ghost" data-print="cancel">Cancel</button>
+    </div>
+  </div>
   <header id="topbar">
     <div class="top-left">
       <h1 id="site-title">Knopp Map</h1>
@@ -54,7 +66,7 @@
   <div id="offline-badge" hidden>📴 No internet – showing saved map</div>
 
   <nav id="dock" aria-label="Main">
-    <button data-act="farm"><span class="ic">🏠</span><span>Farm</span></button>
+    <button data-act="farm"><span class="ic">🏠</span><span>Home</span></button>
     <button data-act="places"><span class="ic">📍</span><span>Places</span></button>
     <button data-act="tour"><span class="ic">▶️</span><span>Tour</span></button>
     <button data-act="trails" aria-pressed="true"><span class="ic"><svg class="ic-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21c0-4 5-4 7-7s-3-5 0-8 6-1 7-3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3.5 3"/><circle cx="5" cy="21" r="1.8" fill="currentColor"/><path d="M17.5 1.5l3.5 1.5-3 2.5z" fill="currentColor"/></svg></span><span>Trails</span></button>
@@ -81,7 +93,7 @@
         <section>
           <h3>Getting around</h3>
           <div class="tip"><span class="t-ic">👆</span><div><b>Move the map</b><small>Drag with one finger. Pinch, or use the <b>+</b> and <b>−</b> buttons, to zoom.</small></div></div>
-          <div class="tip"><span class="t-ic">🏠</span><div><b>Lost?</b><small>Tap <b>Farm</b> at the bottom to jump back to the whole property.</small></div></div>
+          <div class="tip"><span class="t-ic">🏠</span><div><b>Lost?</b><small>Tap <b>Home</b> at the bottom to jump back to the whole property.</small></div></div>
           <div class="tip"><span class="t-ic">🧭</span><div><b>Where am I?</b><small>Tap <b>Me</b> when you're at the farm to see yourself on the map.</small></div></div>
         </section>
         <section>

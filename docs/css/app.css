@@ -510,19 +510,66 @@ details.adv > summary { font-size: 1.15rem; }
 .adv-body { border-top: 1px solid var(--line); margin-top: 0.3rem; }
 
 /* =================================================================== print */
-#print-head { display: none; }
+#print-head, #print-poster { display: none; }
+/* While printing, the map is laid out at a fixed paper-sized box (screen and paper use the same size). */
+body.printing { background: #6b6b6b !important; }
+body.printing #topbar, body.printing #dock, body.printing #sheet, body.printing #loc-chip, body.printing #back-to-farm,
+body.printing #offline-badge, body.printing #info-stack, body.printing .leaflet-control-zoom, body.printing #welcome { display: none !important; }
+body.printing #print-head { display: flex; position: fixed; top: 0; left: 0; width: 1000px; height: 52px; background: #fff; color: #000;
+  justify-content: space-between; align-items: baseline; padding: 10px 6px 0; border-bottom: 1px solid #999; font-family: var(--head-font); z-index: 5; }
+body.printing #print-head b { font-size: 24px; }
+body.printing #print-head span { font-size: 12px; color: #444; }
+body.printing #map { position: fixed !important; top: 58px; left: 0; width: 1000px; height: 640px; right: auto; bottom: auto; }
+body.print-poster #print-head { display: none; }
+body.print-poster #map { top: 0; width: 700px; height: 700px; border: 2px solid #222; }
+body.print-poster #print-poster { display: block; position: fixed; top: 0; left: 712px; width: 288px; height: 700px; background: #fff; color: #111;
+  padding: 6px 4px 6px 14px; font-family: var(--body-font); overflow: hidden; z-index: 5; }
+#print-poster h1 { font-family: var(--head-font); font-size: 30px; margin: 4px 0 0; line-height: 1.1; color: #111; }
+#print-poster .pp-sub { margin: 4px 0 10px; color: #555; font-size: 12px; }
+#print-poster h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; margin: 14px 0 6px; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+#print-poster .pp-compass { width: 96px; height: 96px; margin: 4px auto 4px 0; }
+.pp-legend { display: grid; grid-template-columns: 34px 1fr; gap: 6px 8px; align-items: center; font-size: 13px; }
+.pl-line { display: block; width: 30px; border-top: 4px solid; filter: drop-shadow(0 0 1px #000); }
+.pp-places { display: grid; grid-template-columns: 1fr; gap: 3px; font-size: 12.5px; }
+.pp-foot { position: absolute; bottom: 6px; left: 14px; right: 4px; font-size: 11px; color: #666; margin: 0; }
 @media print {
   @page { size: landscape; margin: 8mm; }
-  body { background: #fff !important; }
-  #topbar, #dock, #sheet, #loc-chip, #back-to-farm, #toast, #offline-badge, #info-stack, .leaflet-control-zoom, #welcome, #lightbox { display: none !important; }
-  #print-head { display: flex !important; justify-content: space-between; align-items: baseline; position: fixed; top: 0; left: 0; right: 0; height: 12mm;
-    font-family: var(--head-font); color: #000; border-bottom: 1px solid #999; padding: 0 2mm; }
-  #print-head b { font-size: 18pt; }
-  #print-head span { font-size: 9pt; color: #444; }
-  #map { position: fixed !important; top: 14mm; left: 0; right: 0; bottom: 0; }
-  .leaflet-control-scale { margin-bottom: 4mm !important; }
+  html, body { background: #fff !important; }
+  #toast, #lightbox, #print-dialog, .leaflet-control-attribution { display: none !important; }
+  body.printing #print-head, body.printing #map, body.print-poster #print-poster { position: absolute !important; }
+  .leaflet-control-scale { margin-bottom: 6px !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
+/* print dialog */
+.pd-card { max-width: 38rem; }
+.pd-card h2 { margin-top: 0; }
+.pd-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 1rem 0; }
+.pd-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; text-align: left; padding: 0.8rem; border: 2px solid var(--line); border-radius: 14px; background: var(--field); color: var(--ink); }
+.pd-opt:hover, .pd-opt:focus-visible { border-color: var(--green); box-shadow: 0 0 0 2px var(--green) inset; }
+.pd-opt small { color: var(--muted); }
+.pd-pic { width: 100%; aspect-ratio: 3 / 2; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 0.3rem;
+  background: linear-gradient(135deg, #4d6b3c, #7b9a5c); position: relative; overflow: hidden; }
+.pd-pic::after { content: ""; position: absolute; inset: 22% 18%; border: 2px dashed #fff; border-radius: 4px; }
+.pd-pic-poster { background: linear-gradient(90deg, #4d6b3c 0 68%, #fff 68%); }
+.pd-pic-poster::after { inset: 18% 42% 18% 8%; }
+.pd-pic-poster::before { content: "N ✦\A ▬ ▬\A ▬ ▬"; white-space: pre; position: absolute; right: 6%; top: 14%; color: #333; font-size: 0.7rem; line-height: 1.5; }
+@media (max-width: 600px) { .pd-opts { grid-template-columns: 1fr; } }
+
+/* =================================================================== compass */
+.map-compass { width: 58px; height: 58px; margin: 0 10px 6px 0 !important; filter: drop-shadow(0 2px 4px rgba(0,0,0,.45)); pointer-events: auto; }
+.map-compass svg, .pp-compass svg { width: 100%; height: 100%; display: block; }
+.c-ring { fill: var(--paper); stroke: var(--green); stroke-width: 3; }
+.c-face { fill: none; stroke: var(--line); stroke-width: 1; }
+.c-ticks line { stroke: var(--muted); stroke-width: 1.4; }
+.c-n { fill: #c62828; }
+.c-s { fill: var(--ink); opacity: .8; }
+.c-ew { fill: var(--muted); opacity: .7; }
+.c-hub { fill: var(--gold); stroke: var(--ink); stroke-width: 1; }
+.c-lbl { font: 700 11px var(--head-font); fill: var(--ink); text-anchor: middle; }
+.c-lbl-n { fill: #c62828; font-size: 12px; }
+#print-poster .c-ring { fill: #fff; stroke: #222; } #print-poster .c-lbl { fill: #111; } #print-poster .c-s { fill: #222; }
+@media (max-width: 700px) { .map-compass { width: 46px; height: 46px; } }
+
 @media (max-width: 700px) {
   .tips-btn .lbl { display: none; }
   .tips-btn { width: 2.55rem; height: 2.55rem; padding: 0; justify-content: center; }
