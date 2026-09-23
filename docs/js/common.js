@@ -11,7 +11,6 @@ window.KM = (() => {
 
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmtLen = (m) => (m >= 1000 ? (m / 1000).toFixed(1) + " km" : Math.round(m) + " m");
-  const walkMins = (m) => Math.max(1, Math.round(m / 70));
   const fmtDate = (iso, withTime = true) => {
     if (!iso) return "";
     const opts = { year: "numeric", month: "long", day: "numeric", timeZone: "America/Edmonton" };
@@ -56,5 +55,5 @@ window.KM = (() => {
 
   const photoUrl = (p, size = "web") => `photos/${size}/${encodeURIComponent(p.src || p.file)}.jpg`;
 
-  return { ICONS, icon, esc, fmtLen, walkMins, fmtDate, store, getJSON, loadBundle, photoUrl };
+  return { ICONS, icon, esc, fmtLen, fmtDate, store, getJSON, loadBundle, photoUrl };
 })();

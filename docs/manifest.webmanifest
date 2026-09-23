@@ -1,6 +1,6 @@
 {
-  "name": "Knopp Farm Map",
-  "short_name": "Knopp Farm",
+  "name": "Knopp Map",
+  "short_name": "Knopp Map",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

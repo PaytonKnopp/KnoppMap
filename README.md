@@ -32,9 +32,10 @@ Then commit `docs/` and push. To preview locally: `cd docs && python3 -m http.se
 
 - Paused-recording segments in the same track are joined when the gap is under 50 m.
 - Boundary tracks (`"loop": true` in `config/tracks.json`) are closed into a polygon.
-- Each end of every other track is snapped onto the nearest other track within 20 m. The build also looks back
-  up to 30 m from the end, so an end that ran past a junction is trimmed back to it.
-- Lines are simplified with a 2 m tolerance and coordinates rounded to 6 decimals.
+- Lines are simplified with a 2 m tolerance first, then every trail end is connected:
+  an end already touching a trail is locked onto it; an end that crosses a trail and runs on for up to 25 m is trimmed
+  back to the crossing; an end that stops within 25 m of a trail is extended to it. The junction point is added to both
+  lines so they share one exact point. Coordinates are rounded to 6 decimals.
 
 Every snap and trim is listed in `build/report.md`. To stop a track being snapped, add `"snap": false` to it in
 `config/tracks.json`.
@@ -50,6 +51,18 @@ Edits save in that browser. Click **Download places.json**, upload it to `config
 
 `config/places.json` was seeded once automatically (photos grouped by walking order within 20 m) and is never
 overwritten by the build. New photos not listed in any place are grouped into temporary unnamed spots.
+
+## Looks, map styles and filters
+
+**More → Look** has six themes (Farmhouse, Middle-earth, Night sky, Prairie sky, Blueprint, High contrast); each also
+picks a matching map style. **Map style** offers 11 base maps: satellite, satellite + roads, two topo maps, street,
+clean light, night, black & white, old parchment, vintage photo and blueprint. The satellite map detects how far the
+real imagery goes at the farm and enlarges that level beyond it, so you never see "Map data not yet available".
+
+**Advanced options & filters** (collapsed by default): trail colouring (one colour / per trail / steepness / length),
+line thickness, map brightness, trail length and recording-day filters, kinds of places, label toggles, photo pins,
+legend, per-trail switches, and "Reset everything to normal". Themes live in `THEMES` in `docs/js/app.js` and
+`docs/css/app.css` — adding one is a new entry plus a CSS block.
 
 ## Tour
 
