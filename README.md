@@ -41,10 +41,10 @@ GitHub Pages from the `docs/` folder.
   - *Trail colours & lines:* colour by one colour / each trail / steepness / length, pick the single trail colour,
     line style (the look's own, solid, dashed, dotted), thickness, see-through, map brightness, dark outline on or
     off, and *Moving trails* (dashes flow along every trail).
-  - *Filter trails & places:* trail length, steepness, which day photos were taken, kinds of places (with Show all /
+  - *Filter trails & places:* trail length, steepness, kinds of places (with Show all /
     Hide all), and a live count of what's showing.
   - *Labels & extras:* trail name size, distances in metres or feet and miles (everywhere: cards, measure, scale,
-    rings), hill shading, distance rings around the house, direction arrows on named trails, trail lengths next to
+    rings), distance rings around the house, direction arrows on named trails, trail lengths next to
     names, compass and scale bar, small photo spots, photo grouping, and shading inside the property line.
   - *Trails one by one:* turn single trails on or off. The driveway and main yard are listed on their own; every
     other line, including Ring Road and Field Highway Trail, is a trail.
