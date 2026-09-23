@@ -14,23 +14,27 @@ GitHub Pages from the `docs/` folder.
 |---|---|
 | 🏠 **Home** | Jump back to the whole property. |
 | 📍 **Places** | List of named places and trails. Tap one to fly there and see its photos. |
-| ▶️ **Tour** | A 14-stop slideshow walk around the farm with big Back / Next buttons. |
+| ▶️ **Tour** | A 14-stop slideshow walk around the quarter with big Back / Next buttons. |
 | 〰️ **Trails** | Show or hide trail lines. Tap any trail for length, climb, an elevation chart, connecting trails and photos. |
-| 🧭 **Me** | Your live position (when you're at the farm) with the nearest place and direction. |
+| 🧭 **Me** | Your live position (when you're at the quarter) with the nearest place and direction. |
 | 🔍 **Search** | Find places, trails and photo captions. |
 | 📏 **Measure** | Tap points on the map to measure distance; keep tapping to add legs. Points snap to named places, can be dragged, and Undo / Clear / Done are always shown. |
+| 🗺️ **Legend** | What the lines and pins mean (folded-map button, top right). |
 | 💡 **Tips** | The welcome guide. |
 | ⚙️ **Options** | Looks, map styles, weather, what's shown, text size, print & offline, and advanced filters. **Reset to original settings** is at the top. |
 
+- **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
+  position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
+  Google Maps driving directions instead.
 - **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
   tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
 - **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.
 - **Weather:** live RainViewer radar (slider, play/pause, step, speed, see-through, colour key) and current
-  Open-Meteo conditions at the farm.
+  Open-Meteo conditions at the quarter.
 - **Print:** prints exactly the area on screen, either as *Just the map* or a *Framed poster* with title, compass,
   legend and list of places.
 - **Offline:** Options → Print & offline → *Save everything to this device* keeps the map and all photos inside the
-  browser, so the same link works at the farm with no signal. "Add to Home Screen" gives it an app icon.
+  browser, so the same link works at the quarter with no signal. "Add to Home Screen" gives it an app icon.
 - **Nothing is remembered between visits** except text size and whether the tips were seen. Every visit opens with
   the original look and filters.
 

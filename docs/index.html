@@ -8,8 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Knopp Map">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="icons/icon-32.png" sizes="32x32">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
   <title>Knopp Map</title>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
@@ -17,7 +18,7 @@
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <div id="map" aria-label="Map of the farm"></div>
+  <div id="map" aria-label="Map of the quarter"></div>
 
   <div id="print-head"></div>
   <aside id="print-poster" aria-hidden="true"></aside>
@@ -40,9 +41,23 @@
     <div class="top-actions">
       <button id="search-btn" class="round" aria-label="Search">🔍</button>
       <button id="measure-btn" class="round" aria-label="Measure distance" aria-pressed="false" title="Measure distance"><svg viewBox="0 0 24 24" class="ms-ic" aria-hidden="true"><rect x="2" y="8" width="20" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 8v4M10 8v3M14 8v4M18 8v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      <button id="legend-btn" class="round" aria-label="Legend: what the lines and pins mean" aria-expanded="false" aria-controls="legend-pop" title="Legend"><svg viewBox="0 0 24 24" class="lg-ic" aria-hidden="true"><path d="M3 5.5l6-2 6 2 6-2v15l-6 2-6-2-6 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3.5v15M15 5.5v15" stroke="currentColor" stroke-width="2"/></svg></button>
       <button id="help-btn" class="tips-btn" aria-label="Welcome tips"><span>💡</span><span class="lbl">Tips</span></button>
     </div>
   </header>
+
+  <div id="legend-pop" role="dialog" aria-labelledby="lp-title" hidden>
+    <div class="lp-head"><h2 id="lp-title">Legend</h2><button class="lp-x round mini" aria-label="Close legend">✕</button></div>
+    <div class="legend"></div>
+  </div>
+
+  <div id="nav-panel" role="status" aria-live="polite" hidden>
+    <div class="nv-main">
+      <div class="nv-arrow" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 4l11 30-11-7-11 7z" fill="currentColor"/></svg></div>
+      <div class="nv-text"><div class="nv-to"></div><div class="nv-dist">—</div><div class="nv-sub"></div></div>
+    </div>
+    <div class="nv-btns"><button class="nv-see">🗺️ See route</button><a class="nv-gm" target="_blank" rel="noopener">🚗 Google Maps</a><button class="nv-stop">Stop</button></div>
+  </div>
 
   <div id="measure-panel" hidden>
     <div class="ms-head"><span class="ms-title">📏 Measure</span><span id="ms-total">—</span></div>
@@ -93,14 +108,15 @@
       <button id="welcome-x" class="round tips-x" aria-label="Close tips">✕</button>
       <div class="tips-head">
         <div class="welcome-art" aria-hidden="true">🏡</div>
-        <div><h2 id="tips-title">Welcome to Knopp Map</h2><p class="tips-sub">A map of the farm, its trails and photos. Here's how it works.</p></div>
+        <div><h2 id="tips-title">Welcome to Knopp Map</h2><p class="tips-sub">A map of the quarter, its trails and photos. Here's how it works.</p></div>
       </div>
       <div class="tips-body">
         <section>
           <h3>Getting around</h3>
           <div class="tip"><span class="t-ic">👆</span><div><b>Move the map</b><small>Drag with one finger. Pinch, or use the <b>+</b> and <b>−</b> buttons, to zoom.</small></div></div>
           <div class="tip"><span class="t-ic">🏠</span><div><b>Lost?</b><small>Tap <b>Home</b> at the bottom to jump back to the whole property.</small></div></div>
-          <div class="tip"><span class="t-ic">🧭</span><div><b>Where am I?</b><small>Tap <b>Me</b> when you're at the farm to see yourself on the map.</small></div></div>
+          <div class="tip"><span class="t-ic">🧭</span><div><b>Where am I?</b><small>Tap <b>Me</b> when you're at the quarter to see yourself on the map.</small></div></div>
+          <div class="tip"><span class="t-ic">🚶</span><div><b>Take me there</b><small>Open a place and tap <b>Take me there</b>. A blue line leads you along the trails, like Google Maps.</small></div></div>
         </section>
         <section>
           <h3>Seeing places &amp; photos</h3>
@@ -110,9 +126,10 @@
         </section>
         <section>
           <h3>More to try</h3>
-          <div class="tip"><span class="t-ic">▶️</span><div><b>Tour</b><small>A slideshow walk around the farm, one stop at a time.</small></div></div>
+          <div class="tip"><span class="t-ic">▶️</span><div><b>Tour</b><small>A slideshow walk around the quarter, one stop at a time.</small></div></div>
           <div class="tip"><span class="t-ic">🔍</span><div><b>Search</b><small>Find any place or trail by name (top right).</small></div></div>
           <div class="tip"><span class="t-ic">📏</span><div><b>Measure</b><small>Tap the ruler (top right), then tap points on the map to measure the distance.</small></div></div>
+          <div class="tip"><span class="t-ic">🗺️</span><div><b>Legend</b><small>Tap the folded map (top right) to see what the lines and pins mean.</small></div></div>
           <div class="tip"><span class="t-ic">⚙️</span><div><b>Options</b><small>Change the look, map style, text size and weather. <b>Reset</b> puts it all back.</small></div></div>
         </section>
       </div>
