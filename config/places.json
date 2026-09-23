@@ -45,12 +45,11 @@
         "20260905_171854.jpg",
         "20260905_171900.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-02",
-      "name": "Back Deck & Garden",
+      "name": "Back Deck",
       "icon": "garden",
       "story": "",
       "hero": "20260823_142102.jpg",
@@ -80,12 +79,11 @@
         "20260905_165815.jpg",
         "20260905_165822.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-03",
-      "name": "Sitting Area & Flower Beds",
+      "name": "Hill Behind House",
       "icon": "bench",
       "story": "",
       "hero": "20260823_142411.jpg",
@@ -107,31 +105,7 @@
         "20260905_165959.jpg",
         "20260905_170001.jpg"
       ],
-      "featured": true,
-      "guess": true
-    },
-    {
-      "id": "spot-04",
-      "name": "Cabin Yard",
-      "icon": "cabin",
-      "story": "",
-      "hero": "20260905_144525.jpg",
-      "photos": [
-        "20260905_144525.jpg",
-        "20260905_144527.jpg",
-        "20260905_144647.jpg",
-        "20260905_144735.jpg",
-        "20260905_144744.jpg",
-        "20260905_144753.jpg",
-        "20260905_144806.jpg",
-        "20260905_144813.jpg",
-        "20260905_144820.jpg",
-        "20260905_153648.jpg",
-        "20260905_153652.jpg",
-        "20260905_153654.jpg"
-      ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-05",
@@ -150,14 +124,25 @@
         "20260905_144934.jpg",
         "20260905_145220.jpg",
         "20260905_145221.jpg",
-        "20260905_145308.jpg"
+        "20260905_145308.jpg",
+        "20260905_144525.jpg",
+        "20260905_144527.jpg",
+        "20260905_144647.jpg",
+        "20260905_144735.jpg",
+        "20260905_144744.jpg",
+        "20260905_144753.jpg",
+        "20260905_144806.jpg",
+        "20260905_144813.jpg",
+        "20260905_144820.jpg",
+        "20260905_153648.jpg",
+        "20260905_153652.jpg",
+        "20260905_153654.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-06",
-      "name": "Pasture & Cattle",
+      "name": "Main Culvert",
       "icon": "pasture",
       "story": "",
       "hero": "20260823_161247.jpg",
@@ -173,12 +158,11 @@
         "20260823_161428.jpg",
         "20260823_161432.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-07",
-      "name": "Greenhouse & Shop",
+      "name": "Greenhouse and Sheds",
       "icon": "greenhouse",
       "story": "",
       "hero": "20260823_141535.jpg",
@@ -193,13 +177,12 @@
         "20260823_141713.jpg",
         "20260823_162201.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-08",
-      "name": "Ring Road Trail Signs",
-      "icon": "sign",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260905_144235.jpg",
       "photos": [
@@ -211,13 +194,12 @@
         "20260905_160852.jpg",
         "20260905_160857.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-09",
-      "name": "Payton Trail Sign",
-      "icon": "sign",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260905_151850.jpg",
       "photos": [
@@ -229,12 +211,11 @@
         "20260905_151930.jpg",
         "20260905_151935.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-10",
-      "name": "Front Gate & Road",
+      "name": "Driveway Entry",
       "icon": "gate",
       "story": "",
       "hero": "20260823_140246.jpg",
@@ -245,13 +226,12 @@
         "20260823_141232.jpg",
         "20260823_141253.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-11",
-      "name": "North Field Cut-outs",
-      "icon": "animal",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260823_153112.jpg",
       "photos": [
@@ -261,8 +241,7 @@
         "20260823_153150.jpg",
         "20260823_153159.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-12",
@@ -277,8 +256,7 @@
         "20260905_171657.jpg",
         "20260905_171702.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-13",
@@ -293,13 +271,12 @@
         "20260823_160444.jpg",
         "20260823_160459.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-14",
-      "name": "Wildlife Cut-outs",
-      "icon": "animal",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260823_160531.jpg",
       "photos": [
@@ -309,13 +286,12 @@
         "20260823_160612.jpg",
         "20260823_160658.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-15",
-      "name": "Log Piles",
-      "icon": "wood",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260905_153303.jpg",
       "photos": [
@@ -325,13 +301,12 @@
         "20260905_153922.jpg",
         "20260905_153932.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-16",
-      "name": "Trail Signs by the Cabin",
-      "icon": "sign",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260905_151537.jpg",
       "photos": [
@@ -340,12 +315,11 @@
         "20260905_153119.jpg",
         "20260905_153123.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-17",
-      "name": "East Field",
+      "name": "Acreage Entrance",
       "icon": "field",
       "story": "",
       "hero": "20260823_144945.jpg",
@@ -354,12 +328,11 @@
         "20260823_144954.jpg",
         "20260823_153446.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-18",
-      "name": "Southwest Gate",
+      "name": "Southwest Gate (Government Access)",
       "icon": "gate",
       "story": "",
       "hero": "20260823_151314.jpg",
@@ -368,8 +341,7 @@
         "20260823_151315.jpg",
         "20260905_162301.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-19",
@@ -382,12 +354,11 @@
         "20260823_152953.jpg",
         "20260823_152957.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-20",
-      "name": "North Field",
+      "name": "The Pond",
       "icon": "field",
       "story": "",
       "hero": "20260823_154823.jpg",
@@ -396,13 +367,12 @@
         "20260823_154829.jpg",
         "20260823_154833.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": true
     },
     {
       "id": "spot-21",
-      "name": "Bale Feeder",
-      "icon": "field",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260823_155227.jpg",
       "photos": [
@@ -410,13 +380,12 @@
         "20260823_155305.jpg",
         "20260823_155323.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-22",
-      "name": "Steel Targets",
-      "icon": "target",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260823_155836.jpg",
       "photos": [
@@ -424,13 +393,12 @@
         "20260823_155858.jpg",
         "20260823_155903.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-23",
-      "name": "Target Trail",
-      "icon": "target",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260823_155927.jpg",
       "photos": [
@@ -438,8 +406,7 @@
         "20260823_155956.jpg",
         "20260823_160014.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-24",
@@ -451,12 +418,13 @@
         "20260823_160036.jpg",
         "20260823_160055.jpg",
         "20260823_160110.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-25",
-      "name": "Firewood Stacks",
-      "icon": "wood",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260905_152826.jpg",
       "photos": [
@@ -464,13 +432,12 @@
         "20260905_154313.jpg",
         "20260905_154316.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-26",
-      "name": "Trailhead Signs",
-      "icon": "sign",
+      "name": "",
+      "icon": "photo",
       "story": "",
       "hero": "20260905_155227.jpg",
       "photos": [
@@ -478,8 +445,7 @@
         "20260905_155300.jpg",
         "20260905_155302.jpg"
       ],
-      "featured": true,
-      "guess": true
+      "featured": false
     },
     {
       "id": "spot-27",
@@ -490,7 +456,8 @@
       "photos": [
         "20260823_144533.jpg",
         "20260823_144535.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-28",
@@ -501,7 +468,8 @@
       "photos": [
         "20260823_144817.jpg",
         "20260823_144823.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-29",
@@ -512,7 +480,8 @@
       "photos": [
         "20260823_153049.jpg",
         "20260823_153052.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-30",
@@ -523,7 +492,8 @@
       "photos": [
         "20260823_154446.jpg",
         "20260823_154503.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-31",
@@ -534,7 +504,8 @@
       "photos": [
         "20260823_155013.jpg",
         "20260823_155016.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-32",
@@ -545,7 +516,8 @@
       "photos": [
         "20260823_160229.jpg",
         "20260823_160255.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-33",
@@ -556,7 +528,8 @@
       "photos": [
         "20260823_161446.jpg",
         "20260905_144020.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-34",
@@ -567,7 +540,8 @@
       "photos": [
         "20260823_162033.jpg",
         "20260823_162046.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-35",
@@ -578,7 +552,8 @@
       "photos": [
         "20260905_144249.jpg",
         "20260905_144254.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-36",
@@ -589,7 +564,8 @@
       "photos": [
         "20260905_144359.jpg",
         "20260905_144404.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-37",
@@ -600,7 +576,8 @@
       "photos": [
         "20260905_144457.jpg",
         "20260905_144500.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-38",
@@ -611,7 +588,8 @@
       "photos": [
         "20260905_150221.jpg",
         "20260905_150224.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-39",
@@ -622,7 +600,8 @@
       "photos": [
         "20260905_152225.jpg",
         "20260905_152228.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-40",
@@ -633,7 +612,8 @@
       "photos": [
         "20260905_152702.jpg",
         "20260905_152703.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-41",
@@ -644,7 +624,8 @@
       "photos": [
         "20260905_152916.jpg",
         "20260905_152919.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-42",
@@ -655,7 +636,8 @@
       "photos": [
         "20260905_153424.jpg",
         "20260905_153427.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-43",
@@ -666,7 +648,8 @@
       "photos": [
         "20260905_154524.jpg",
         "20260905_154529.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-44",
@@ -677,7 +660,8 @@
       "photos": [
         "20260905_162033.jpg",
         "20260905_162036.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-45",
@@ -688,7 +672,8 @@
       "photos": [
         "20260905_162912.jpg",
         "20260905_162916.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-46",
@@ -699,7 +684,8 @@
       "photos": [
         "20260905_162940.jpg",
         "20260905_162944.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-47",
@@ -710,7 +696,8 @@
       "photos": [
         "20260905_163022.jpg",
         "20260905_163024.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-48",
@@ -721,7 +708,8 @@
       "photos": [
         "20260905_163152.jpg",
         "20260905_163153.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-49",
@@ -732,7 +720,8 @@
       "photos": [
         "20260905_164609.jpg",
         "20260905_164627.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-50",
@@ -743,7 +732,8 @@
       "photos": [
         "20260905_170735.jpg",
         "20260905_170737.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-51",
@@ -753,7 +743,8 @@
       "hero": "20260823_145552.jpg",
       "photos": [
         "20260823_145552.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-52",
@@ -763,7 +754,8 @@
       "hero": "20260823_152442.jpg",
       "photos": [
         "20260823_152442.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-53",
@@ -773,7 +765,8 @@
       "hero": "20260823_153201.jpg",
       "photos": [
         "20260823_153201.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-54",
@@ -783,7 +776,8 @@
       "hero": "20260823_154319.jpg",
       "photos": [
         "20260823_154319.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-55",
@@ -793,7 +787,8 @@
       "hero": "20260823_154355.jpg",
       "photos": [
         "20260823_154355.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-56",
@@ -803,7 +798,8 @@
       "hero": "20260823_155113.jpg",
       "photos": [
         "20260823_155113.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-57",
@@ -813,7 +809,8 @@
       "hero": "20260823_161008.jpg",
       "photos": [
         "20260823_161008.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-58",
@@ -823,7 +820,8 @@
       "hero": "20260823_161603.jpg",
       "photos": [
         "20260823_161603.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-59",
@@ -833,7 +831,8 @@
       "hero": "20260905_144055.jpg",
       "photos": [
         "20260905_144055.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-60",
@@ -843,7 +842,8 @@
       "hero": "20260905_145833.jpg",
       "photos": [
         "20260905_145833.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-61",
@@ -853,7 +853,8 @@
       "hero": "20260905_150037.jpg",
       "photos": [
         "20260905_150037.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-62",
@@ -863,7 +864,8 @@
       "hero": "20260905_160944.jpg",
       "photos": [
         "20260905_160944.jpg"
-      ]
+      ],
+      "featured": false
     },
     {
       "id": "spot-63",
@@ -873,7 +875,8 @@
       "hero": "20260905_164509.jpg",
       "photos": [
         "20260905_164509.jpg"
-      ]
+      ],
+      "featured": false
     }
   ]
 }

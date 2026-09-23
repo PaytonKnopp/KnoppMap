@@ -84,3 +84,23 @@
 | Zoey Trail | start | Cabin Perimeter | joined | 0.6 | 0.0 |
 | Zoey Trail | end | Finley Trail | trimmed at crossing | 0.0 | 3.1 |
 
+## Photos
+
+258 photos found, 27 hidden as near-duplicates (config/hidden.json), 231 placed on the map.
+
+### Missing GPS
+
+- none
+
+### Locations corrected from the GPS track (camera was over 25 m off)
+
+- none
+
+## Tour
+
+13 stops (automatic order).
+
+## Places
+
+61 places (13 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
+

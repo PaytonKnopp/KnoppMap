@@ -43,7 +43,7 @@
   applySize();
 
   // ================================================================ map
-  const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 20, minZoom: 5 });
+  const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 22, minZoom: 5 });
   L.control.zoom({ position: "topright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" }).addTo(map);
   L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
   window.kmMap = map;
@@ -56,7 +56,7 @@
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
   const CARTO = "https://{s}.basemaps.cartocdn.com/";
   // Tiles keep old imagery on screen while zooming instead of flashing grey, and don't fetch mid-animation.
-  const TILE_OPTS = { maxZoom: 21, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
+  const TILE_OPTS = { maxZoom: 22, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
   const esriLayer = (svc, key, attribution, extra = {}) =>
     L.tileLayer(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
   const IMG_ATTR = "Imagery © Esri, Maxar, Earthstar Geographics";
@@ -433,7 +433,12 @@
   // ================================================================ places
   // Only the house and cabin get their own picture; every other spot uses the same camera so the map stays tidy.
   const SPECIAL_PINS = new Set(["house", "cabin"]);
-  const pinEmoji = (p) => (SPECIAL_PINS.has(p.icon) ? icon(p.icon) : "📷");
+  const CABIN_SVG = `<svg class="pin-svg" viewBox="0 0 64 64" aria-hidden="true"><path d="M8 30 32 10l24 20" fill="#5b3a1e"/>
+    <path d="M4 32 32 8l28 24-4 4L32 16 8 36z" fill="#3b2412"/><rect x="44" y="12" width="7" height="14" fill="#6d4c33"/>
+    <rect x="12" y="32" width="40" height="24" fill="#a0673a"/><g stroke="#6b4222" stroke-width="2.4"><path d="M12 38h40M12 44h40M12 50h40"/></g>
+    <rect x="28" y="40" width="9" height="16" fill="#4a2c14"/><rect x="16" y="37" width="8" height="7" fill="#ffd978" stroke="#4a2c14" stroke-width="1.5"/>
+    <rect x="41" y="37" width="8" height="7" fill="#ffd978" stroke="#4a2c14" stroke-width="1.5"/></svg>`;
+  const pinEmoji = (p) => (p.icon === "cabin" ? CABIN_SVG : SPECIAL_PINS.has(p.icon) ? icon(p.icon) : "📷");
   const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   function placeIcon(f, sel = false) {
     const p = f.properties;
@@ -1223,7 +1228,7 @@
   function radarLayer(i) {
     if (!radar.layers.has(i)) {
       radar.layers.set(i, L.tileLayer(`${radar.host}${radar.frames[i].path}/256/{z}/{x}/{y}/2/1_1.png`,
-        { pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 21, attribution: "Radar © RainViewer" }));
+        { pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 22, attribution: "Radar © RainViewer" }));
     }
     return radar.layers.get(i);
   }

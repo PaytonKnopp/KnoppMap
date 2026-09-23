@@ -678,3 +678,5 @@ body:not(.seen-opts) #options-btn { animation: optsPulse 1.6s ease-out 3 1s; }
   .opts .theme-card small { display: none; }
   .opts .reset-top { font-size: 1rem; min-height: 2.8rem; }
 }
+
+.place-pin .bubble .pin-svg { width: 72%; height: 72%; display: block; }
