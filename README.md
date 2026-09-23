@@ -34,8 +34,9 @@ GitHub Pages from the `docs/` folder.
   tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
 - **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.
 - **Weather:** live RainViewer precipitation radar with rain and snow in separate colours (slider, play/pause, step,
-  speed, see-through, rain and snow colour keys, a one-tap wider view). On a phone the panel starts small (what's
-  falling at the farm, play and the time slider); **More** opens the rest. A line in the panel says what is falling at
+  speed, see-through, rain and snow colour keys, a one-tap wider view). On a phone the radar plays on its own with just a
+  slim bar showing (what's falling at the farm, the radar time, pause and ✕); tap the bar for all the controls. The rain
+  and snow colours are also in the Legend while the radar is on, and it pauses while the map is in the background. A line in the panel says what is falling at
   the farm right now and what's coming in the next few hours, and the panel's icon switches between 🌧️ 🌨️ 🧊 ⛈️ to
   match. There is also a chip with current Open-Meteo conditions at the quarter.
 - **Advanced options:**

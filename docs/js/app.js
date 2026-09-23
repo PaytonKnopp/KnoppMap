@@ -37,7 +37,8 @@
   // Only a size someone picks is remembered. (The old "size" key was saved on every visit, so it can't tell a choice
   // from the default and is dropped.)
   const SIZES = [16, 18, 21];
-  const smallScreen = window.matchMedia("(max-width: 700px), (max-height: 500px)").matches;
+  const smallMQ = window.matchMedia("(max-width: 700px), (max-height: 500px)");
+  const smallScreen = smallMQ.matches;
   store.set("size", null);
   let sizeIdx = Math.min(2, store.get("textSize", smallScreen ? 0 : 1));
   function applySize() {
@@ -907,10 +908,11 @@
     $("#sheet-title").innerHTML = (sheetCurrent.titleIcon ? `<span class="title-ic">${sheetCurrent.titleIcon}</span>` : "") + esc(sheetCurrent.title);
     const body = $("#sheet-body");
     body.replaceChildren(sheetCurrent.content);
-    body.scrollTop = 0;
+    if (!sheetCurrent.content.contains(document.getElementById("radar-panel"))) homeRadarPanel();
     $("#sheet-back").hidden = sheetStack.length === 0;
     applySheetHeight();
     sheet.hidden = false;
+    body.scrollTop = 0;   // after showing it: a hidden sheet ignores this and would open where the last one was scrolled to
     document.body.classList.add("sheet-open");
     if (isPhone() && !$("#legend-pop").hidden) $("#legend-pop .lp-x").click();
   }
@@ -921,6 +923,7 @@
     sheetCurrent = null;
     sheetH = null;
     document.body.classList.remove("sheet-open");
+    homeRadarPanel();
     $$("#dock button.active, #options-btn.active").forEach((b) => b.classList.remove("active"));
     selectPlace(null);
     highlightTrack(null);
@@ -929,6 +932,11 @@
     cbs.forEach((f) => f());
   }
   $("#sheet-close").onclick = closeSheet;
+  // Phones show the radar controls inside the sheet; this puts them back in their place over the map.
+  function homeRadarPanel() {
+    const panel = document.getElementById("radar-panel");
+    if (panel.classList.contains("in-sheet")) { panel.classList.remove("in-sheet"); $("#info-stack").append(panel); }
+  }
   $("#sheet-back").onclick = () => {
     sheetCurrent = sheetStack.pop();
     if (!sheetCurrent) return closeSheet();
@@ -1624,19 +1632,24 @@
   // Radar tiles are RainViewer's (Universal Blue colours, smoothed, snow drawn in its own colours). They only go to zoom 7,
   // so the panel also says what is falling at the farm itself (Open-Meteo), and its icon follows that.
   const radar = { frames: [], layers: new Map(), idx: 0, timer: null, refresh: null, host: "", loadedAt: 0, past: 0, speed: 700, opacity: 0.7 };
-  const rp = () => $("#radar-panel");
+  const rp = () => $("#radar-panel"), pill = () => $("#radar-pill");
+  // Computers get the floating panel. Phones get a slim bar that plays the radar on its own; the bar opens the full
+  // controls in the sheet. CSS picks which one shows, so turning the phone round just works.
   async function setRadar(on) {
     overlays.radar = on;
     const panel = rp();
     clearInterval(radar.refresh);
+    radar.resume = false;
+    refreshLegend();
     if (!on) {
       stopRadarPlay();
       radar.layers.forEach((l) => map.removeLayer(l));
-      panel.hidden = true;
+      if (panel.classList.contains("in-sheet")) closeSheet();
+      panel.hidden = pill().hidden = true;
       $$('[data-over="radar"]').forEach((x) => { x.checked = false; });
       return;
     }
-    panel.hidden = false;
+    panel.hidden = pill().hidden = false;
     updateWideBtn();
     showFarmPrecip();
     // Left open, it keeps itself current: new radar frames every few minutes, farm conditions every 10.
@@ -1644,12 +1657,14 @@
       loadRadar().then(() => { if (overlays.radar && !radar.timer) showRadarFrame(radar.idx); }).catch(() => {});
       showFarmPrecip();
     }, 5 * 60e3);
-    if (!radar.frames.length) $(".rp-time", panel).textContent = "Loading…";
+    if (!radar.frames.length) setRadarTime("Loading…");
     try { await loadRadar(); } catch { /* fall back to the frames we already have */ }
     if (!overlays.radar) return;
-    if (radar.frames.length) showRadarFrame(radar.past - 1);
-    else $(".rp-time", panel).textContent = "Radar isn't available right now";
+    if (!radar.frames.length) return setRadarTime("Radar isn't available right now");
+    showRadarFrame(radar.past - 1);
+    if (smallMQ.matches && !radar.timer) startRadarPlay();
   }
+  function setRadarTime(text) { $(".rp-time", rp()).textContent = text; $(".rpp-time", pill()).textContent = text; }
   async function loadRadar() {
     if (radar.frames.length && Date.now() - radar.loadedAt < 4 * 60e3) return;
     const j = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-cache" })
@@ -1689,22 +1704,25 @@
     const panel = rp();
     const t = new Date(radar.frames[radar.idx].time * 1000);
     const mins = Math.round((t - Date.now()) / 60000);
-    const rel = Math.abs(mins) < 5 ? "now" : mins < 0 ? `${-mins} min ago` : `in ${mins} min`;
+    const ago = Math.abs(mins), span = ago >= 60 ? `${Math.floor(ago / 60)} h${ago % 60 ? ` ${ago % 60} min` : ""}` : `${ago} min`;
+    const rel = ago < 5 ? "now" : mins < 0 ? `${span} ago` : `in ${span}`;
     const forecast = radar.idx >= radar.past;
-    $(".rp-time", panel).innerHTML = `<b>${t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</b> · ${rel}${forecast ? ' <span class="rp-fc">forecast</span>' : ""}`;
+    const hhmm = t.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    $(".rp-time", panel).innerHTML = `<b>${hhmm}</b> · ${rel}${forecast ? ' <span class="rp-fc">forecast</span>' : ""}`;
+    $(".rpp-time", pill()).textContent = `Radar ${shortTime(hhmm)} · ${forecast ? "forecast" : rel}`;
     $(".rp-slider", panel).value = radar.idx;
     $$(".rp-ticks i", panel).forEach((el, k) => el.classList.toggle("on", k === radar.idx));
   }
+  const PLAY_SVG = `<svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>`;
+  const PAUSE_SVG = `<svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 5.5h4v13h-4zM13.5 5.5h4v13h-4z" fill="currentColor"/></svg>`;
   function stopRadarPlay() {
     clearInterval(radar.timer);
     radar.timer = null;
-    const b = $('[data-rp="play"]');
-    if (b) { b.textContent = "▶"; b.setAttribute("aria-label", "Play"); }
+    $$('[data-rp="play"]').forEach((b) => { b.innerHTML = PLAY_SVG; b.setAttribute("aria-label", "Play"); });
   }
   function startRadarPlay() {
     stopRadarPlay();
-    const b = $('[data-rp="play"]');
-    b.textContent = "⏸"; b.setAttribute("aria-label", "Pause");
+    $$('[data-rp="play"]').forEach((b) => { b.innerHTML = PAUSE_SVG; b.setAttribute("aria-label", "Pause"); });
     if (radar.idx >= radar.frames.length - 1) showRadarFrame(0);
     radar.timer = setInterval(() => {
       if (radar.idx >= radar.frames.length - 1) showRadarFrame(0); else showRadarFrame(radar.idx + 1);
@@ -1724,14 +1742,6 @@
       if (act === "close") return setRadar(false);
       if (act === "wide") return isWide() ? fitFarm() : map.flyTo(farmBounds.getCenter(), 8);
       if (act === "play") return radar.timer ? stopRadarPlay() : startRadarPlay();
-      if (act === "more") {
-        // Phones show only the essentials until "More" is tapped; computers always show everything.
-        const more = panel.classList.toggle("more");
-        const b = e.target.closest("[data-rp]");
-        b.setAttribute("aria-expanded", more);
-        b.firstChild.textContent = more ? "Less " : "More ";
-        return;
-      }
       stopRadarPlay();
       if (act === "first") showRadarFrame(0);
       if (act === "back") showRadarFrame(radar.idx - 1);
@@ -1746,7 +1756,27 @@
     });
     $(".rp-slider", panel).oninput = (e) => { stopRadarPlay(); showRadarFrame(+e.target.value); };
     $(".rp-opacity", panel).oninput = (e) => { radar.opacity = +e.target.value / 100; showRadarFrame(radar.idx); };
+
+    const bar = pill();
+    $(".rpp-play", bar).onclick = () => (radar.timer ? stopRadarPlay() : startRadarPlay());
+    $(".rpp-x", bar).onclick = () => setRadar(false);
+    $(".rpp-open", bar).onclick = () => {
+      const wrap = document.createElement("div");
+      wrap.className = "rp-sheet";
+      panel.classList.add("in-sheet");
+      const off = document.createElement("button");
+      off.className = "big ghost rp-off";
+      off.textContent = "Turn off the radar";
+      off.onclick = () => setRadar(false);
+      wrap.append(panel, off);
+      openSheet(`${$(".rp-icon", panel).textContent} Precipitation`, wrap);
+    };
   })();
+  // No point animating (and downloading) radar frames nobody can see: pause while the tab or app is in the background.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && radar.timer) { stopRadarPlay(); radar.resume = true; }
+    else if (!document.hidden && radar.resume) { radar.resume = false; if (overlays.radar) startRadarPlay(); }
+  });
 
   const WX = { 0: ["☀️", "Clear"], 1: ["🌤️", "Mostly clear"], 2: ["⛅", "Partly cloudy"], 3: ["☁️", "Cloudy"], 45: ["🌫️", "Fog"], 48: ["🌫️", "Frosty fog"],
     51: ["🌦️", "Light drizzle"], 53: ["🌦️", "Drizzle"], 55: ["🌧️", "Heavy drizzle"], 56: ["🧊", "Light freezing drizzle"], 57: ["🧊", "Freezing drizzle"],
@@ -1759,6 +1789,8 @@
   const precipKind = (code) => ([71, 73, 75, 77, 85, 86].includes(code) ? "snow" : [56, 57, 66, 67].includes(code) ? "ice"
     : code >= 95 ? "storm" : (code >= 51 && code <= 65) || (code >= 80 && code <= 82) ? "rain" : null);
   const clock = (unix) => new Date(unix * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  // "8:22pm" instead of "8:22 p.m." for the slim radar bar on phones (24-hour times stay as they are).
+  const shortTime = (s) => s.replace(/\s*([ap])\.?\s?m\.?/i, (m, x) => x.toLowerCase() + "m");
 
   // Open-Meteo at the middle of the quarter, shared by the weather chip and the radar panel; fetched again after 10 minutes.
   let wxCache = null;
@@ -1789,23 +1821,29 @@
         if (kindNow && !k && !clears) clears = t;
       });
       const temp = `${Math.round(cur.temperature_2m)}°C`;
-      let line, sub;
+      let line, sub, short;
       if (kindNow) {
         line = `${WX[cur.weather_code][1]} at the farm now`;
         sub = clears ? `easing around ${clock(clears)}` : "keeping up for the next few hours";
+        short = `${WX[cur.weather_code][1]} now · ${clears ? `easing ${shortTime(clock(clears))}` : "for a while"}`;
       } else if (next) {
+        const odds = next.p == null || next.p >= 60 ? "likely" : "possible";
         line = "Dry at the farm now";
-        sub = `${PRECIP[next.k][1].toLowerCase()} ${next.p == null || next.p >= 60 ? "likely" : "possible"} around ${clock(next.t)}${next.p == null ? "" : ` (${next.p}%)`}`;
+        sub = `${PRECIP[next.k][1].toLowerCase()} ${odds} around ${clock(next.t)}${next.p == null ? "" : ` (${next.p}%)`}`;
+        short = `Dry now · ${PRECIP[next.k][1].toLowerCase()} ${odds === "likely" ? "likely" : "maybe"} ${shortTime(clock(next.t))}`;
       } else {
         line = "Dry at the farm now";
         sub = "nothing expected in the next 6 hours";
+        short = "Dry now · none expected soon";
       }
       const kind = kindNow || next?.k || (cur.temperature_2m <= 0 ? "snow" : "rain");
-      icon.textContent = PRECIP[kind][0];
+      icon.textContent = $(".rpp-icon", pill()).textContent = PRECIP[kind][0];
+      $(".rpp-now", pill()).textContent = short;
       text.innerHTML = `<b>${esc(line)}</b><small>${esc(temp)} · ${esc(sub)}</small>`;
     } catch {
-      icon.textContent = "🌦️";
+      icon.textContent = $(".rpp-icon", pill()).textContent = "🌦️";
       text.innerHTML = "<small>Conditions at the farm aren't available right now</small>";
+      $(".rpp-now", pill()).textContent = "Precipitation radar";
     }
   }
 
@@ -2023,7 +2061,9 @@
       <span class="sym"><span class="place-pin" style="margin:0"><span class="bubble" style="width:1.9rem;height:1.9rem;font-size:1rem">🏠</span></span></span><span>A named place – tap it for its photos</span>
       <span class="sym"><span class="lg-group">5</span></span><span>A group of photos – zoom in to spread them out</span>
       <span class="sym"><span class="place-pin minor" style="margin:0"><span class="bubble">${CAMERA_SVG}</span></span></span><span>Other photo spot</span>
-      <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”) – the blue beam shows which way you’re facing</span>`;
+      <span class="sym"><span class="lg-me"></span></span><span>You (after tapping “Me”) – the blue beam shows which way you’re facing</span>
+      ${overlays.radar ? `<span class="sym"><i class="lg-precip rain"></i></span><span>Rain on the radar, light → heavy</span>
+        <span class="sym"><i class="lg-precip snow"></i></span><span>Snow on the radar, light → heavy</span>` : ""}`;
   }
   const legendPop = $("#legend-pop"), legendBtn = $("#legend-btn");
   function refreshLegend() { if (!legendPop.hidden) $(".legend", legendPop).innerHTML = legendHtml(); }

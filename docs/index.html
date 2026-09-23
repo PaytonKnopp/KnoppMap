@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=21">
 </head>
 <body>
   <div id="map" aria-label="Map of the quarter"></div>
@@ -78,33 +78,39 @@
   <button id="loc-chip" hidden></button>
   <div id="info-stack">
     <div id="wx-chip" class="info-chip" hidden></div>
+    <!-- Phones: the radar plays with just this slim bar showing; tapping it opens the full controls in the panel below. -->
+    <div id="radar-pill" class="info-chip" hidden>
+      <button class="rpp-open" aria-label="Precipitation radar: open the controls">
+        <span class="rpp-icon" aria-hidden="true">🌦️</span>
+        <span class="rpp-txt"><b class="rpp-now">Precipitation radar</b><small class="rpp-time">Loading…</small></span>
+      </button>
+      <button data-rp="play" class="rpp-play" aria-label="Play"><svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg></button>
+      <button class="rp-x rpp-x" aria-label="Turn off the precipitation radar">✕</button>
+    </div>
     <div id="radar-panel" class="info-chip" hidden>
       <div class="rp-head">
         <span class="rp-title"><span class="rp-icon" aria-hidden="true">🌦️</span> Precipitation</span>
-        <button data-rp="more" class="rp-more" aria-expanded="false" aria-label="More radar controls">More <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button data-rp="close" class="rp-x" aria-label="Close precipitation radar">✕</button>
       </div>
       <div class="rp-now"><span class="rp-now-text"></span><button data-rp="wide" class="rp-wide">🔭 Wider view</button></div>
       <div class="rp-play-row">
-        <button data-rp="play" class="rp-play" aria-label="Play">▶</button>
+        <button data-rp="play" class="rp-play" aria-label="Play"><svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg></button>
         <div class="rp-track">
           <span class="rp-time"></span>
           <input type="range" class="rp-slider" min="0" max="0" value="0" aria-label="Radar time"><div class="rp-ticks"></div>
         </div>
         <button data-rp="now" class="rp-latest" aria-label="Latest">Now</button>
       </div>
-      <div class="rp-btns rp-extra">
-        <button data-rp="first" aria-label="Oldest">⏮</button><button data-rp="back" aria-label="Back one step">◀</button><button data-rp="fwd" aria-label="Forward one step">▶▏</button>
-        <button data-rp="wide" class="rp-wide">🔭 Wider view</button>
+      <div class="rp-btns">
+        <button data-rp="first" aria-label="Oldest"><svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.5h2.4v13H6zM19 5.5v13L9.5 12z" fill="currentColor"/></svg></button><button data-rp="back" aria-label="Back one step"><svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 5.5v13L6 12z" fill="currentColor"/></svg></button><button data-rp="fwd" aria-label="Forward one step"><svg class="pb-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5v13L14.5 12zM15.6 5.5H18v13h-2.4z" fill="currentColor"/></svg></button>
         <button data-rp="speed" class="rp-speed">Speed: Normal</button>
       </div>
-      <div class="rp-foot rp-extra">
+      <div class="rp-foot">
         <span class="rp-keys" title="Colours run from light (left) to heavy (right)">
           <span class="rp-key"><span>Rain</span><i class="rain"></i></span><span class="rp-key"><span>Snow</span><i class="snow"></i></span>
           <span class="rp-scale">light → heavy</span>
         </span>
         <label class="rp-op">See-through <input type="range" class="rp-opacity" min="20" max="100" value="70" aria-label="Radar strength"></label>
-        <button data-rp="speed" class="rp-speed">Speed: Normal</button>
       </div>
     </div>
   </div>
@@ -203,7 +209,7 @@
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/markercluster/leaflet.markercluster.js"></script>
-  <script src="js/common.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/common.js?v=21"></script>
+  <script src="js/app.js?v=21"></script>
 </body>
 </html>
