@@ -34,10 +34,6 @@
       "text": "The cabin, tucked into the trees at the end of Cabin Trail."
     },
     {
-      "place": "spot-18",
-      "text": "The southwest gate in the far corner of the quarter (government access)."
-    },
-    {
       "place": "spot-06",
       "text": "The main culvert, where the creek passes under the trail by the pasture."
     },
@@ -51,7 +47,11 @@
     },
     {
       "place": "spot-17",
-      "text": "The acreage entrance in the northeast corner – the end of the tour."
+      "text": "The acreage entrance in the northeast corner."
+    },
+    {
+      "place": "spot-18",
+      "text": "Last stop: the southwest gate in the far corner of the quarter (government access)."
     }
   ]
 }

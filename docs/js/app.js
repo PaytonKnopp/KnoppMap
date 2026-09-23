@@ -348,7 +348,7 @@
     const boost = z >= 18 ? 1.5 : z >= 16 ? 0.75 : 0;
     const c = cat(f);
     if (c === "boundary") {
-      const col = f.id === "quarter-section-boundary" && L_.boundary ? L_.boundary : f.properties.color;
+      const col = f.id === "quarter-section-perimeter" && L_.boundary ? L_.boundary : f.properties.color;
       return { line: { color: col, weight: (3 + boost) * k + (hi ? 2 : 0), dashArray: hi ? null : "10 7", opacity: 1, fillColor: col,
         fillOpacity: adv.boundaryFill ? (hi ? 0.12 : 0.05) : 0 }, casing: { opacity: 0, fillOpacity: 0, weight: 0 } };
     }
@@ -390,10 +390,48 @@
     const label = L.tooltip({ permanent: true, direction: "center", className: "trail-label", interactive: false })
       .setLatLng(f.geometry.type === "Polygon" ? line.getBounds().getCenter() : midpoint(f.geometry))
       .setContent(esc(f.properties.name));
-    const t = { f, line, casing, group, label };
+    const t = { f, line, casing, group, label, dirs: f.properties.directions ? directionLayer(f) : null };
     tracks.set(f.id, t);
     restyle(t);
-    if (f.id === "quarter-section-boundary") farmBounds = line.getBounds();
+    if (f.id === "quarter-section-perimeter") farmBounds = line.getBounds();
+  }
+
+  // Point and heading at a fraction of the way along a line (lon/lat coords).
+  function alongLine(coords, frac) {
+    const ll = coords.map((c) => L.latLng(c[1], c[0]));
+    const seg = ll.slice(1).map((p, i) => distM(ll[i], p));
+    const total = seg.reduce((a, b) => a + b, 0);
+    let want = total * frac;
+    for (let i = 0; i < seg.length; i++) {
+      if (want <= seg[i] || i === seg.length - 1) {
+        const k = seg[i] ? Math.min(1, want / seg[i]) : 0;
+        const a = ll[i], b = ll[i + 1];
+        return { at: L.latLng(a.lat + (b.lat - a.lat) * k, a.lng + (b.lng - a.lng) * k), heading: bearing(a, b) };
+      }
+      want -= seg[i];
+    }
+  }
+  // Named directions along one trail (e.g. Payton Trail one way, Caine Trail the other): a labelled badge plus chevrons.
+  function directionLayer(f) {
+    const coords = lineCoords(f.geometry);
+    const group = L.layerGroup();
+    const halves = [[0.08, 0.46], [0.54, 0.92]];
+    f.properties.directions.forEach((d, i) => {
+      const [a, b] = halves[i % 2];
+      const cs = d.reverse ? [...coords].reverse() : coords;
+      const fa = d.reverse ? 1 - b : a, fb = d.reverse ? 1 - a : b;
+      [0, 0.25, 0.5, 0.75, 1].forEach((k) => {
+        const { at, heading } = alongLine(cs, fa + (fb - fa) * k);
+        if (k === 0.5) {
+          group.addLayer(L.marker(at, { interactive: false, keyboard: false, zIndexOffset: 400, icon: L.divIcon({ className: "", iconSize: [0, 0],
+            html: `<div class="dir-tag"><span class="dir-arrow" style="transform:rotate(${heading - 90}deg)">➜</span>${esc(d.label)}</div>` }) }));
+        } else {
+          group.addLayer(L.marker(at, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", iconSize: [0, 0],
+            html: `<div class="dir-chev" style="transform:translate(-50%,-50%) rotate(${heading - 90}deg)">›</div>` }) }));
+        }
+      });
+    });
+    return group;
   }
 
   function highlightTrack(id) {
@@ -424,6 +462,11 @@
       if (show && !map.hasLayer(t.group)) t.group.addTo(map);
       if (!show && map.hasLayer(t.group)) map.removeLayer(t.group);
       if (show) restyle(t);
+      if (t.dirs) {
+        const d = show && map.getZoom() >= 16.5;
+        if (d && !map.hasLayer(t.dirs)) t.dirs.addTo(map);
+        if (!d && map.hasLayer(t.dirs)) map.removeLayer(t.dirs);
+      }
       const lab = labelShouldShow(t);
       if (lab && !map.hasLayer(t.label)) t.label.addTo(map);
       if (!lab && map.hasLayer(t.label)) map.removeLayer(t.label);
@@ -609,6 +652,7 @@
           <div class="stat"><b>↘ ${p.loss_m} m</b><small>total downhill</small></div>` : ""}
         ${p.profile && isTrail(t.f) ? `<div class="stat"><b>${Math.round(Math.min(...p.profile.map((x) => x[1])))}–${Math.round(Math.max(...p.profile.map((x) => x[1])))} m</b><small>height above sea</small></div>` : ""}
       </div>
+      ${p.directions ? `<p class="dir-note">➜ <b>${esc(p.directions.find((d) => d.reverse)?.label || "")}</b> heading from the trail sign toward the cabin; <b>${esc(p.directions.find((d) => !d.reverse)?.label || "")}</b> coming back the other way.</p>` : ""}
       ${p.profile && isTrail(t.f) ? `<h3>Ups and downs</h3>${elevationSvg(p.profile)}` : ""}
       <div class="btn-row"><button class="big" data-act="fit">🔍 Show the whole ${kind.toLowerCase()}</button></div>
       ${links.length ? `<h3>Connects to</h3><div class="chips" data-slot="links"></div>` : ""}
@@ -1580,6 +1624,11 @@
     refreshBackToFarm();
     declutter();
 
+    window.addEventListener("hashchange", () => {
+      const [hk, hv] = decodeURIComponent(location.hash.slice(1)).split("=");
+      if (hk === "place" && places.has(hv) && selectedPlace !== hv) openPlace(hv);
+      else if (hk === "trail" && tracks.has(hv) && selectedTrack !== hv) openTrail(hv);
+    });
     const h = decodeURIComponent(location.hash.slice(1));
     const [k, v] = h.split("=");
     if (k === "place" && places.has(v)) openPlace(v);
