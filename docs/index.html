@@ -4,66 +4,72 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <title>Knopp Map</title>
+  <meta name="theme-color" content="#2f5d3a">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏡</text></svg>">
+  <title>Knopp Farm Map</title>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-  <div id="map"></div>
+  <div id="map" aria-label="Map of the farm"></div>
 
-  <button id="panel-toggle" class="fab" aria-label="Show layers" aria-expanded="false">
-    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2 1 8l11 6 9-4.9V17h2V8L12 2zm-7 11.2V17l7 4 7-4v-3.8l-7 3.8-7-3.8z"/></svg>
-    <span>Layers</span>
-  </button>
+  <header id="topbar">
+    <h1>Knopp Farm</h1>
+    <div class="top-actions">
+      <button id="text-smaller" class="round" aria-label="Make text smaller">A−</button>
+      <button id="text-bigger" class="round" aria-label="Make text bigger">A+</button>
+      <button id="help-btn" class="round" aria-label="Help">?</button>
+    </div>
+  </header>
 
-  <aside id="panel" aria-label="Map layers">
-    <header>
-      <div>
-        <h1>Knopp Map</h1>
-        <p class="sub">Quarter section, trails &amp; photos</p>
-      </div>
-      <button id="panel-close" class="icon-btn" aria-label="Close layers">&times;</button>
-    </header>
+  <button id="back-to-farm" hidden>🏠 Back to the farm</button>
 
-    <section>
-      <h2>Base map</h2>
-      <div class="seg" id="basemaps"></div>
-    </section>
+  <nav id="dock" aria-label="Main">
+    <button data-act="farm"><span class="ic">🏠</span><span>Farm</span></button>
+    <button data-act="places"><span class="ic">📍</span><span>Places</span></button>
+    <button data-act="trails" aria-pressed="true"><span class="ic">🥾</span><span>Trails</span></button>
+    <button data-act="photos" aria-pressed="false"><span class="ic">📷</span><span>Photos</span></button>
+    <button data-act="locate"><span class="ic">🧭</span><span>Me</span></button>
+    <button data-act="more"><span class="ic">☰</span><span>More</span></button>
+  </nav>
 
-    <section>
-      <h2>Tracks</h2>
-      <input id="track-search" type="search" placeholder="Find a trail…" autocomplete="off">
-      <div id="categories"></div>
-      <label class="row"><input type="checkbox" id="labels-toggle"> Show trail names on map</label>
-    </section>
-
-    <section>
-      <h2>Photos</h2>
-      <label class="row"><input type="checkbox" id="photos-toggle" checked> Show photos <span class="count" id="photo-count"></span></label>
-      <div class="chips" id="photo-dates"></div>
-      <label class="row"><input type="checkbox" id="cluster-toggle" checked> Group nearby photos</label>
-    </section>
-
-    <section class="actions">
-      <button id="fit-btn">Fit property</button>
-      <button id="locate-btn">Where am I?</button>
-    </section>
+  <aside id="sheet" aria-live="polite" hidden>
+    <div class="sheet-head">
+      <button id="sheet-back" class="round" aria-label="Back" hidden>‹</button>
+      <h2 id="sheet-title"></h2>
+      <button id="sheet-close" class="round" aria-label="Close">✕</button>
+    </div>
+    <div id="sheet-body"></div>
   </aside>
 
+  <div id="welcome" hidden>
+    <div class="welcome-card">
+      <h2>Welcome to the Knopp Farm map</h2>
+      <ul class="howto">
+        <li><span>👆</span> Drag the map with one finger to move around.</li>
+        <li><span>🔍</span> Use the big <b>+</b> and <b>−</b> buttons to zoom in and out.</li>
+        <li><span>📍</span> Tap a picture on the map to see that place and its photos.</li>
+        <li><span>🏠</span> Lost? Tap <b>Farm</b> at the bottom to come back.</li>
+      </ul>
+      <button id="welcome-ok" class="big">Let's go</button>
+    </div>
+  </div>
+
   <div id="lightbox" hidden>
-    <button class="lb-close icon-btn" aria-label="Close">&times;</button>
-    <button class="lb-nav lb-prev" aria-label="Previous photo">&#8249;</button>
+    <button class="lb-close round" aria-label="Close photo">✕</button>
+    <button class="lb-nav lb-prev" aria-label="Previous photo">‹</button>
     <figure>
       <img alt="">
       <figcaption></figcaption>
     </figure>
-    <button class="lb-nav lb-next" aria-label="Next photo">&#8250;</button>
+    <button class="lb-nav lb-next" aria-label="Next photo">›</button>
   </div>
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/markercluster/leaflet.markercluster.js"></script>
+  <script src="js/common.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

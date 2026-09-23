@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏡</text></svg>">
+  <title>Knopp Map – Place Tagger</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/tag.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Place Tagger</h1>
+      <p>Name the places, pick a cover photo, add a story. Your edits save in this browser as you go.</p>
+    </div>
+    <div class="head-actions">
+      <button id="export" class="primary">⬇ Download places.json</button>
+      <button id="copy">Copy</button>
+      <button id="reset" class="danger">Start over</button>
+    </div>
+  </header>
+  <details class="howto">
+    <summary>How to publish your changes</summary>
+    <ol>
+      <li>Click <b>Download places.json</b>.</li>
+      <li>On GitHub, open the repo → <b>config</b> folder → <b>Add file → Upload files</b>, drop the file in and commit to <b>main</b>
+        (it replaces the old one). Or just send the file to Claude.</li>
+      <li>Ask Claude to "rebuild the map" (or run <code>python3 build/build.py</code>) so the family map picks it up.</li>
+    </ol>
+    <p>Tips: click photos to select them, then use <b>Move selected</b> to put them in another place or <b>New place</b> to split them off.
+      ⭐ sets the cover photo. Drag a pin on the map to move a place. Places marked <span class="badge">Claude's guess</span> were named from the photos — please check them.</p>
+  </details>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search places…">
+    <div class="seg" id="filter">
+      <button data-f="all" class="on">All</button><button data-f="named">Named</button><button data-f="unnamed">Unnamed</button><button data-f="guess">To check</button>
+    </div>
+    <span id="stats"></span>
+  </div>
+  <main>
+    <div id="map"></div>
+    <div id="list"></div>
+  </main>
+  <div id="viewer" hidden><img alt=""><button aria-label="Close">✕</button></div>
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/tag.js"></script>
+</body>
+</html>

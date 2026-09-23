@@ -335,10 +335,80 @@ def build_photos(track_features, resize=True):
         if n % 25 == 0:
             print(f"  photos {n}/{len(files)}", file=sys.stderr)
 
-    (DATA_OUT / "photos.geojson").write_text(json.dumps(
-        {"type": "FeatureCollection", "features": feats}, separators=(",", ":"), ensure_ascii=False))
     report += ["## Photos\n", f"{len(files)} photos found, {len(feats)} placed on the map.\n",
                "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), ""]
+    return feats, report
+
+
+# ---------------------------------------------------------------- places
+
+PLACE_R = 20.0
+
+
+def auto_places(photo_feats):
+    """Group photos walk-order style: a new spot starts once you've moved more than PLACE_R from the current one."""
+    groups = []
+    for f in sorted(photo_feats, key=lambda f: f["properties"]["taken"] or ""):
+        c = f["geometry"]["coordinates"]
+        best = None
+        for g in groups:
+            d = dist(c, g["c"])
+            if d < PLACE_R and (best is None or d < best[0]):
+                best = (d, g)
+        if best:
+            g = best[1]
+            g["m"].append(f)
+            n = len(g["m"])
+            g["c"] = [sum(x["geometry"]["coordinates"][i] for x in g["m"]) / n for i in (0, 1)]
+        else:
+            groups.append({"c": list(c), "m": [f]})
+    places = []
+    for i, g in enumerate(sorted(groups, key=lambda g: -len(g["m"])), 1):
+        files = [m["properties"]["file"] + ".jpg" for m in g["m"]]
+        places.append({"id": f"spot-{i:02d}", "name": "", "icon": "photo", "story": "",
+                       "hero": files[0], "photos": files})
+    return places
+
+
+def build_places(photo_feats):
+    """config/places.json is the hand-edited source of truth; it is only seeded automatically the first time."""
+    path = CONFIG_DIR / "places.json"
+    cfg = load_json(path, None)
+    if cfg is None:
+        cfg = {"places": auto_places(photo_feats)}
+        path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n")
+    by_file = {f["properties"]["file"] + ".jpg": f for f in photo_feats}
+    listed = {x for p in cfg["places"] for x in p.get("photos", [])}
+    new_photos = [f for name, f in by_file.items() if name not in listed]
+    extra = auto_places(new_photos)
+    for i, p in enumerate(extra, 1):
+        p["id"] = f"new-{i:02d}"
+    claimed, feats, report = set(), [], []
+    for p in cfg["places"] + extra:
+        members = [by_file[x] for x in p.get("photos", []) if x in by_file]
+        claimed.update(p.get("photos", []))
+        if p.get("coords"):
+            lon, lat = p["coords"]
+        elif members:
+            lon = sum(m["geometry"]["coordinates"][0] for m in members) / len(members)
+            lat = sum(m["geometry"]["coordinates"][1] for m in members) / len(members)
+        else:
+            continue
+        for m in members:
+            m["properties"]["place"] = p["id"]
+        hero = p.get("hero") if p.get("hero") in by_file else (p["photos"][0] if members else None)
+        feats.append({"type": "Feature", "id": p["id"], "properties": {
+            "name": p.get("name", ""), "icon": p.get("icon", "photo"), "story": p.get("story", ""),
+            "hero": hero[:-4] if hero else None, "photos": [m["properties"]["file"] for m in members],
+            "featured": bool(p.get("featured", bool(p.get("name")))), "guess": bool(p.get("guess")),
+            "moved": bool(p.get("coords")),
+        }, "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]}})
+    loose = [f for f in by_file if f not in claimed]
+    (DATA_OUT / "places.geojson").write_text(json.dumps(
+        {"type": "FeatureCollection", "features": feats}, separators=(",", ":"), ensure_ascii=False))
+    named = sum(1 for f in feats if f["properties"]["name"])
+    report += ["## Places\n", f"{len(feats)} places ({named} named). {len(loose)} photos not in any place. "
+               f"{len(new_photos)} new photos grouped into {len(extra)} unnamed spots (name them in the tagger).\n"]
     return report
 
 
@@ -349,7 +419,10 @@ def main():
     args = ap.parse_args()
     feats, report = build_tracks()
     if not args.tracks:
-        report += build_photos(feats, resize=not args.no_resize)
+        photo_feats, r = build_photos(feats, resize=not args.no_resize)
+        report += r + build_places(photo_feats)
+        (DATA_OUT / "photos.geojson").write_text(json.dumps(
+            {"type": "FeatureCollection", "features": photo_feats}, separators=(",", ":"), ensure_ascii=False))
     REPORT.write_text("# Build report\n\n" + "\n".join(report) + "\n")
     print(f"Done. See {REPORT.relative_to(ROOT)}")
 
