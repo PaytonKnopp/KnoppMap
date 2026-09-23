@@ -96,9 +96,9 @@
 
 ## Tour
 
-13 stops (config/tour.json).
+14 stops (config/tour.json).
 
 ## Places
 
-61 places (13 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
+60 places (14 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
 
