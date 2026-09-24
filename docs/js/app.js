@@ -722,7 +722,6 @@
     const title = placeTitle(pl);
     highlightTrack(null);
     selectPlace(id);
-    history.replaceState(null, "", "#place=" + encodeURIComponent(id));
     const hero = heroOf(pl);
     const days = [...new Set(pl.photos.map((x) => fmtDate(x.taken, false)))].join(", ");
     const ll = pl.marker.getLatLng();
@@ -755,7 +754,7 @@
     });
     $('[data-act="zoom"]', body).onclick = () => { if (isPhone()) closeSheet(); map.flyTo(ll, 19, { duration: 0.8 }); };
     $('[data-act="go"]', body).onclick = () => takeMeThere(pl);
-    openSheet(`${icon(p.icon)} ${title}`, body, { back: back ?? !!sheetCurrent });
+    openSheet(`${icon(p.icon)} ${title}`, body, { back: back ?? !!sheetCurrent, hash: "#place=" + encodeURIComponent(id) });
     if (fly) flyToVisible(ll);
   }
 
@@ -798,7 +797,6 @@
     highlightTrack(id);
     if (hiddenTracks.has(id)) setTrackHidden(id, false);
     refreshTracks();
-    history.replaceState(null, "", "#trail=" + encodeURIComponent(id));
     const along = allPhotos.filter((x) => x.p.near === p.name).map((x) => x.p);
     const links = (p.connects || []).map((c) => tracks.get(c)).filter(Boolean)
       .sort((a, b) => a.f.properties.name.localeCompare(b.f.properties.name));
@@ -828,7 +826,7 @@
       }
     };
     $('[data-act="fit"]', body).onclick = fit;
-    openSheet(p.name, body, { back: back ?? false, titleIcon: TRAIL_SVG });
+    openSheet(p.name, body, { back: back ?? false, titleIcon: TRAIL_SVG, hash: "#trail=" + encodeURIComponent(id) });
     if (fly) fit();
     declutterSoon();
   }
@@ -979,44 +977,71 @@
 
   // ================================================================ back button
   // The phone's back button (or back gesture) closes the photo or panel that is open instead of leaving the map.
-  // Each of them owns one history entry while open; closing one with its ✕ uses that entry up again.
+  // Each of them owns a history entry while open; closing one with its ✕ uses its entries up again. A link to a place,
+  // trail or tour stop followed while the map is open adds an entry of its own, which becomes one more entry of the
+  // panel. Every entry the map makes carries a state and the browser's entry for a followed link has none, which is how
+  // a followed link is told apart from Back.
   const backLayers = [];
   let skipPops = 0, pendingBack = 0;
+  let handledHash = null;   // the address after the last back step or link, whose hashchange has been dealt with
   function pushBack(name) {
     if (backLayers.includes(name)) return;
     // The entry underneath never keeps a #place=… address, so going back to it can't reopen what was just closed.
     if (!backLayers.length) {
       const url = location.href;
-      history.replaceState(history.state, "", location.pathname + location.search);
+      history.replaceState({ km: "base" }, "", location.pathname + location.search);
       history.pushState({ km: name }, "", url);
     } else history.pushState({ km: name }, "", location.href);
     backLayers.push(name);
   }
   function dropBack(name) {
-    const i = backLayers.lastIndexOf(name);
-    if (i < 0) return;
-    backLayers.splice(i, 1);
-    // Closing the photo and its panel together (Show on map) steps back twice in one go.
-    if (!pendingBack++) queueMicrotask(() => { const n = pendingBack; pendingBack = 0; skipPops++; history.go(-n); });
+    const n = backLayers.filter((x) => x === name).length;
+    if (!n) return;
+    backLayers.splice(0, backLayers.length, ...backLayers.filter((x) => x !== name));
+    // Closing the photo and its panel together (Show on map) steps back over all of their entries in one go.
+    if (!pendingBack) queueMicrotask(() => { const k = pendingBack; pendingBack = 0; skipPops++; history.go(-k); });
+    pendingBack += n;
   }
-  window.addEventListener("popstate", () => {
-    if (skipPops) { skipPops--; return; }
-    const name = backLayers.pop();
-    if (name === "lightbox") closeLb(true);
-    else if (name === "sheet") {
-      // Inside a panel, back first goes to the list or card it was opened from.
-      if (sheetStack.length) { $("#sheet-back").click(); pushBack("sheet"); } else closeSheet(true);
+  /** [kind, id] when an address points at a place, trail or tour stop on the map, otherwise null. */
+  function linkOf(hash) {
+    let k, v;
+    try { [k, v] = decodeURIComponent(hash.slice(1)).split("="); } catch { return null; }
+    return (k === "place" && places.has(v)) || (k === "trail" && tracks.has(v)) || (k === "tour" && tour.stops.length) ? [k, v] : null;
+  }
+  window.addEventListener("popstate", (e) => {
+    if (skipPops) { skipPops--; handledHash = location.hash; return; }
+    const link = !e.state && linkOf(location.hash);
+    if (link) {
+      // It opens in the panel (closing a photo that was open), and Back then goes to what was showing before.
+      if (backLayers.at(-1) === "lightbox") { closeLb(true); backLayers[backLayers.length - 1] = "sheet"; }
+      history.replaceState({ km: "sheet" }, "", location.href);
+      backLayers.push("sheet");
+      const [k, v] = link;
+      if (k === "place") openPlace(v);
+      else if (k === "trail") openTrail(v, { back: !!sheetCurrent });
+      else startTour((parseInt(v, 10) || 1) - 1);
+    } else {
+      const name = backLayers.pop();
+      if (name === "lightbox") closeLb(true);
+      else if (name === "sheet") {
+        // Inside a panel, back first goes to the list or card it was opened from.
+        if (sheetStack.length) { $("#sheet-back").click(); pushBack("sheet"); }
+        else { closeSheet(true); dropBack("sheet"); }   // and past any other entries the panel still has
+      }
     }
+    handledHash = location.hash;
   });
 
   // ================================================================ sheet
   const sheet = $("#sheet");
   const sheetStack = [];
   let sheetCurrent = null;
-  function openSheet(title, content, { back = false, onClose = null, titleIcon = "" } = {}) {
+  // hash: the panel's own address (#place=…, #trail=…, #tour=…); lists and options have none.
+  function openSheet(title, content, { back = false, onClose = null, titleIcon = "", hash = "" } = {}) {
     if (!back) sheetStack.length = 0;
     else if (sheetCurrent) sheetStack.push(sheetCurrent);
-    sheetCurrent = { title, titleIcon, content, onClose, hash: location.hash };
+    history.replaceState(history.state, "", hash || location.pathname + location.search);
+    sheetCurrent = { title, titleIcon, content, onClose, hash };
     renderSheet();
     pushBack("sheet");
   }
@@ -1045,7 +1070,7 @@
     selectPlace(null);
     highlightTrack(null);
     refreshTracks();
-    history.replaceState(null, "", location.pathname + location.search);
+    history.replaceState(history.state, "", location.pathname + location.search);
     cbs.forEach((f) => f());
   }
   $("#sheet-close").onclick = () => closeSheet();
@@ -1057,7 +1082,12 @@
   $("#sheet-back").onclick = () => {
     sheetCurrent = sheetStack.pop();
     if (!sheetCurrent) return closeSheet();
-    history.replaceState(null, "", sheetCurrent.hash || location.pathname);
+    history.replaceState(history.state, "", sheetCurrent.hash || location.pathname);
+    // The map picks out the place or trail this card is about again.
+    const [k, v] = decodeURIComponent(sheetCurrent.hash.slice(1)).split("=");
+    highlightTrack(k === "trail" ? v : null);
+    selectPlace(k === "place" ? v : null);
+    refreshTracks();
     renderSheet();
   };
   document.addEventListener("keydown", (e) => {
@@ -1270,7 +1300,6 @@
     const text = stop.text || pl.f.properties.story || "";
     highlightTrack(null);
     selectPlace(pl.f.id);
-    history.replaceState(null, "", "#tour=" + (tourIdx + 1));
     const body = document.createElement("div");
     body.innerHTML = `
       <div class="tour-step">Stop ${tourIdx + 1} of ${n}</div>
@@ -1291,7 +1320,7 @@
       if (tourIdx === n - 1) { closeSheet(); fitFarm(); toast("That's the end of the tour. Thanks for visiting!"); return; }
       tourIdx++; showTourStop();
     };
-    openSheet(tour.title || "Tour of the quarter", body, { onClose: () => { tourIdx = -1; } });
+    openSheet(tour.title || "Tour of the quarter", body, { onClose: () => { tourIdx = -1; }, hash: "#tour=" + (tourIdx + 1) });
     setDockActive("tour");
     flyToVisible(pl.marker.getLatLng(), 18);
   }
@@ -2902,6 +2931,8 @@
     setTimeout(() => tilesSettled(8000).then(offlineAutoCheck).catch((err) => console.error(err)), 3000);
 
     window.addEventListener("hashchange", () => {
+      // Browsers send popstate first, which has already handled a followed link or a back step; this is for any that don't.
+      if (location.hash === handledHash) return;
       const [hk, hv] = decodeURIComponent(location.hash.slice(1)).split("=");
       if (hk === "place" && places.has(hv) && selectedPlace !== hv) openPlace(hv);
       else if (hk === "trail" && tracks.has(hv) && selectedTrack !== hv) openTrail(hv);
