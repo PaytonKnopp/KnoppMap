@@ -67,6 +67,15 @@ GitHub Pages from the `docs/` folder.
   legend and list of places.
 - **Offline:** Options → Print & offline → *Save everything to this device* keeps the map and all photos inside the
   browser, so the same link works at the quarter with no signal. "Add to Home Screen" gives it an app icon.
+  - The panel counts what is really saved on the device (not just a note that a save once happened) and says what
+    is missing: new photos, a save that was cut short, or a copy the phone cleared. *Save* only fetches what is
+    missing, so an interrupted save carries on where it stopped.
+  - Each visit with internet checks the saved copy by itself and quietly fills in a small gap (up to about 25 MB, not
+    on mobile data where the phone says so). A bigger gap gets a message with an *Update* button, at most once a day.
+  - Photos taken off the map are removed from the saved copy, and the browser is asked to keep the copy when space runs
+    low. A site update never leaves a saved map without its data.
+  - iPhones: Safari clears a website's saved data after about a week without a visit, so the panel suggests Add to
+    Home Screen and saving from inside the Home Screen app, which Safari leaves alone.
 - **Text size** starts on *Small* on phones (and phones turned sideways) and *Normal* on computers. A size you pick in
   Options is remembered on that device. Every size fits on the smallest phones (the top buttons and dock stop growing
   at a comfortable size).
