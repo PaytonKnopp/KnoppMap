@@ -22,7 +22,7 @@ main { display: grid; grid-template-columns: minmax(300px, 40%) 1fr; gap: 12px; 
 .card.flash { box-shadow: 0 0 0 3px #f2c200; }
 .card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .card input[type=text] { flex: 1; min-width: 180px; padding: 7px 10px; font: inherit; font-weight: 700; font-size: 16px; border: 1px solid #c9c1ae; border-radius: 8px; }
-.card select { padding: 6px; font: inherit; border-radius: 8px; border: 1px solid #c9c1ae; }
+.card select { padding: 6px; font: inherit; border-radius: 8px; border: 1px solid #c9c1ae; max-width: 100%; }
 .card textarea { width: 100%; min-height: 54px; font: inherit; padding: 7px 10px; border: 1px solid #c9c1ae; border-radius: 8px; resize: vertical; }
 .card .id { color: #8a8f84; font-size: 12px; }
 .card label.feat { display: flex; gap: 6px; align-items: center; font-size: 13px; }
@@ -44,7 +44,10 @@ main { display: grid; grid-template-columns: minmax(300px, 40%) 1fr; gap: 12px; 
 #viewer img { max-width: 96vw; max-height: 92vh; }
 #viewer button { position: fixed; top: 12px; right: 12px; font-size: 20px; }
 @media (max-width: 800px) {
-  main { grid-template-columns: 1fr; height: auto; }
+  /* minmax(0, …): a long option in a "move to" list must not widen the page past the screen */
+  main { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .toolbar input { min-width: 0; flex: 1 1 12rem; }
+  .card input[type=text] { min-width: 0; }
   #map { height: 320px; }
   #list { overflow: visible; }
 }

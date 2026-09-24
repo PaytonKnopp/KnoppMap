@@ -27,6 +27,10 @@ GitHub Pages from the `docs/` folder.
 - **Panels on a phone** (Places, Options, place cards and the rest) can be dragged up or down by their header to
   show as much or as little of the map as you like. Tap the little grip bar to jump between nearly full screen and
   the normal height. Closing the panel puts it back to normal.
+- **The phone's Back button** (or back swipe) closes the photo or panel that's open, and inside a panel goes back to
+  the list you opened it from, instead of leaving the map.
+- **Phones turned sideways** open on the whole property with its places showing, and photos fill the screen with
+  the caption and buttons floating over them.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
   Google Maps driving directions instead.
@@ -55,7 +59,10 @@ GitHub Pages from the `docs/` folder.
 - **Offline:** Options → Print & offline → *Save everything to this device* keeps the map and all photos inside the
   browser, so the same link works at the quarter with no signal. "Add to Home Screen" gives it an app icon.
 - **Text size** starts on *Small* on phones (and phones turned sideways) and *Normal* on computers. A size you pick in
-  Options is remembered on that device.
+  Options is remembered on that device. Every size fits on the smallest phones (the top buttons and dock stop growing
+  at a comfortable size).
+- **Slow or no connection:** a "Loading the map…" note appears if the data takes a moment. If it can't load at all, a
+  *Try again* screen explains why, and it retries by itself when the phone comes back online.
 - **Nothing is remembered between visits** except text size and whether the tips were seen. Every visit opens with
   the original look and filters.
 

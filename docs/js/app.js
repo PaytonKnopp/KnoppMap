@@ -29,6 +29,12 @@
     const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos((b.lng - a.lng) * r);
     return (Math.atan2(y, x) / r + 360) % 360;
   }
+  // Moving focus into a photo or dialog shows the focus ring only to people using the keyboard, not after a tap
+  // (the CSS hides rings while data-input is "pointer"; focusVisible does the same where browsers support it).
+  const inputKind = (kind) => () => { if (document.documentElement.dataset.input !== kind) document.documentElement.dataset.input = kind; };
+  document.addEventListener("keydown", inputKind("keys"), true);
+  document.addEventListener("pointerdown", inputKind("pointer"), true);
+  const focusQuietly = (el) => el?.focus({ focusVisible: document.documentElement.dataset.input === "keys" });
   const compassShort = (deg) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(deg / 45) % 8];
   const compass = (deg) => ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(deg / 45) % 8];
 
@@ -108,6 +114,17 @@
   const CARTO = "https://{s}.basemaps.cartocdn.com/";
   // Tiles keep old imagery on screen while zooming instead of flashing grey, and don't fetch mid-animation.
   const TILE_OPTS = { maxZoom: 22, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
+  // Between whole zoom levels the tiles are scaled, and the browser leaves hairline lines between them. Base map tiles
+  // are drawn one pixel larger so they overlap, and app.css turns off Leaflet's additive blending for them. (Not the
+  // see-through radar or hill tiles: an overlap would show there.)
+  const initTile = L.GridLayer.prototype._initTile;
+  L.GridLayer.include({ _initTile(tile) {
+    initTile.call(this, tile);
+    if (this.options.pane !== "tilePane") return;
+    const s = this.getTileSize();
+    tile.style.width = s.x + 1 + "px";
+    tile.style.height = s.y + 1 + "px";
+  } });
   let madeKeys = null;   // which Esri services the map style being built uses (see setBase)
   const esriLayer = (svc, key, attribution, extra = {}) => {
     madeKeys?.add(key);
@@ -638,12 +655,18 @@
     style="background-image:url(&quot;${esc(photoUrl(p, "thumb"))}&quot;)">`;
   const featuredPlaces = () => [...places.values()].filter((pl) => pl.f.properties.featured);
 
-  /** Fly so the point sits in the part of the screen not covered by the sheet. */
+  /** How far the buttons along the top and the dock along the bottom reach into the screen, in pixels. */
+  function uiInsets() {
+    const top = Math.max(0, ...$$("#topbar .top-actions, #topbar h1").map((el) => el.getBoundingClientRect().bottom));
+    const dock = $("#dock").getBoundingClientRect();
+    return { top, bottom: dock.height ? window.innerHeight - dock.top : 0 };
+  }
+  /** Fly so the point sits in the part of the screen not covered by the sheet or the top buttons. */
   function flyToVisible(ll, zoom) {
     const z = zoom ?? Math.max(map.getZoom(), 17.5);
     let pt = map.project(ll, z);
     if (!$("#sheet").hidden) {
-      if (isPhone()) pt = pt.add([0, $("#sheet").offsetHeight / 2]);
+      if (isPhone()) pt = pt.add([0, ($("#sheet").offsetHeight - uiInsets().top) / 2]);
       else pt = pt.subtract([($("#sheet").offsetWidth + 24) / 2, 0]);
     }
     map.flyTo(map.unproject(pt, z), z, { duration: 0.8 });
@@ -713,11 +736,12 @@
 
   function elevationSvg(profile) {
     if (!profile || profile.length < 2) return "";
-    const W = 320, H = 110, pad = { l: 34, r: 8, t: 10, b: 20 };
     const maxD = profile[profile.length - 1][0] || 1;
     const es = profile.map((p) => p[1]);
     let lo = Math.min(...es), hi = Math.max(...es);
     if (hi - lo < 6) { const m = (hi + lo) / 2; lo = m - 3; hi = m + 3; }
+    // The left margin fits the height labels ("996 m", or "3268 ft" in feet), so they're never cut off at the edge.
+    const W = 320, H = 110, pad = { l: Math.ceil(Math.max(fmtH(hi).length, fmtH(lo).length) * 5.9) + 8, r: 8, t: 10, b: 20 };
     const x = (d) => pad.l + (d / maxD) * (W - pad.l - pad.r);
     const y = (e) => pad.t + (1 - (e - lo) / (hi - lo)) * (H - pad.t - pad.b);
     const pts = profile.map((p) => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
@@ -762,10 +786,11 @@
     links.forEach((o) => ls.append(trailChip(o)));
     if (along.length) $('[data-slot="gallery"]', body).replaceWith(gallery(along, p.name));
     const fit = () => {
+      const ui = uiInsets();
       if (isPhone()) {
-        map.flyToBounds(t.line.getBounds(), { paddingTopLeft: [30, 80], paddingBottomRight: [30, window.innerHeight * 0.66], maxZoom: 18, duration: 0.8 });
+        map.flyToBounds(t.line.getBounds(), { paddingTopLeft: [30, ui.top + 20], paddingBottomRight: [30, $("#sheet").offsetHeight + 20], maxZoom: 18, duration: 0.8 });
       } else {
-        map.flyToBounds(t.line.getBounds(), { paddingTopLeft: [$("#sheet").offsetWidth + 50, 80], paddingBottomRight: [80, 120], maxZoom: 18, duration: 0.8 });
+        map.flyToBounds(t.line.getBounds(), { paddingTopLeft: [$("#sheet").offsetWidth + 50, ui.top + 20], paddingBottomRight: [80, ui.bottom + 20], maxZoom: 18, duration: 0.8 });
       }
     };
     $('[data-act="fit"]', body).onclick = fit;
@@ -868,13 +893,22 @@
   // (measuring between changes made the browser lay the page out again for every pin and label).
   let declutterFrame = 0;
   const declutterSoon = () => { if (!declutterFrame) declutterFrame = requestAnimationFrame(declutter); };
+  // A place name that would run off the side of the screen slides back in, while still reaching under its pin.
+  function nameBox(name, width) {
+    const r = name.getBoundingClientRect(), was = name.kmShift || 0;
+    const left = r.left - was, right = r.right - was, room = Math.max(0, r.width / 2 - 14);
+    const want = left < 6 ? 6 - left : right > width - 6 ? width - 6 - right : 0;
+    const shift = Math.round(Math.max(-room, Math.min(room, want)));
+    return { left: left + shift, right: right + shift, top: r.top, bottom: r.bottom, shift };
+  }
   function declutter() {
     cancelAnimationFrame(declutterFrame);
     declutterFrame = 0;
     const rank = (pl) => (pl.f.id === selectedPlace ? 1e6 : 0) + (pl.f.properties.featured ? 1e3 : 0) + pl.photos.length;
+    const width = map.getSize().x;
     const pins = [...places.values()].filter((pl) => map.hasLayer(pl.marker)).sort((a, b) => rank(b) - rank(a))
       .map((pl) => pl.marker.getElement()?.querySelector(".place-pin")).filter(Boolean)
-      .map((pin) => { const name = pin.querySelector(".name"); return { pin, name, br: pin.querySelector(".bubble").getBoundingClientRect(), nr: name?.getBoundingClientRect() }; });
+      .map((pin) => { const name = pin.querySelector(".name"); return { pin, name, br: pin.querySelector(".bubble").getBoundingClientRect(), nr: name && nameBox(name, width) }; });
     const labels = [...tracks.values()].filter((t) => map.hasLayer(t.label))
       .sort((a, b) => (b.f.id === selectedTrack) - (a.f.id === selectedTrack))
       .map((t) => t.label.getElement()).filter(Boolean).map((el) => ({ el, r: el.getBoundingClientRect() }));
@@ -892,7 +926,44 @@
       if (!off) boxes.push(r);
     }
     hide.forEach((off, el) => el.classList.toggle("declutter-hide", off));
+    for (const { name, nr } of pins) {
+      if (!name || nr.shift === (name.kmShift || 0)) continue;
+      name.kmShift = nr.shift;
+      name.style.transform = nr.shift ? `translateX(${nr.shift}px)` : "";
+    }
   }
+
+  // ================================================================ back button
+  // The phone's back button (or back gesture) closes the photo or panel that is open instead of leaving the map.
+  // Each of them owns one history entry while open; closing one with its ✕ uses that entry up again.
+  const backLayers = [];
+  let skipPops = 0, pendingBack = 0;
+  function pushBack(name) {
+    if (backLayers.includes(name)) return;
+    // The entry underneath never keeps a #place=… address, so going back to it can't reopen what was just closed.
+    if (!backLayers.length) {
+      const url = location.href;
+      history.replaceState(history.state, "", location.pathname + location.search);
+      history.pushState({ km: name }, "", url);
+    } else history.pushState({ km: name }, "", location.href);
+    backLayers.push(name);
+  }
+  function dropBack(name) {
+    const i = backLayers.lastIndexOf(name);
+    if (i < 0) return;
+    backLayers.splice(i, 1);
+    // Closing the photo and its panel together (Show on map) steps back twice in one go.
+    if (!pendingBack++) queueMicrotask(() => { const n = pendingBack; pendingBack = 0; skipPops++; history.go(-n); });
+  }
+  window.addEventListener("popstate", () => {
+    if (skipPops) { skipPops--; return; }
+    const name = backLayers.pop();
+    if (name === "lightbox") closeLb(true);
+    else if (name === "sheet") {
+      // Inside a panel, back first goes to the list or card it was opened from.
+      if (sheetStack.length) { $("#sheet-back").click(); pushBack("sheet"); } else closeSheet(true);
+    }
+  });
 
   // ================================================================ sheet
   const sheet = $("#sheet");
@@ -903,6 +974,7 @@
     else if (sheetCurrent) sheetStack.push(sheetCurrent);
     sheetCurrent = { title, titleIcon, content, onClose, hash: location.hash };
     renderSheet();
+    pushBack("sheet");
   }
   function renderSheet() {
     $("#sheet-title").innerHTML = (sheetCurrent.titleIcon ? `<span class="title-ic">${sheetCurrent.titleIcon}</span>` : "") + esc(sheetCurrent.title);
@@ -916,7 +988,8 @@
     document.body.classList.add("sheet-open");
     if (isPhone() && !$("#legend-pop").hidden) $("#legend-pop .lp-x").click();
   }
-  function closeSheet() {
+  function closeSheet(fromBackButton = false) {
+    if (fromBackButton !== true) dropBack("sheet");
     const cbs = [sheetCurrent, ...sheetStack].map((s) => s?.onClose).filter(Boolean);
     sheet.hidden = true;
     sheetStack.length = 0;
@@ -931,7 +1004,7 @@
     history.replaceState(null, "", location.pathname + location.search);
     cbs.forEach((f) => f());
   }
-  $("#sheet-close").onclick = closeSheet;
+  $("#sheet-close").onclick = () => closeSheet();
   // Phones show the radar controls inside the sheet; this puts them back in their place over the map.
   function homeRadarPanel() {
     const panel = document.getElementById("radar-panel");
@@ -1120,7 +1193,7 @@
   }
   // "/" opens search on a computer, like most websites.
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "/" || e.ctrlKey || e.metaKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || !$("#lightbox").hidden) return;
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || !$("#lightbox").hidden || $(".overlay:not([hidden])")) return;
     e.preventDefault();
     searchSheet();
   });
@@ -1149,8 +1222,8 @@
       <div class="tour-step">Stop ${tourIdx + 1} of ${n}</div>
       <div class="progress"><span style="width:${((tourIdx + 1) / n) * 100}%"></span></div>
       <div class="tour-name">${icon(pl.f.properties.icon)} ${esc(title)}</div>
+      ${text ? `<p class="place-story tour-text">${esc(text)}</p>` : ""}
       ${hero ? heroImg(hero, title) : ""}
-      ${text ? `<p class="place-story">${esc(text)}</p>` : ""}
       <div class="btn-row tour-btns"><button class="big ghost" data-act="all">📷 All ${pl.photos.length} photos</button><button class="big ghost" data-act="go">🧭 Take me there</button></div>
       <div class="tour-nav">
         <button class="big ghost" data-act="prev" ${tourIdx === 0 ? "disabled" : ""}>‹ Back</button>
@@ -1525,14 +1598,17 @@
   }
   function resetZoom() { zs = 1; zx = 0; zy = 0; applyZoom(); }
 
+  let lbReturn = null;   // what had focus before the photo opened, so it gets it back afterwards
   function openLightbox(list, idx, title) {
     lbList = list; lbIdx = idx; lbTitle = title;
     const strip = $(".lb-strip", lb);
     strip.innerHTML = list.length > 1 ? list.map((p, i) => `<button data-i="${i}" aria-label="Photo ${i + 1}"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"></button>`).join("") : "";
     $$("button", strip).forEach((b) => b.onclick = () => { lbIdx = +b.dataset.i; drawLightbox(); });
     drawLightbox();
+    if (lb.hidden) lbReturn = document.activeElement;
     lb.hidden = false;
-    $(".lb-close", lb).focus();
+    pushBack("lightbox");
+    focusQuietly($(".lb-close", lb));
   }
   let lbWant = "";
   function drawLightbox() {
@@ -1559,8 +1635,14 @@
     if (multi) [1, -1].forEach((d) => { new Image().src = photoUrl(lbList[(lbIdx + d + lbList.length) % lbList.length]); });   // the ones either side
   }
   const step = (d) => { lbIdx = (lbIdx + d + lbList.length) % lbList.length; drawLightbox(); };
-  const closeLb = () => { lb.hidden = true; resetZoom(); };
-  $(".lb-close", lb).onclick = closeLb;
+  function closeLb(fromBackButton = false) {
+    if (fromBackButton !== true) dropBack("lightbox");
+    lb.hidden = true;
+    resetZoom();
+    if (lbReturn?.isConnected && !lbReturn.closest("[hidden]")) lbReturn.focus({ preventScroll: true });
+    lbReturn = null;
+  }
+  $(".lb-close", lb).onclick = () => closeLb();
   $(".lb-prev", lb).onclick = () => step(-1);
   $(".lb-next", lb).onclick = () => step(1);
   $('[data-lb="zoom"]', lb).onclick = () => {
@@ -2035,7 +2117,7 @@
   (printMQ.addEventListener ? printMQ.addEventListener.bind(printMQ, "change") : printMQ.addListener.bind(printMQ))((e) => { if (!e.matches) setTimeout(exitPrint, 100); });
 
   // ================================================================ welcome
-  function showWelcome() { $("#welcome").hidden = false; $("#welcome-tour").focus(); }
+  function showWelcome() { $("#welcome").hidden = false; focusQuietly($("#welcome-tour")); }
   const doneWelcome = () => { $("#welcome").hidden = true; store.set("welcomed", true); };
   $("#welcome-ok").onclick = doneWelcome;
   $("#welcome-x").onclick = doneWelcome;
@@ -2433,8 +2515,10 @@
   // ================================================================ dock
   function fitFarm(animate = true) {
     if (!farmBounds) return;
-    const side = isPhone() ? 20 : 60;
-    const opts = { paddingTopLeft: [side, 80], paddingBottomRight: [side, 120] };
+    // Room for the pins and names along the edges, except on short screens (phones turned sideways), where every
+    // pixel counts: there the whole quarter has to be big enough for its places to show.
+    const side = isPhone() ? 20 : 60, ui = uiInsets(), edge = window.innerHeight < 560 ? 8 : 30;
+    const opts = { paddingTopLeft: [side, ui.top + edge], paddingBottomRight: [side, ui.bottom + edge * 1.7] };
     if (animate) map.flyToBounds(farmBounds, { ...opts, duration: 0.8 }); else map.fitBounds(farmBounds, opts);
   }
   $("#dock").addEventListener("click", (e) => {
@@ -2472,6 +2556,7 @@
   // ================================================================ load
   function askPassword(retry) {
     return new Promise((resolve) => {
+      $("#loading").hidden = true;
       $("#lock").hidden = false;
       $("#lock-err").hidden = !retry;
       const input = $("#lock-pw");
@@ -2480,6 +2565,7 @@
       $("#lock-form").onsubmit = (e) => {
         e.preventDefault();
         $("#lock").hidden = true;
+        $("#loading").hidden = false;
         resolve({ password: input.value, remember: $("#lock-remember").checked });
       };
     });
@@ -2552,8 +2638,19 @@
     farmView = { center: map.getCenter(), zoom: map.getZoom() };
   }
 
-  loadBundle(askPassword, presetView).then(start).catch((err) => {
+  // A friendly screen with a Try again button instead of a bare alert; coming back online retries by itself.
+  function loadFailed(err) {
     console.error(err);
-    alert(navigator.onLine ? "Sorry, the map couldn't load. Please refresh the page." : "You're offline and this map hasn't been saved on this device yet.");
-  });
+    $("#loading").hidden = true;
+    const offline = !navigator.onLine;
+    $("#le-msg").textContent = offline
+      ? "You're offline, and this map hasn't been saved on this device yet. It will load as soon as you're back online."
+      : "Something went wrong while loading. Please check your internet connection and try again.";
+    $("#load-error").hidden = false;
+    focusQuietly($("#le-retry"));
+    if (offline) window.addEventListener("online", () => location.reload(), { once: true });
+  }
+  $("#le-retry").onclick = () => location.reload();
+
+  loadBundle(askPassword, presetView).then((res) => { $("#loading").hidden = true; start(res); }).catch(loadFailed);
 })();
