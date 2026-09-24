@@ -35,6 +35,8 @@ GitHub Pages from the `docs/` folder.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
   Google Maps driving directions instead.
+- **Photo viewer** shows each photo's name, date and the exact coordinates where it was taken; tap the coordinates
+  to open that spot in Google Maps.
 - **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
   tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
 - **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.
@@ -48,8 +50,8 @@ GitHub Pages from the `docs/` folder.
   - *Trail colours & lines:* colour by one colour / each trail / steepness / length, pick the single trail colour,
     line style (the look's own, solid, dashed, dotted), thickness, see-through, map brightness, dark outline on or
     off, and *Moving trails* (dashes flow along every trail).
-  - *Filter trails & places:* trail length, steepness, kinds of places (with Show all /
-    Hide all), and a live count of what's showing.
+  - *Filter trails & places:* trail length, steepness, each named place by its own name (with Show all /
+    Hide all), and a live count of what's showing. Renaming a place in the editor renames its filter too.
   - *Labels & extras:* trail name size, distances in metres or feet and miles (everywhere: cards, measure, scale,
     rings), distance rings around the house, direction arrows on named trails, trail lengths next to
     names, compass and scale bar, small photo spots, photo grouping, and shading inside the property line.
