@@ -885,7 +885,16 @@ body.sheet-open #measure-panel { display: none; }
 #legend-pop h2 { margin: 0; font-family: var(--head-font); font-size: 1.15rem; color: var(--green); }
 #legend-pop .legend { font-size: 0.92rem; }
 @keyframes pop-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
-body.sheet-open #legend-pop { right: auto; left: 0.75rem; }
+/* With a panel open (on the left) the legend stays in its place on the right: it narrows to the room beside the panel
+   (never below 12rem), and in a window too narrow for both it sits over the panel rather than hidden behind it.
+   --sheet-w matches the panel's width in each layout. (Upright phones close the legend when a panel opens.) */
+:root { --sheet-w: min(26rem, 100vw - 1.5rem); }
+@media (max-height: 500px) and (orientation: landscape) { :root { --sheet-w: min(24rem, 50vw); } }
+body.sheet-open #legend-pop { z-index: 1110; width: min(22rem, calc(100vw - 1.5rem), max(12rem, calc(100vw - var(--sheet-w) - 2.25rem))); }
+/* Upright phones: the panel runs along the bottom, not down the side, so the legend keeps its usual width. */
+@media (max-width: 700px) and (min-height: 501px), (max-width: 700px) and (orientation: portrait) {
+  body.sheet-open #legend-pop { width: min(21rem, calc(100vw - 1rem)); }
+}
 
 /* =================================================================== take me there */
 #nav-panel { position: fixed; z-index: 1055; left: 50%; transform: translateX(-50%); top: calc(4.4rem + env(safe-area-inset-top));
