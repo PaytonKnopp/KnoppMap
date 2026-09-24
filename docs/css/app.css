@@ -1045,6 +1045,32 @@ html, body { overscroll-behavior: none; }
   #legend-pop { max-height: calc(100dvh - 4rem - env(safe-area-inset-top)); }
   #loc-chip { top: calc(3.4rem + env(safe-area-inset-top)); }
 }
+/* Sideways phones: the welcome tips and the photo viewer give the room to the tips and the photo. */
+@media (max-height: 500px) {
+  #welcome.overlay { padding: 0.4rem; }
+  .welcome-card.tips { max-height: calc(100dvh - 0.8rem); }
+  .tips-head { padding: 0.6rem 3.4rem 0.5rem 1rem; gap: 0.7rem; }
+  .tips-head .welcome-art { font-size: 1.8rem; }
+  .tips-head h2 { font-size: 1.15rem; }
+  .tips-sub { font-size: 0.85rem; }
+  .tips-x { top: 0.5rem; right: 0.5rem; }
+  .tips-body { padding: 0.7rem 1rem; }
+  .tips-foot { padding: 0.5rem 1rem; }
+  .tips-foot .big { min-height: 2.5rem; font-size: 1rem; padding: 0.4rem 0.8rem; }
+  .tips-note { display: none; }
+  .lb-top { padding: calc(0.4rem + env(safe-area-inset-top)) max(0.6rem, env(safe-area-inset-right)) 0.2rem max(0.8rem, env(safe-area-inset-left)); }
+  .lb-cap { font-size: 0.9rem; }
+  .lb-cap b { font-size: 1rem; }
+  .lb-top .round { width: 2.4rem; height: 2.4rem; }
+  .lb-prev { left: max(0.6rem, env(safe-area-inset-left)); }
+  .lb-next { right: max(0.6rem, env(safe-area-inset-right)); }
+  .lb-bottom { display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.3rem max(0.6rem, env(safe-area-inset-right)) calc(0.4rem + env(safe-area-inset-bottom)) max(0.6rem, env(safe-area-inset-left)); }
+  .lb-tools { flex: none; flex-wrap: nowrap; padding: 0; }
+  .lb-btn { min-height: 2.4rem; padding: 0.35rem 0.8rem; }
+  .lb-strip { flex: 1; min-width: 0; padding: 0; }
+  .lb-strip button { width: 3.4rem; height: 2.5rem; }
+}
 
 /* =================================================================== loading and "didn't load" */
 /* Fades in only if the map data takes more than a moment (a slow connection at the quarter). */
@@ -1100,20 +1126,14 @@ html, body { overscroll-behavior: none; }
 }
 
 /* =================================================================== photo viewer on short screens */
-/* Phones turned sideways: the caption and buttons float over the photo, so the photo gets the whole height. */
+/* Phones turned sideways: on top of the slimmer caption and button row above, both float over the photo, so the
+   photo gets the whole height. */
 @media (max-height: 500px) {
   .lb-stage { position: absolute; inset: 0; }
   .lb-top, .lb-bottom { position: absolute; left: 0; right: 0; z-index: 2; pointer-events: none; }
   .lb-top > *, .lb-bottom > * { pointer-events: auto; }
-  .lb-top { top: 0; padding: calc(0.5rem + env(safe-area-inset-top)) max(0.8rem, env(safe-area-inset-right)) 1.6rem max(1rem, env(safe-area-inset-left));
-    background: linear-gradient(rgba(0, 0, 0, .72), rgba(0, 0, 0, 0)); }
+  .lb-top { top: 0; padding-bottom: 1.6rem; background: linear-gradient(rgba(0, 0, 0, .72), rgba(0, 0, 0, 0)); }
   .lb-cap { text-shadow: 0 1px 3px rgba(0, 0, 0, .8); }
-  .lb-bottom { bottom: 0; display: flex; align-items: center; gap: 0.5rem;
-    padding: 1.4rem max(0.6rem, env(safe-area-inset-right)) calc(0.4rem + env(safe-area-inset-bottom)) max(0.6rem, env(safe-area-inset-left));
-    background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, .72)); }
-  .lb-tools { flex: none; flex-wrap: nowrap; padding: 0; }
-  .lb-btn { min-height: 2.5rem; padding: 0.4rem 0.85rem; }
-  .lb-strip { flex: 1; min-width: 0; padding: 0; }
-  .lb-strip button { width: 3.4rem; height: 2.5rem; }
+  .lb-bottom { bottom: 0; padding-top: 1.4rem; background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, .72)); }
   .lb-nav { width: 2.8rem; height: 3.6rem; font-size: 1.8rem; }
 }
