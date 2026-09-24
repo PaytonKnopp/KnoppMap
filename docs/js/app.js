@@ -3,7 +3,9 @@
   const { icon, esc, fmtDate, store, loadBundle, photoUrl } = KM;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-  const isPhone = () => window.matchMedia("(max-width: 700px)").matches;
+  // An upright phone: panels come up from the bottom. A phone turned sideways, however narrow, gets the side panel
+  // instead (the same split as the media queries in app.css).
+  const isPhone = () => window.matchMedia("(max-width: 700px) and (min-height: 501px), (max-width: 700px) and (orientation: portrait)").matches;
 
   // Zoom levels at which things appear.
   const Z = { farmPin: 14.5, trails: 13.5, places: 14.5, photos: 16.75, minorPlaces: 17, roadLabels: 16, trailLabels: 17 };
@@ -35,6 +37,15 @@
   document.addEventListener("keydown", inputKind("keys"), true);
   document.addEventListener("pointerdown", inputKind("pointer"), true);
   const focusQuietly = (el) => el?.focus({ focusVisible: document.documentElement.dataset.input === "keys" });
+  // Tab stays inside an open photo or dialog instead of wandering to the buttons hidden behind it.
+  document.addEventListener("keydown", (e) => {
+    const box = e.key === "Tab" && $("#load-error:not([hidden]), #lock:not([hidden]), .overlay:not([hidden]), #lightbox:not([hidden])");
+    if (!box) return;
+    const items = $$("button, input, a[href]", box).filter((el) => !el.disabled && el.getClientRects().length);
+    if (!items.length) return;
+    const inside = box.contains(document.activeElement), first = items[0], last = items[items.length - 1];
+    if (!inside || document.activeElement === (e.shiftKey ? first : last)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  });
   const compassShort = (deg) => ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(deg / 45) % 8];
   const compass = (deg) => ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(deg / 45) % 8];
 
@@ -49,6 +60,7 @@
   let sizeIdx = Math.min(2, store.get("textSize", smallScreen ? 0 : 1));
   function applySize() {
     document.documentElement.style.fontSize = SIZES[sizeIdx] + "px";
+    document.documentElement.dataset.size = sizeIdx;
     setTimeout(declutter, 50);
   }
   const SIZE_NAMES = ["Small", "Normal", "Large"];
@@ -398,6 +410,7 @@
 
   // ================================================================ state
   let farmBounds = null, farmPin = null;
+  let homeZoom = Infinity;   // how far the Home button zooms on this screen (worked out in farmFit)
   setBase(baseKey);
   let trailsOn = true;
   let photosOn = true;
@@ -622,16 +635,18 @@
     }
   }
   function refreshPlaces() {
-    const z = map.getZoom();
+    // On the smallest screens the whole quarter only fits a little below the usual zoom for named places; they
+    // still show on the Home view there (the least important give way if they would sit on top of each other).
+    const z = map.getZoom(), placesAt = Math.min(Z.places, homeZoom);
     places.forEach((pl) => {
       const p = pl.f.properties;
       const typeOk = !adv.hiddenTypes.includes(p.icon);
-      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= Z.places : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
+      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= placesAt : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
       if (show && !map.hasLayer(pl.marker)) pl.marker.addTo(map);
       if (!show && map.hasLayer(pl.marker)) map.removeLayer(pl.marker);
     });
     if (farmPin) {
-      const show = z < Z.farmPin;
+      const show = z < Math.min(Z.farmPin, placesAt);
       if (show && !map.hasLayer(farmPin)) farmPin.addTo(map);
       if (!show && map.hasLayer(farmPin)) map.removeLayer(farmPin);
     }
@@ -893,22 +908,28 @@
   // (measuring between changes made the browser lay the page out again for every pin and label).
   let declutterFrame = 0;
   const declutterSoon = () => { if (!declutterFrame) declutterFrame = requestAnimationFrame(declutter); };
-  // A place name that would run off the side of the screen slides back in, while still reaching under its pin.
-  function nameBox(name, width) {
-    const r = name.getBoundingClientRect(), was = name.kmShift || 0;
-    const left = r.left - was, right = r.right - was, room = Math.max(0, r.width / 2 - 14);
+  // A place name that would run off the side of the screen slides back in, while still reaching under its pin, and
+  // one that would sit behind the dock goes above its pin instead.
+  function nameBox(name, width, bubble, dock) {
+    const r = name.getBoundingClientRect(), [wasX, wasY] = name.kmShift || [0, 0];
+    const left = r.left - wasX, right = r.right - wasX, top = r.top - wasY, room = Math.max(0, r.width / 2 - 14);
     const want = left < 6 ? 6 - left : right > width - 6 ? width - 6 - right : 0;
-    const shift = Math.round(Math.max(-room, Math.min(room, want)));
-    return { left: left + shift, right: right + shift, top: r.top, bottom: r.bottom, shift };
+    const dx = Math.round(Math.max(-room, Math.min(room, want)));
+    const behindDock = dock.height && left + dx < dock.right && right + dx > dock.left && top + r.height > dock.top;
+    const dy = behindDock ? Math.round(bubble.top - 10 - r.height - top) : 0;   // 10: clear of the photo count badge
+    return { left: left + dx, right: right + dx, top: top + dy, bottom: top + dy + r.height, shift: [dx, dy] };
   }
   function declutter() {
     cancelAnimationFrame(declutterFrame);
     declutterFrame = 0;
     const rank = (pl) => (pl.f.id === selectedPlace ? 1e6 : 0) + (pl.f.properties.featured ? 1e3 : 0) + pl.photos.length;
-    const width = map.getSize().x;
+    const width = map.getSize().x, dock = $("#dock").getBoundingClientRect();
     const pins = [...places.values()].filter((pl) => map.hasLayer(pl.marker)).sort((a, b) => rank(b) - rank(a))
       .map((pl) => pl.marker.getElement()?.querySelector(".place-pin")).filter(Boolean)
-      .map((pin) => { const name = pin.querySelector(".name"); return { pin, name, br: pin.querySelector(".bubble").getBoundingClientRect(), nr: name && nameBox(name, width) }; });
+      .map((pin) => {
+        const name = pin.querySelector(".name"), br = pin.querySelector(".bubble").getBoundingClientRect();
+        return { pin, name, br, nr: name && nameBox(name, width, br, dock) };
+      });
     const labels = [...tracks.values()].filter((t) => map.hasLayer(t.label))
       .sort((a, b) => (b.f.id === selectedTrack) - (a.f.id === selectedTrack))
       .map((t) => t.label.getElement()).filter(Boolean).map((el) => ({ el, r: el.getBoundingClientRect() }));
@@ -927,9 +948,11 @@
     }
     hide.forEach((off, el) => el.classList.toggle("declutter-hide", off));
     for (const { name, nr } of pins) {
-      if (!name || nr.shift === (name.kmShift || 0)) continue;
+      if (!name) continue;
+      const [dx, dy] = nr.shift, [wasX, wasY] = name.kmShift || [0, 0];
+      if (dx === wasX && dy === wasY) continue;
       name.kmShift = nr.shift;
-      name.style.transform = nr.shift ? `translateX(${nr.shift}px)` : "";
+      name.style.transform = dx || dy ? `translate(${dx}px, ${dy}px)` : "";
     }
   }
 
@@ -2513,14 +2536,23 @@
   }
 
   // ================================================================ dock
+  // Room for the pins and names along the edges, except on short screens (phones turned sideways), where every
+  // pixel counts: there the whole quarter has to be big enough for its places to show. On an upright phone the
+  // quarter spans the full width, so it starts below the zoom buttons rather than tucking its corner under them.
+  function farmFit() {
+    const side = isPhone() ? 20 : 60, ui = uiInsets(), tight = window.innerHeight < 560;
+    const top = Math.max(ui.top, (isPhone() && !tight && $(".leaflet-control-zoom")?.getBoundingClientRect().bottom) || 0) + (tight ? 8 : 30);
+    const opts = { paddingTopLeft: [side, top], paddingBottomRight: [side, ui.bottom + (tight ? 14 : 51)] };
+    homeZoom = Math.max(13.5, map.getBoundsZoom(farmBounds, false, L.point(opts.paddingTopLeft).add(opts.paddingBottomRight)));
+    return opts;
+  }
   function fitFarm(animate = true) {
     if (!farmBounds) return;
-    // Room for the pins and names along the edges, except on short screens (phones turned sideways), where every
-    // pixel counts: there the whole quarter has to be big enough for its places to show.
-    const side = isPhone() ? 20 : 60, ui = uiInsets(), edge = window.innerHeight < 560 ? 8 : 30;
-    const opts = { paddingTopLeft: [side, ui.top + edge], paddingBottomRight: [side, ui.bottom + edge * 1.7] };
+    const opts = farmFit();
     if (animate) map.flyToBounds(farmBounds, { ...opts, duration: 0.8 }); else map.fitBounds(farmBounds, opts);
   }
+  // Turning the phone round changes how far the Home view zooms, and so where the places start to show.
+  window.addEventListener("resize", () => { if (farmBounds) { farmFit(); refreshPlaces(); } });
   $("#dock").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;

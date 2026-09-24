@@ -29,7 +29,8 @@ GitHub Pages from the `docs/` folder.
   the normal height. Closing the panel puts it back to normal.
 - **The phone's Back button** (or back swipe) closes the photo or panel that's open, and inside a panel goes back to
   the list you opened it from, instead of leaving the map.
-- **Phones turned sideways** open on the whole property with its places showing, and photos fill the screen with
+- **Phones turned sideways** (any phone, including the narrower iPhone SE and iPhone 8) get a slim dock with panels
+  down the left side, open on the whole property with its places showing, and show photos filling the screen with
   the caption and buttons floating over them.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
