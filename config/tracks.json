@@ -207,7 +207,11 @@
       "category": "houses",
       "color": "#ff6200",
       "snap": false,
-      "site": "ck-house"
+      "site": "ck-house",
+      "end_on": [
+        -114.470644,
+        52.2888
+      ]
     }
   }
 }

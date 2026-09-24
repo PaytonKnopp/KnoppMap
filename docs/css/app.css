@@ -1185,3 +1185,15 @@ html, body { overscroll-behavior: none; }
 .sm-item[aria-checked="true"] .sm-check { visibility: visible; }
 .sm-sec { margin: 0.35rem 0.55rem 0.15rem; padding-top: 0.45rem; border-top: 1px solid var(--line); font-size: 0.72rem; font-weight: 800;
   text-transform: uppercase; letter-spacing: 0.08em; color: var(--green); }
+/* Title and Options as a matched pair: the title's arrow sits in its own small round badge so it reads as a menu. */
+#topbar h1 { border: 2px solid color-mix(in srgb, var(--green) 22%, transparent); transition: transform .15s, box-shadow .15s; }
+#topbar h1:hover { transform: translateY(-1px); }
+#site-btn { gap: 0.5rem; }
+#site-btn .st-caret { width: 1.35em; height: 1.35em; border: 0; transform: none; opacity: 1; border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--green) 14%, transparent); }
+#site-btn .st-caret::before { content: ""; width: 0.36em; height: 0.36em; border-right: 0.12em solid currentColor; border-bottom: 0.12em solid currentColor;
+  transform: translateY(-0.08em) rotate(45deg); transition: transform .15s; }
+#site-btn[aria-expanded="true"] .st-caret { transform: none; }
+#site-btn[aria-expanded="true"] .st-caret::before { transform: translateY(0.1em) rotate(-135deg); }
+#options-btn > span:first-child { display: inline-block; transition: transform .3s; }
+#options-btn:hover > span:first-child, #options-btn.active > span:first-child { transform: rotate(60deg); }

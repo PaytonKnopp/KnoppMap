@@ -2231,7 +2231,7 @@
     const item = (id, pic, name, sub) => `<button class="sm-item" role="menuitemradio" aria-checked="${here === id}" data-site="${esc(id)}">
       <span class="sm-pic">${pic}</span><span class="sm-txt"><b>${esc(name)}</b><small>${esc(sub)}</small></span><span class="sm-check" aria-hidden="true">✓</span></button>`;
     const fromQuarter = (pl) => farmBounds ? ` · ${fmtLen(distM(farmBounds.getCenter(), pl.marker.getLatLng()))} from the quarter` : "";
-    siteMenu.innerHTML = item("quarter", thumb(home, "🌾"), "The Quarter", "Trails, places and the tour") +
+    siteMenu.innerHTML = item("quarter", thumb(home, "🌾"), "Main Quarter", "Trails, places and the tour") +
       (sitePlaces().length ? `<div class="sm-sec">Family houses</div>` : "") +
       sitePlaces().map((pl) => item(pl.f.id, thumb(pl, icon(pl.f.properties.icon)), placeTitle(pl),
         `${pl.photos.length} photos${fromQuarter(pl)}`)).join("");

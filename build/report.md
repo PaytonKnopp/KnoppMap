@@ -2,7 +2,7 @@
 
 ## Tracks
 
-33 tracks, 1 waypoint(s). Points: 1826 raw -> 495 after 2 m simplification.
+33 tracks, 1 waypoint(s). Points: 1824 raw -> 495 after 2 m simplification.
 
 ### Loops
 
