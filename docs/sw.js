@@ -1,5 +1,5 @@
 // Offline support: the app shell and data are network-first (so updates arrive), photos and map tiles are cache-first.
-const SHELL = "km-shell-v27";
+const SHELL = "km-shell-v28";
 const MEDIA = "km-media-v1";
 const CORE = [
   "./", "index.html", "css/app.css", "js/common.js", "js/app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-32.png",
@@ -7,8 +7,18 @@ const CORE = [
   "vendor/markercluster/MarkerCluster.css", "vendor/markercluster/MarkerCluster.Default.css", "data/site.json",
 ];
 
+// The app and the data it opens with (site.json and the bundle it names), fetched fresh and stored all or nothing.
+// An update stores them before the old copy is thrown away, so a device that saved the map never ends up with the new
+// app but no data; if anything can't be fetched, the update waits and the old copy stays.
+async function saveShell() {
+  const fresh = (u) => new Request(u, { cache: "no-cache" });
+  const meta = await fetch(fresh("data/site.json")).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+  const c = await caches.open(SHELL);
+  await c.addAll([...CORE, meta.locked ? "data/bundle.enc" : "data/bundle.json"].map(fresh));
+}
+
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  e.waitUntil(saveShell().then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
@@ -53,8 +63,15 @@ self.addEventListener("fetch", (e) => {
 });
 
 self.addEventListener("message", (e) => {
-  if (e.data?.type !== "save") return;
   const port = e.ports[0];
+  // The page saves the photos and map tiles itself; it asks here for a fresh copy of the app and its data, and hears
+  // back once they are stored.
+  if (e.data?.type === "shell") {
+    e.waitUntil(saveShell().then(() => true, () => false).then((ok) => port?.postMessage({ ok })));
+    return;
+  }
+  // A page still running the previous app.js hands the whole download to the worker instead.
+  if (e.data?.type !== "save") return;
   const urls = e.data.urls;
   e.waitUntil((async () => {
     const c = await caches.open(MEDIA);

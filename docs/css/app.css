@@ -39,6 +39,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   color: var(--on-accent); font-size: 1.1rem; font-weight: 700; padding: 0.6rem 1rem;
 }
 .big.ghost { background: var(--paper-2); color: var(--ink); }
+.big:disabled { opacity: .55; cursor: default; }
 
 /* ---------- top bar */
 #topbar {
@@ -265,7 +266,9 @@ body { font-family: var(--body-font); color: var(--ink); }
   position: fixed; z-index: 2500; left: 50%; transform: translateX(-50%); bottom: calc(6.6rem + env(safe-area-inset-bottom));
   background: #1f231d; color: #fff; padding: 0.7rem 1.1rem; border-radius: 12px; box-shadow: var(--shadow); max-width: calc(100vw - 2rem); text-align: center;
 }
-#offline-badge { position: fixed; z-index: 1000; left: 0.75rem; top: calc(4.3rem + env(safe-area-inset-top)); background: #7a5b00; color: #fff; padding: 0.35rem 0.8rem; border-radius: 999px; font-size: 0.85rem; font-weight: 700; }
+#toast .toast-act { margin-left: 0.7rem; border: 0; border-radius: 999px; background: #fff; color: #1f231d; font-weight: 700; padding: 0.3rem 0.9rem; }
+/* Just below the title and Options (a column upright, a row on a sideways phone), never on top of them; taps go through to the map. */
+#offline-badge { position: absolute; top: calc(100% + 0.45rem); left: 0; white-space: nowrap; pointer-events: none; background: #7a5b00; color: #fff; padding: 0.35rem 0.8rem; border-radius: 999px; font-size: 0.85rem; font-weight: 700; }
 .bar { height: 0.6rem; background: var(--paper-2); border-radius: 999px; overflow: hidden; margin: 0.5rem 0; }
 .bar > span { display: block; height: 100%; width: 0; background: var(--green); transition: width .2s; }
 .note { color: var(--muted); font-size: 0.9rem; margin: 0.3rem 0 0.6rem; }
@@ -495,7 +498,7 @@ details.adv[open] > summary::after { content: "Tap to close ▴"; }
 :root[data-theme="synthwave"] .elev polyline { stroke: #2de2e6; }
 
 /* =================================================================== top-left: title + options, info chips */
-.top-left { display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; }
+.top-left { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; }
 #options-btn {
   border: 0; background: var(--green); color: var(--on-accent); font-weight: 800; font-size: 1rem; padding: 0.55rem 1rem 0.55rem 0.85rem;
   border-radius: 999px; box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.8rem;

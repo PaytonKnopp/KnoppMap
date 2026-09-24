@@ -12,9 +12,17 @@
 
   // ================================================================ small helpers
   let toastTimer;
-  function toast(msg, ms = 3500) {
+  // action: an optional button, { label, run }.
+  function toast(msg, ms = 3500, action = null) {
     const t = $("#toast");
     t.textContent = msg;
+    if (action) {
+      const b = document.createElement("button");
+      b.className = "toast-act";
+      b.textContent = action.label;
+      b.onclick = () => { t.hidden = true; action.run(); };
+      t.append(b);
+    }
     t.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, ms);
@@ -2568,18 +2576,36 @@
   $(".nv-see", navPanel).onclick = showRoute;
 
   // ================================================================ offline (service worker)
+  // "Save everything" keeps the app, its data, the satellite picture and every photo inside this browser. The page does
+  // the downloading itself (browsers stop a service worker that works for more than a few minutes, which a big save on
+  // a slow connection can take), fetches only what isn't saved yet, and the panel counts what is really in storage
+  // instead of trusting a note. So a save that was cut short, new photos and a copy the device cleared are all noticed,
+  // and small gaps are filled in by themselves on the next visit with internet.
+  const MEDIA = "km-media-v1";   // the same store as in sw.js
+  const AUTO_MB = 25;            // a gap up to this size is filled in without asking; a bigger one asks first
+  // iPhones and iPads (an iPad calls itself a Mac with a touch screen), and whether the map was opened from the Home Screen.
+  const iOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const homeScreen = navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+  const offlineState = { busy: false, done: 0, total: 0, full: false, st: null, el: null };
+  let siteMeta = null;   // site.json, once the map has loaded
+  const abs = (u) => new URL(u, location.href).href;
+  const plural = (n, word) => `${n} ${n === 1 ? word : word + "s"}`;
+  const listWords = (words) => (window.Intl?.ListFormat ? new Intl.ListFormat("en", { type: "conjunction" }).format(words) : words.join(" and "));
+
   let swReady = null;
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     swReady = navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready).catch(() => null);
   }
-  const updateOnline = () => { $("#offline-badge").hidden = navigator.onLine; };
+  const updateOnline = () => { $("#offline-badge").hidden = navigator.onLine; renderOffline(); };
   window.addEventListener("online", updateOnline);
   window.addEventListener("offline", updateOnline);
   updateOnline();
 
   function farmTiles(z0 = 13, z1 = nativeZoom("img")) {
-    // The quarter, plus a small square around each family house.
-    return [farmBounds.pad(0.15), ...sitePlaces().map((pl) => pl.marker.getLatLng().toBounds(400))].flatMap((b) => tilesIn(b, z0, z1));
+    // The quarter, plus a small square around each family house. Zoomed out, a wide margin too (a few MB), so the
+    // opening view on an upright phone, much taller than the quarter, has no grey bands above and below it.
+    return [...tilesIn(farmBounds.pad(1), z0, Math.min(17, z1)), ...tilesIn(farmBounds.pad(0.15), 18, z1),
+      ...sitePlaces().flatMap((pl) => tilesIn(pl.marker.getLatLng().toBounds(400), z0, z1))];
   }
   function tilesIn(b, z0, z1) {
     const urls = [];
@@ -2593,39 +2619,172 @@
     }
     return urls;
   }
-  function offlinePanel(el) {
-    if (!swReady) { el.innerHTML = `<p class="note">This browser can't save the map for offline use.</p>`; return; }
-    const saved = store.get("offlineSaved", null);
-    el.innerHTML = `
-      <p class="note">Nothing is downloaded to your files. This keeps a copy of the map and every photo <b>inside this browser</b>
-        on this phone or computer, so this same link keeps working at the quarter with no cell signal.
-        Do it once at home on Wi-Fi (about 175 MB). Tip: use “Add to Home Screen” so it opens like an app.
-        ${saved ? `<br><b>✅ Saved on ${esc(fmtDate(saved.at, false))}.</b> Tap again to refresh it.` : ""}</p>
-      <button class="big" data-kind="full">💾 Save everything to this device</button>
-      <div class="bar" hidden><span></span></div><p class="note" data-status></p>`;
-    $("button[data-kind]", el).onclick = () => saveOffline("full", el);
+  // Everything a trip to the quarter needs, most important first in case a save is cut short: the satellite picture,
+  // the photo pins, each place's cover photo, then every photo full size.
+  function offlineWanted() {
+    const photos = allPhotos.map((x) => x.p);
+    return [...new Set([...farmTiles(), ...photos.map((p) => photoUrl(p, "thumb")),
+      ...featuredPlaces().map(heroOf).filter(Boolean).map((p) => photoUrl(p)), ...photos.map((p) => photoUrl(p))].map(abs))];
   }
-  async function saveOffline(kind, el) {
+  // The page and the data the map opens with (the service worker stores these along with the rest of the app).
+  const offlineCore = () => ["index.html", "data/site.json", siteMeta?.locked ? "data/bundle.enc" : "data/bundle.json"].map(abs);
+  // Rough sizes: a full photo about 0.47 MB, a pin thumbnail 0.025 MB, a satellite tile 0.02 MB.
+  const offlineMB = (urls) => urls.reduce((s, u) => s + (u.includes("/photos/web/") ? 0.47 : u.includes("/photos/thumb/") ? 0.025 : 0.02), 0);
+  const fmtMB = (mb) => (mb < 1 ? "under 1 MB" : mb < 20 ? Math.round(mb) + " MB" : Math.round(mb / 5) * 5 + " MB");
+
+  // What is really saved on this device right now.
+  async function offlineStatus() {
+    const have = new Set((await (await caches.open(MEDIA)).keys()).map((r) => r.url));
+    const wanted = offlineWanted(), missing = wanted.filter((u) => !have.has(u));
+    const core = (await Promise.all(offlineCore().map((u) => caches.match(u)))).every(Boolean);
+    // Map tiles only ever arrive by saving, so any at all means this device saved the map at some point. A note that it
+    // saved with no tiles left means the device has cleared the copy (a few photo pins may be back from browsing since).
+    const tilesKept = [...have].some((u) => u.startsWith(ESRI)), noted = !!store.get("offlineSaved", null);
+    const count = (part) => missing.filter((u) => u.includes(part)).length;
+    return { wanted, missing, core, saved: tilesKept || noted, cleared: noted && !tilesKept, mb: offlineMB(missing),
+      photos: Math.max(count("/photos/web/"), count("/photos/thumb/")), tiles: missing.filter((u) => u.startsWith(ESRI)).length };
+  }
+  // What's still to save, in words: "12 photos and part of the satellite picture".
+  const missingWords = (st) => listWords([st.photos && plural(st.photos, "photo"), st.tiles && "part of the satellite picture",
+    !st.core && "the map's data"].filter(Boolean));
+
+  // The service worker fetches a fresh copy of the app and its data, and answers once they're stored.
+  async function saveCore() {
     const reg = await swReady;
-    if (!reg?.active) return toast("Offline saving isn't ready yet. Please try again in a moment.");
-    const photoUrls = allPhotos.flatMap((x) => kind === "full" ? [photoUrl(x.p, "thumb"), photoUrl(x.p)] : [photoUrl(x.p, "thumb")]);
-    const heroes = featuredPlaces().map(heroOf).filter(Boolean).map((p) => photoUrl(p));
-    const urls = [...new Set([...farmTiles(), ...heroes, ...photoUrls])];
-    const bar = $(".bar", el), status = $("[data-status]", el);
-    bar.hidden = false;
-    $$("button", el).forEach((b) => b.disabled = true);
-    const ch = new MessageChannel();
-    ch.port1.onmessage = (e) => {
-      const { done, total, failed, finished } = e.data;
-      $("span", bar).style.width = (done / total) * 100 + "%";
-      status.textContent = finished ? `Done! ${total - failed} of ${total} items saved.` : `Saving… ${done} of ${total}`;
-      if (finished) {
+    return new Promise((resolve) => {
+      if (!reg?.active) return resolve(false);
+      const ch = new MessageChannel(), timer = setTimeout(() => resolve(false), 20000);
+      ch.port1.onmessage = (e) => { clearTimeout(timer); resolve(!!e.data?.ok); };
+      reg.active.postMessage({ type: "shell" }, [ch.port2]);
+    });
+  }
+  // Saves the given addresses (plus a fresh copy of the app and its data), then counts again what is really saved.
+  async function saveOffline(urls) {
+    const S = offlineState;
+    if (S.busy) return S.st;
+    Object.assign(S, { busy: true, done: 0, total: urls.length, full: false });
+    renderOffline();
+    try {
+      const core = saveCore();
+      const cache = await caches.open(MEDIA);
+      let i = 0;
+      const worker = async () => {
+        while (i < urls.length && !S.full) {
+          const u = urls[i++];
+          try {
+            const res = await fetch(u, { mode: u.startsWith(location.origin) ? "same-origin" : "cors" });
+            if (!res.ok) throw new Error(res.status);
+            await cache.put(u, res);
+          } catch (err) {
+            // Out of room: stop, rather than fail every remaining item one by one.
+            if (err?.name === "QuotaExceededError") S.full = true;
+          }
+          S.done++;
+          if (S.done % 10 === 0) renderOffline();
+        }
+      };
+      await Promise.all(Array.from({ length: 6 }, worker));
+      await core;
+      S.st = await offlineStatus();
+      if (!S.st.missing.length && S.st.core) {
         store.set("offlineSaved", { at: new Date().toISOString() });
-        $$("button", el).forEach((b) => b.disabled = false);
-        toast("The map is saved on this device.");
+        await pruneOffline(S.st.wanted);
+      }
+    } finally {
+      S.busy = false;
+      renderOffline();
+    }
+    return S.st;
+  }
+  // Photos that have left the map (hidden, or renamed by a password) don't stay on the device. Only photos: there are
+  // few map tiles, and fewer wanted now can just mean this device hasn't yet checked how deep the imagery goes.
+  async function pruneOffline(wanted) {
+    const keep = new Set(wanted), root = abs("photos/"), cache = await caches.open(MEDIA);
+    await Promise.all((await cache.keys()).filter((r) => r.url.startsWith(root) && !keep.has(r.url)).map((r) => cache.delete(r)));
+  }
+
+  function offlinePanel(el) {
+    offlineState.el = el;
+    if (!swReady || !window.caches) { el.innerHTML = `<p class="note">This browser can't save the map for offline use.</p>`; return; }
+    if (!siteMeta) { el.innerHTML = `<p class="note">The map is still loading…</p>`; return; }
+    el.innerHTML = `
+      <p class="note" data-off-msg>Checking what's saved on this device…</p>
+      <button class="big" data-off-save disabled>💾 Save everything to this device</button>
+      <div class="bar" hidden><span></span></div><p class="note" data-off-prog hidden></p>
+      ${iOS && !homeScreen ? `<p class="note">📱 <b>iPhone and iPad:</b> Safari clears a saved website after about a week
+        without a visit. For a copy that lasts, tap Share → <b>Add to Home Screen</b>, open the map from that icon and save
+        it there.</p>` : ""}`;
+    $("[data-off-save]", el).onclick = async () => {
+      // Asks the browser to keep the copy rather than clear it when space runs low. It may say no; it's only a request.
+      navigator.storage?.persist?.().catch(() => {});
+      try {
+        const st = await saveOffline((await offlineStatus()).missing);
+        toast(!st.missing.length && st.core ? "The map is saved on this device."
+          : offlineState.full ? "This device is out of storage space, so not everything could be saved."
+          : "Not everything could be saved. Tap Save again to try the rest.", 5000);
+      } catch (err) {
+        console.error(err);
+        toast("Something went wrong while saving. Please try again.");
       }
     };
-    reg.active.postMessage({ type: "save", urls }, [ch.port2]);
+    renderOffline();
+    swReady.then(async (reg) => {
+      // Without a service worker nothing saved could be shown offline.
+      if (!reg) { el.innerHTML = `<p class="note">This browser can't save the map for offline use.</p>`; return; }
+      if (!offlineState.busy) { offlineState.st = await offlineStatus(); renderOffline(); }
+    }).catch((err) => console.error(err));
+  }
+  function renderOffline() {
+    const S = offlineState, el = S.el, msg = el?.isConnected && $("[data-off-msg]", el);
+    if (!msg) return;
+    const btn = $("[data-off-save]", el), bar = $(".bar", el), prog = $("[data-off-prog]", el), st = S.st;
+    bar.hidden = prog.hidden = !S.busy;
+    $("span", bar).style.width = (S.total ? (S.done / S.total) * 100 : 100) + "%";
+    prog.textContent = `Saving… ${S.done} of ${S.total}. You can keep using the map; leave it open until this finishes.`;
+    btn.disabled = S.busy || !st || !navigator.onLine;
+    if (!st) return;
+    const last = store.get("offlineSaved", null), size = fmtMB(st.mb), done = !st.missing.length && st.core;
+    const when = last ? ` Last saved ${esc(fmtDate(last.at, false))}.` : "";
+    msg.innerHTML = !st.saved
+      ? `Nothing is downloaded to your files. This keeps a copy of the map and all ${allPhotos.length} photos <b>inside this
+        browser</b> on this phone or computer, so this same link keeps working at the quarter with no cell signal. Do it
+        once at home on Wi-Fi (about ${size}). After that it keeps itself up to date whenever you open the map with
+        internet, and asks first before anything big.`
+      : done ? `<b>✅ Everything is saved on this device</b>: the map, the satellite picture and all ${allPhotos.length} photos
+        (checked just now).${when}`
+      : st.cleared ? `<b>⚠️ This device has cleared the saved copy.</b> Save it again before your next trip to the quarter
+        (about ${size}).`
+      : `<b>⚠️ Still to save:</b> ${esc(missingWords(st))} (about ${size}), from new photos or a save that didn't finish.${when}`;
+    if (S.full) msg.innerHTML += " <b>This device ran out of storage space.</b> Free some up, then save again.";
+    if (!navigator.onLine && !done) msg.innerHTML += " Connect to the internet to save.";
+    btn.textContent = !st.saved ? "💾 Save everything to this device" : done ? "🔄 Refresh the saved copy"
+      : st.cleared ? "💾 Save everything again" : `💾 Save the rest (about ${size})`;
+  }
+  function openOfflineOptions() {
+    openSections.add("save");
+    moreSheet();
+    requestAnimationFrame(() => $('#sheet-body [data-sec="save"]')?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }
+  // Each visit with internet checks a saved copy (if this device has one) and fills in a small gap by itself: new
+  // photos, a save that was cut short, the map's data after an update. A big gap, like the device having cleared the
+  // copy, is only mentioned (at most once a day), with a button to the offline options.
+  async function offlineAutoCheck() {
+    if (!(await swReady) || !window.caches || !navigator.onLine || offlineState.busy) return;
+    const st = offlineState.st = await offlineStatus();
+    renderOffline();
+    if (!st.saved) return;
+    if (!st.missing.length && st.core) return pruneOffline(st.wanted);
+    const conn = navigator.connection || {};
+    if (st.mb <= AUTO_MB && !conn.saveData && conn.type !== "cellular") {
+      const after = await saveOffline(st.missing);
+      if (st.photos && after && !after.missing.length) toast(`Saved ${plural(st.photos, "new photo")} for use without internet.`);
+      return;
+    }
+    const today = new Date().toDateString();
+    if (store.get("offlineNag", null) === today) return;
+    store.set("offlineNag", today);
+    toast(st.cleared ? "⚠️ This device has cleared the offline map." : `⚠️ The offline map is missing ${missingWords(st)} (about ${fmtMB(st.mb)}).`,
+      10000, { label: st.cleared ? "Save again" : "Update", run: openOfflineOptions });
   }
 
   // ================================================================ dock
@@ -2697,6 +2856,7 @@
   }
 
   function start({ meta, data }) {
+    siteMeta = meta;
     $("#site-title .st-name").textContent = meta.title || "Knopp Map";
     document.title = meta.title || "Knopp Map";
     addKeyedStyles(meta.keys);
@@ -2738,6 +2898,8 @@
     refreshPhotos();
     refreshBackToFarm();
     declutterSoon();
+    // Once the map on screen has loaded, so the check never competes with it on a slow connection.
+    setTimeout(() => tilesSettled(8000).then(offlineAutoCheck).catch((err) => console.error(err)), 3000);
 
     window.addEventListener("hashchange", () => {
       const [hk, hv] = decodeURIComponent(location.hash.slice(1)).split("=");

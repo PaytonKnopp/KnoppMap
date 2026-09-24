@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
-  <link rel="stylesheet" href="css/app.css?v=28">
+  <link rel="stylesheet" href="css/app.css?v=29">
 </head>
 <body>
   <div id="map" aria-label="Map of the quarter"></div>
@@ -57,6 +57,7 @@
     <div class="top-left">
       <h1 id="site-title"><button id="site-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="site-menu" title="Go to the quarter or a family house"><span class="st-name">Knopp Map</span><span class="st-caret" aria-hidden="true"></span></button></h1>
       <button id="options-btn" aria-label="Options, looks and filters"><span>⚙️</span> Options</button>
+      <div id="offline-badge" hidden>📴 No internet – showing saved map</div>
     </div>
     <div class="top-actions">
       <button id="search-btn" class="round" aria-label="Search">🔍</button>
@@ -127,7 +128,6 @@
   </div>
   <button id="back-to-farm" hidden>🏠 Back to the farm</button>
   <div id="toast" role="status" aria-live="polite" hidden></div>
-  <div id="offline-badge" hidden>📴 No internet – showing saved map</div>
 
   <nav id="dock" aria-label="Main">
     <button data-act="farm"><span class="ic">🏠</span><span>Home</span></button>
@@ -229,7 +229,7 @@
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/markercluster/leaflet.markercluster.js"></script>
-  <script src="js/common.js?v=28"></script>
-  <script src="js/app.js?v=28"></script>
+  <script src="js/common.js?v=29"></script>
+  <script src="js/app.js?v=29"></script>
 </body>
 </html>
