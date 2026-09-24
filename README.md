@@ -13,7 +13,7 @@ GitHub Pages from the `docs/` folder.
 
 | | |
 |---|---|
-| ▾ **Knopp Map** (title) | Tap the title for the place switcher: **The Quarter**, **Old House** or **CK House**. The title never changes; the ✓ shows where you are. **Back to the farm** brings you home from anywhere. |
+| ▾ **Knopp Map** (title) | Tap the title for the place switcher: **Main Quarter**, **Old House** or **CK House**. The title never changes; the ✓ shows where you are. **Back to the farm** brings you home from anywhere. |
 | 🏠 **Home** | Jump back to the whole property. |
 | 📍 **Places** | List of named places and trails. Tap one to fly there and see its photos. |
 | ▶️ **Tour** | A 14-stop slideshow walk around the quarter with big Back / Next buttons. |

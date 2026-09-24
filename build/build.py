@@ -407,6 +407,12 @@ def build_tracks():
             t["parts"][0].insert(0, tuple(ext["start"]))
         if ext.get("end"):
             t["parts"][-1].append(tuple(ext["end"]))
+        # "end_on": the last point moves onto the given spot, e.g. so a loop finishes on its own driveway instead of crossing it.
+        if c.get("end_on"):
+            part, q = t["parts"][-1], tuple(c["end_on"])
+            tail = range(int(len(part) * 0.7), len(part))
+            i = min(tail, key=lambda k: dist(part[k], q))
+            part[i:] = [q]
         t["directions"] = c.get("directions")
 
     for t in tracks:
