@@ -8,7 +8,7 @@
   const isPhone = () => window.matchMedia("(max-width: 700px) and (min-height: 501px), (max-width: 700px) and (orientation: portrait)").matches;
 
   // Zoom levels at which things appear.
-  const Z = { farmPin: 14.5, trails: 13.5, places: 14.5, photos: 16.75, minorPlaces: 17, roadLabels: 16, trailLabels: 17 };
+  const Z = { farmPin: 14.5, trails: 13.5, places: 14.5, sites: 10, photos: 16.75, minorPlaces: 17, roadLabels: 16, trailLabels: 17 };
 
   // ================================================================ small helpers
   let toastTimer;
@@ -616,7 +616,7 @@
     const minor = !p.featured;
     return L.divIcon({
       className: "", iconSize: [0, 0], iconAnchor: [0, 0],
-      html: `<div class="place-pin${minor ? " minor" : ""}${sel ? " sel" : ""}" style="margin-top:${minor ? "-0.85rem" : "-1.3rem"}">
+      html: `<div class="place-pin${minor ? " minor" : ""}${sel ? " sel" : ""}${p.site ? " site" : ""}" style="margin-top:${minor ? "-0.85rem" : "-1.3rem"}">
         <div class="bubble">${pinEmoji(p)}${!minor && p.photos.length ? `<i class="pin-count">${p.photos.length}</i>` : ""}</div>${minor || (!adv.placeNames && !sel) ? "" : `<div class="name">${esc(p.name)}</div>`}</div>`,
     });
   }
@@ -641,7 +641,9 @@
     places.forEach((pl) => {
       const p = pl.f.properties;
       const typeOk = !adv.hiddenPlaces.includes(pl.f.id);
-      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= placesAt : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
+      // The family houses stand alone far from anything else, so their pins show from much further out.
+      const at = p.site ? Z.sites : placesAt;
+      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= at : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
       if (show && !map.hasLayer(pl.marker)) pl.marker.addTo(map);
       if (!show && map.hasLayer(pl.marker)) map.removeLayer(pl.marker);
     });
@@ -669,6 +671,15 @@
   const heroImg = (p, alt) => `<img class="place-hero" src="${esc(photoUrl(p))}" alt="${esc(alt)}" decoding="async"
     style="background-image:url(&quot;${esc(photoUrl(p, "thumb"))}&quot;)">`;
   const featuredPlaces = () => [...places.values()].filter((pl) => pl.f.properties.featured);
+  // The two family houses (Old House, CK House): one pin each, away from the quarter.
+  const sitePlaces = () => featuredPlaces().filter((pl) => pl.f.properties.site);
+  const SITE_R = 600;   // metres around a house that count as being there
+  /** Which place a point is at: the quarter (its outline, padded), one of the houses, or null when it's at neither. */
+  function areaOf(ll, pad = 1.5) {
+    if (farmBounds && farmBounds.pad(pad).contains(ll)) return { id: "quarter", name: "the quarter" };
+    const pl = sitePlaces().find((x) => distM(ll, x.marker.getLatLng()) < SITE_R);
+    return pl ? { id: pl.f.id, name: placeTitle(pl), pl } : null;
+  }
 
   /** How far the buttons along the top and the dock along the bottom reach into the screen, in pixels. */
   function uiInsets() {
@@ -876,6 +887,8 @@
   const photoIconFor = (p) => L.divIcon({ className: "", iconSize: [40, 40], iconAnchor: [20, 20],
     html: `<div class="ph-single"><img src="${esc(photoUrl(p, "thumb"))}" alt="" loading="lazy"></div>` });
   let photosGrouped = null;   // true/false once the markers are in their groups
+  // A family house keeps all of its photos inside its one pin, so they never appear on the map by themselves.
+  const mapPhotos = () => allPhotos.filter((x) => !x.p.gathered);
   function refreshPhotos() {
     // The markers are only regrouped when "Group nearby photos" changes; zooming in and out just shows or hides
     // the layer, so the groups keep what they've already worked out.
@@ -886,14 +899,14 @@
       photoLayer = adv.cluster ? photoCluster : photoPlain;
       if (adv.cluster) {
         const byPlace = new Map();
-        allPhotos.forEach((x) => { const k = x.p.place || "none"; (byPlace.get(k) || byPlace.set(k, []).get(k)).push(x.m); });
+        mapPhotos().forEach((x) => { const k = x.p.place || "none"; (byPlace.get(k) || byPlace.set(k, []).get(k)).push(x.m); });
         byPlace.forEach((ms, k) => {
           if (!photoClusters.has(k)) photoClusters.set(k, makeCluster());
           const cg = photoClusters.get(k);
           cg.addLayers(ms);
           photoCluster.addLayer(cg);
         });
-      } else allPhotos.forEach((x) => photoPlain.addLayer(x.m));
+      } else mapPhotos().forEach((x) => photoPlain.addLayer(x.m));
     }
     const want = photosOn && map.getZoom() >= Z.photos;
     syncZoomClass();
@@ -1093,7 +1106,7 @@
 
   // ================================================================ places list
   function placesSheet() {
-    const featured = featuredPlaces().sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
+    const featured = featuredPlaces().filter((pl) => !pl.f.properties.site).sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
     const minor = [...places.values()].filter((pl) => !pl.f.properties.featured);
     const body = document.createElement("div");
     body.innerHTML = `<h3>Places on the quarter</h3>`;
@@ -1107,8 +1120,18 @@
     const trailsH = document.createElement("h3");
     trailsH.textContent = "Trails & driveway";
     body.append(trailsH);
-    [...tracks.values()].filter((t) => isTrail(t.f)).sort((a, b) => a.f.properties.name.localeCompare(b.f.properties.name))
+    [...tracks.values()].filter((t) => isTrail(t.f) && !t.f.properties.site).sort((a, b) => a.f.properties.name.localeCompare(b.f.properties.name))
       .forEach((t) => body.append(trailRow(t)));
+    const houses = sitePlaces();
+    if (houses.length) {
+      const h = document.createElement("h3");
+      h.textContent = "Family houses";
+      body.append(h);
+      houses.forEach((pl) => {
+        body.append(placeRow(pl));
+        [...tracks.values()].filter((t) => t.f.properties.site === pl.f.id).forEach((t) => body.append(trailRow(t)));
+      });
+    }
     openSheet("📍 Places & trails", body);
     setDockActive("places");
   }
@@ -2079,13 +2102,15 @@
   }
   function printTitle() {
     const t = THEMES[theme];
-    return { title: $("#site-title").textContent, sub: `${t.label} look · ${BASEMAPS[baseKey]?.label || ""} · printed ${fmtDate(new Date().toISOString(), false)}` };
+    return { title: $("#site-title .st-name").textContent, sub: `${t.label} look · ${BASEMAPS[baseKey]?.label || ""} · printed ${fmtDate(new Date().toISOString(), false)}` };
   }
   function fillPoster() {
     const L_ = THEMES[theme].lines;
     const { title, sub } = printTitle();
     const line = (c, dash = "") => `<i class="pl-line" style="border-color:${c};${dash ? "border-top-style:dashed;" : ""}"></i>`;
-    const named = featuredPlaces().sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
+    const inView = map.getBounds();
+    const named = featuredPlaces().filter((pl) => !pl.f.properties.site || inView.contains(pl.marker.getLatLng()))
+      .sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
     $("#print-poster").innerHTML = `
       <h1>${esc(title)}</h1><p class="pp-sub">${esc(sub.split(" · printed ")[1] ? "Printed " + sub.split(" · printed ")[1] : "")}</p>
       <div class="pp-compass">${compassSvg()}</div>
@@ -2189,6 +2214,61 @@
   document.addEventListener("pointerdown", (e) => { if (!legendPop.hidden && !legendPop.contains(e.target) && !legendBtn.contains(e.target)) toggleLegend(false); }, true);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !legendPop.hidden) toggleLegend(false); });
 
+  // ================================================================ place switcher (the title button)
+  // "Knopp Map ▾" stays at the top the whole time; its menu jumps between the quarter and the family houses.
+  const siteMenu = $("#site-menu"), siteBtn = $("#site-btn");
+  function currentSite() {
+    const c = map.getCenter();
+    return areaOf(c, 0.6)?.id || (map.getBounds().intersects(farmBounds) ? "quarter" : null);
+  }
+  function renderSiteMenu() {
+    const here = currentSite();
+    const home = featuredPlaces().find((pl) => pl.f.properties.icon === "house");
+    const thumb = (pl, fallback) => {
+      const h = pl && heroOf(pl);
+      return h ? `<img src="${esc(photoUrl(h, "thumb"))}" alt="">` : `<span>${fallback}</span>`;
+    };
+    const item = (id, pic, name, sub) => `<button class="sm-item" role="menuitemradio" aria-checked="${here === id}" data-site="${esc(id)}">
+      <span class="sm-pic">${pic}</span><span class="sm-txt"><b>${esc(name)}</b><small>${esc(sub)}</small></span><span class="sm-check" aria-hidden="true">✓</span></button>`;
+    const fromQuarter = (pl) => farmBounds ? ` · ${fmtLen(distM(farmBounds.getCenter(), pl.marker.getLatLng()))} from the quarter` : "";
+    siteMenu.innerHTML = item("quarter", thumb(home, "🌾"), "The Quarter", "Trails, places and the tour") +
+      (sitePlaces().length ? `<div class="sm-sec">Family houses</div>` : "") +
+      sitePlaces().map((pl) => item(pl.f.id, thumb(pl, icon(pl.f.properties.icon)), placeTitle(pl),
+        `${pl.photos.length} photos${fromQuarter(pl)}`)).join("");
+    $$(".sm-item", siteMenu).forEach((b) => b.onclick = () => goToSite(b.dataset.site));
+  }
+  function toggleSiteMenu(show = siteMenu.hidden, focus = false) {
+    if (show) {
+      renderSiteMenu();
+      const r = $("#site-title").getBoundingClientRect();
+      siteMenu.style.left = Math.max(8, r.left) + "px";
+      siteMenu.style.top = r.bottom + 8 + "px";
+    }
+    siteMenu.hidden = !show;
+    siteBtn.setAttribute("aria-expanded", String(show));
+    document.body.classList.toggle("site-menu-open", show);
+    if (show && focus) focusQuietly($('.sm-item[aria-checked="true"]', siteMenu) || $(".sm-item", siteMenu));
+  }
+  function goToSite(id) {
+    toggleSiteMenu(false);
+    if (id === "quarter") { closeSheet(); fitFarm(); return; }
+    if (places.has(id)) openPlace(id, { back: false });
+  }
+  siteBtn.onclick = (e) => { e.stopPropagation(); toggleSiteMenu(undefined, e.detail === 0); };
+  document.addEventListener("pointerdown", (e) => {
+    if (!siteMenu.hidden && !siteMenu.contains(e.target) && !siteBtn.contains(e.target)) toggleSiteMenu(false);
+  }, true);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !siteMenu.hidden) toggleSiteMenu(false); });
+  siteMenu.addEventListener("keydown", (e) => {
+    const items = $$(".sm-item", siteMenu), i = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+    }
+    if (e.key === "Escape") { e.stopPropagation(); toggleSiteMenu(false); siteBtn.focus(); }
+    if (e.key === "Tab") toggleSiteMenu(false);
+  });
+
   // ================================================================ live location
   let watchId = null, meMarker = null, meAcc = null, firstFix = true;
   function meIcon() {
@@ -2269,19 +2349,21 @@
       meAcc.setLatLng(ll).setRadius(pos.coords.accuracy);
     }
     drawHeading();
-    const onFarm = farmBounds && farmBounds.pad(0.5).contains(ll);
+    // At the quarter or at one of the family houses the map follows you; anywhere else it says how far the quarter is.
+    const area = areaOf(ll, 0.5);
     if (firstFix) {
       firstFix = false;
-      if (onFarm) map.flyTo(ll, Math.max(map.getZoom(), 17.5), { duration: 0.8 });
+      if (area) map.flyTo(ll, Math.max(map.getZoom(), 17.5), { duration: 0.8 });
       else if (!nav.to) toast("You're not at the quarter right now. The blue dot shows where you are.", 5000);
     }
     const chip = $("#loc-chip");
-    if (!onFarm) {
+    if (!area) {
       const d = farmBounds ? distM(ll, farmBounds.getCenter()) : 0;
       chip.textContent = `🏠 The quarter is ${fmtLen(d)} away`;
       chip.onclick = () => fitFarm();
     } else {
-      const near = featuredPlaces().map((pl) => [pl, distM(ll, pl.marker.getLatLng())]).sort((a, b) => a[1] - b[1])[0];
+      const here = area.pl ? [area.pl] : featuredPlaces().filter((pl) => !pl.f.properties.site);
+      const near = here.map((pl) => [pl, distM(ll, pl.marker.getLatLng())]).sort((a, b) => a[1] - b[1])[0];
       if (near) {
         const [pl, d] = near;
         chip.textContent = d < 25 ? `📍 You're at ${placeTitle(pl)}` : `📍 ${placeTitle(pl)} · ${fmtLen(d)} ${compass(bearing(ll, pl.marker.getLatLng()))}`;
@@ -2433,11 +2515,13 @@
   }
   function updateNav(me) {
     if (!nav.to) return;
-    const onQuarter = farmBounds && farmBounds.pad(1.5).contains(me);
-    if (!onQuarter) {
+    // Walking directions once you're at the same place as where you're going (the quarter, or that house);
+    // otherwise it's a drive, so Google Maps takes over.
+    const here = areaOf(me), there = areaOf(nav.to);
+    if (!here || !there || here.id !== there.id) {
       const d = distM(me, nav.to);
       $(".nv-dist", navPanel).textContent = fmtLen(d) + " away";
-      $(".nv-sub", navPanel).textContent = "You're not at the quarter yet. Get driving directions:";
+      $(".nv-sub", navPanel).textContent = `You're not at ${there ? there.name : "the quarter"} yet. Get driving directions:`;
       $(".nv-gm", navPanel).href = `https://www.google.com/maps/dir/?api=1&destination=${nav.to.lat.toFixed(6)},${nav.to.lng.toFixed(6)}&travelmode=driving`;
       $(".nv-arrow", navPanel).style.transform = `rotate(${bearing(me, nav.to)}deg)`;
       navPanel.classList.add("far");
@@ -2494,7 +2578,10 @@
   updateOnline();
 
   function farmTiles(z0 = 13, z1 = nativeZoom("img")) {
-    const b = farmBounds.pad(0.15);
+    // The quarter, plus a small square around each family house.
+    return [farmBounds.pad(0.15), ...sitePlaces().map((pl) => pl.marker.getLatLng().toBounds(400))].flatMap((b) => tilesIn(b, z0, z1));
+  }
+  function tilesIn(b, z0, z1) {
     const urls = [];
     for (let z = z0; z <= z1; z++) {
       const n = 2 ** z;
@@ -2512,7 +2599,7 @@
     el.innerHTML = `
       <p class="note">Nothing is downloaded to your files. This keeps a copy of the map and every photo <b>inside this browser</b>
         on this phone or computer, so this same link keeps working at the quarter with no cell signal.
-        Do it once at home on Wi-Fi (about 150 MB). Tip: use “Add to Home Screen” so it opens like an app.
+        Do it once at home on Wi-Fi (about 175 MB). Tip: use “Add to Home Screen” so it opens like an app.
         ${saved ? `<br><b>✅ Saved on ${esc(fmtDate(saved.at, false))}.</b> Tap again to refresh it.` : ""}</p>
       <button class="big" data-kind="full">💾 Save everything to this device</button>
       <div class="bar" hidden><span></span></div><p class="note" data-status></p>`;
@@ -2610,7 +2697,7 @@
   }
 
   function start({ meta, data }) {
-    $("#site-title").textContent = meta.title || "Knopp Map";
+    $("#site-title .st-name").textContent = meta.title || "Knopp Map";
     document.title = meta.title || "Knopp Map";
     addKeyedStyles(meta.keys);
     categories = data.tracks.categories || {};

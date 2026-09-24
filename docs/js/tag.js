@@ -45,7 +45,9 @@
       m.on("dragend", () => { const ll = m.getLatLng(); pl.coords = [+ll.lng.toFixed(6), +ll.lat.toFixed(6)]; touched(pl); });
       markers.set(pl.id, m);
     }
-    if (fit && markers.size) map.fitBounds(L.featureGroup([...markers.values()]).getBounds(), { padding: [20, 20] });
+    // Opens on the quarter; the family houses are a drive away (their 📍 button zooms to them).
+    const quarter = [...markers].filter(([id]) => !places.find((p) => p.id === id)?.site).map(([, m]) => m);
+    if (fit && quarter.length) map.fitBounds(L.featureGroup(quarter).getBounds(), { padding: [20, 20] });
   }
 
   function focusCard(id) {
@@ -195,6 +197,8 @@
         photos: p.photos, featured: !!p.featured };
       if (p.guess) o.guess = true;
       if (p.coords) o.coords = p.coords;
+      if (p.site) o.site = true;       // a family house (Old House, CK House): its own pin away from the quarter
+      if (p.gather) o.gather = true;   // all of its photos sit on the pin
       return o;
     }) };
     return JSON.stringify(out, null, 2) + "\n";
@@ -234,6 +238,8 @@
         photos: p.photos.map((x) => x + ".jpg"), featured: p.featured };
       if (p.guess) o.guess = true;
       if (p.moved) o.coords = f.geometry.coordinates;
+      if (p.site) o.site = true;
+      if (p.gather) o.gather = true;
       return o;
     });
     // photos added since the draft was started go into their own unnamed spot so nothing is lost

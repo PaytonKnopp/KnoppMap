@@ -7,6 +7,7 @@ window.KM = (() => {
     wood: ["🪵", "Wood pile"], target: ["🎯", "Target range"], animal: ["🐺", "Wildlife cut-out"],
     fire: ["🔥", "Fire pit"], star: ["⭐", "Special spot"], photo: ["📷", "Photo spot"],
     road: ["🛣️", "Road / driveway"], hill: ["⛰️", "Hill"], pond: ["🦆", "Pond"],
+    homestead: ["🏘️", "Farmyard / homestead"], home: ["🏡", "House with a yard"],
   };
   const icon = (k) => (ICONS[k] || ICONS.photo)[0];
 

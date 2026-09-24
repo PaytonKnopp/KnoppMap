@@ -19,7 +19,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GPX_FILE = ROOT / "knopp-map.gpx"
-PHOTO_DIR = ROOT / "photos" / "Knopp Map"
+# Other recordings (e.g. ck-loop.gpx for the Home Loop at CK House) sit next to the main file and are read with it.
+GPX_FILES = [GPX_FILE] + sorted(p for p in ROOT.glob("*.gpx") if p != GPX_FILE)
+# The quarter's photos, then the two family houses (each shown as one pin holding all of its photos).
+PHOTO_DIRS = [ROOT / "photos" / d for d in ("Knopp Map", "Old Knopp House", "CK House")]
 CONFIG_DIR = ROOT / "config"
 SITE = ROOT / "docs"
 DATA_OUT = SITE / "data"
@@ -173,7 +176,16 @@ def load_json(path, default):
 # ---------------------------------------------------------------- tracks
 
 def parse_gpx():
-    root = ET.parse(GPX_FILE).getroot()
+    tracks, waypoints = [], []
+    for path in GPX_FILES:
+        t, w = parse_gpx_file(path)
+        tracks += t
+        waypoints += w
+    return tracks, waypoints
+
+
+def parse_gpx_file(path):
+    root = ET.parse(path).getroot()
     tracks, waypoints = [], []
     for w in root.findall("g:wpt", NS):
         name = (w.findtext("g:name", "", NS) or "").strip()
@@ -388,7 +400,7 @@ def build_tracks():
     for t in tracks:
         c = cfg["tracks"][t["raw_name"]]
         t.update(name=c["name"], category=c.get("category", "trails"), color=c.get("color", "#ffd400"),
-                 loop=c.get("loop", False), snap=c.get("snap", True))
+                 loop=c.get("loop", False), snap=c.get("snap", True), site=c.get("site"))
         t["parts"] = join_segments(t["segs"], t["loop"], log_join, t["name"])
         ext = c.get("extend") or {}
         if ext.get("start"):
@@ -444,6 +456,7 @@ def build_tracks():
                 "length_m": round(sum(line_length(p) for p in parts)),
                 "recorded": t["start"],
                 **({"directions": t["directions"]} if t.get("directions") else {}),
+                **({"site": t["site"]} if t.get("site") else {}),
                 **dict(zip(("profile", "gain_m", "loss_m"), profile(t["prof"]))),
             },
             "geometry": geom,
@@ -477,10 +490,11 @@ def dms_to_deg(v, ref):
 def gpx_timeline():
     """All recorded track points with timestamps, sorted, for checking where you were when a photo was taken."""
     pts = []
-    for p in ET.parse(GPX_FILE).getroot().iter("{http://www.topografix.com/GPX/1/1}trkpt"):
-        t = p.findtext("g:time", None, NS)
-        if t:
-            pts.append((datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp(), float(p.get("lon")), float(p.get("lat"))))
+    for path in GPX_FILES:
+        for p in ET.parse(path).getroot().iter("{http://www.topografix.com/GPX/1/1}trkpt"):
+            t = p.findtext("g:time", None, NS)
+            if t:
+                pts.append((datetime.fromisoformat(t.replace("Z", "+00:00")).timestamp(), float(p.get("lon")), float(p.get("lat"))))
     pts.sort()
     return pts
 
@@ -519,7 +533,8 @@ def build_photos(track_features, resize=True):
     timeline = gpx_timeline()
     times = [p[0] for p in timeline]
     hidden = set(load_json(CONFIG_DIR / "hidden.json", {}).get("hidden", []))
-    all_files = sorted(p for p in PHOTO_DIR.iterdir() if p.suffix.lower() in (".jpg", ".jpeg"))
+    all_files = sorted((p for d in PHOTO_DIRS if d.is_dir() for p in d.iterdir() if p.suffix.lower() in (".jpg", ".jpeg")),
+                       key=lambda p: p.name)
     files = [p for p in all_files if p.name not in hidden]
     HIDDEN_SRCS.update(photo_name(p.stem) + ".jpg" for p in all_files if p.name in hidden)
     for n, src in enumerate(files, 1):
@@ -639,12 +654,17 @@ def build_places(photo_feats):
             continue
         for m in members:
             m["properties"]["place"] = p["id"]
+            if p.get("gather"):
+                # A house shown as one pin: every photo sits on the pin instead of where it was taken.
+                m["properties"]["gathered"] = True
+                m["geometry"]["coordinates"] = [round(lon, PRECISION), round(lat, PRECISION)]
         hero = p.get("hero") if p.get("hero") in by_file else (members[0]["properties"]["file"] + ".jpg" if members else None)
         feats.append({"type": "Feature", "id": p["id"], "properties": {
             "name": p.get("name", ""), "icon": p.get("icon", "photo"), "story": p.get("story", ""),
             "hero": hero[:-4] if hero else None, "photos": [m["properties"]["file"] for m in members],
             "featured": bool(p.get("featured", bool(p.get("name")))), "guess": bool(p.get("guess")),
             "moved": bool(p.get("coords")),
+            **({"site": True} if p.get("site") else {}), **({"gather": True} if p.get("gather") else {}),
         }, "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]}})
     loose = [f for f in by_file if f not in claimed]
     write_data("places", {"type": "FeatureCollection", "features": feats})
