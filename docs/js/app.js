@@ -1650,7 +1650,12 @@
     }
     lbImg.alt = p.title || lbTitle;
     const cap = p.title || lbTitle;
-    $(".lb-cap", lb).innerHTML = `<b>${esc(cap)}</b>${p.caption ? `<br>${esc(p.caption)}` : ""}<br><small>${esc(fmtDate(p.taken))}${lbList.length > 1 ? ` · photo ${lbIdx + 1} of ${lbList.length}` : ""}</small>`;
+    // Where it was taken, from the map data (the photo files themselves carry no location); tapping opens Google Maps there.
+    const at = allPhotos.find((a) => a.p === p)?.m.getLatLng();
+    const where = at ? `<br><a class="lb-coords" href="https://www.google.com/maps/search/?api=1&amp;query=${at.lat.toFixed(6)},${at.lng.toFixed(6)}"
+      target="_blank" rel="noopener" aria-label="Open where this photo was taken in Google Maps">📍 ${Math.abs(at.lat).toFixed(5)}° ${at.lat < 0 ? "S" : "N"},
+      ${Math.abs(at.lng).toFixed(5)}° ${at.lng < 0 ? "W" : "E"}</a>` : "";
+    $(".lb-cap", lb).innerHTML = `<b>${esc(cap)}</b>${p.caption ? `<br>${esc(p.caption)}` : ""}<br><small>${esc(fmtDate(p.taken))}${lbList.length > 1 ? ` · photo ${lbIdx + 1} of ${lbList.length}` : ""}${where}</small>`;
     const multi = lbList.length > 1;
     $(".lb-prev", lb).hidden = !multi;
     $(".lb-next", lb).hidden = !multi;

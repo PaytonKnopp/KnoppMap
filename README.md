@@ -35,6 +35,8 @@ GitHub Pages from the `docs/` folder.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
   Google Maps driving directions instead.
+- **Photo viewer** shows each photo's name, date and the exact coordinates where it was taken; tap the coordinates
+  to open that spot in Google Maps.
 - **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
   tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
 - **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.

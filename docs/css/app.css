@@ -196,6 +196,9 @@ body { font-family: var(--body-font); color: var(--ink); }
 .lb-cap { flex: 1; font-size: 1.05rem; line-height: 1.35; }
 .lb-cap b { font-size: 1.15rem; }
 .lb-cap small { color: #bbb; font-size: 0.9rem; }
+.lb-coords { color: inherit; text-decoration: underline; text-decoration-color: rgba(255, 255, 255, .35); text-underline-offset: 3px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb-coords:hover { color: #fff; }
 .lb-stage { flex: 1; position: relative; overflow: hidden; touch-action: none; display: grid; place-items: center; min-height: 0; }
 /* Fills the stage and fits the photo inside it, so the small stand-in copy and the full photo show at the same size. */
 .lb-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform-origin: center; user-select: none; will-change: transform; }
