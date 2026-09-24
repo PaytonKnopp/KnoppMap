@@ -416,9 +416,9 @@
   let photosOn = true;
   let labelsOn = true;
   const ADV_DEFAULTS = { colourMode: "simple", trailColour: null, lineStyle: "theme", outline: true, flow: false, thickness: 1, lineOpacity: 100,
-    placeNames: true, minorSpots: true, hiddenTypes: [], lengthFilter: "all", steepFilter: "all", trailDay: "all", cluster: true, boundaryFill: true,
+    placeNames: true, minorSpots: true, hiddenPlaces: [], lengthFilter: "all", steepFilter: "all", trailDay: "all", cluster: true, boundaryFill: true,
     dirArrows: true, labelSize: 1, labelLengths: false, rings: false, compass: true, units: "metric" };
-  const adv = { ...ADV_DEFAULTS, hiddenTypes: [] };
+  const adv = { ...ADV_DEFAULTS, hiddenPlaces: [] };
   const LENGTHS = { all: [0, 1e9], short: [0, 250], medium: [250, 600], long: [600, 1e9] };
   const STEEPS = { all: [0, 1e9], flat: [0, 1.5], gentle: [1.5, 3], hilly: [3, 1e9] };   // % climb over the trail's length
   // Distances follow the "Distances in" setting: metres and kilometres, or feet and miles.
@@ -640,7 +640,7 @@
     const z = map.getZoom(), placesAt = Math.min(Z.places, homeZoom);
     places.forEach((pl) => {
       const p = pl.f.properties;
-      const typeOk = !adv.hiddenTypes.includes(p.icon);
+      const typeOk = !adv.hiddenPlaces.includes(pl.f.id);
       const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= placesAt : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
       if (show && !map.hasLayer(pl.marker)) pl.marker.addTo(map);
       if (!show && map.hasLayer(pl.marker)) map.removeLayer(pl.marker);
@@ -1350,7 +1350,7 @@
   }
 
   function resetAll() {
-    Object.assign(adv, ADV_DEFAULTS, { hiddenTypes: [] });
+    Object.assign(adv, ADV_DEFAULTS, { hiddenPlaces: [] });
     hiddenTracks.clear();
     setUnits("metric");
     setRings(false);
@@ -1395,11 +1395,11 @@
         <h4>Trail see-through</h4><div class="range-row"><span class="rr-l">Faint</span><input type="range" id="a-lineop" min="20" max="100" step="5" aria-label="Trail opacity"><span class="rr-l">Solid</span></div>
         <h4>Map brightness</h4><div class="range-row"><span>🌑</span><input type="range" id="a-dim" min="35" max="100" step="5" aria-label="Map brightness"><span>☀️</span></div>
         <div id="a-linechecks"></div>`, "advsec")}
-      ${sec("filter", "🔎", "Filter trails & places", "Length, steepness, kinds of places", `
+      ${sec("filter", "🔎", "Filter trails & places", "Length, steepness, places", `
         <p class="note filter-count" id="a-count"></p>
         <h4>Trail length</h4><div class="seg" id="a-length"></div>
         <h4>Steepness</h4><div class="seg" id="a-steep"></div>
-        <h4>Kinds of places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>
+        <h4>Places <small>(tap to hide or show)</small></h4><div class="chips" id="a-types"></div>
         <div class="btn-row mini-btns"><button class="chip" id="a-types-all">Show all</button><button class="chip" id="a-types-none">Hide all</button></div>`, "advsec")}
       ${sec("labels", "🏷️", "Labels & extras", "Name size, rings, compass, units, shading", `
         <h4>Trail name size</h4><div class="seg" id="a-lsize"></div>
@@ -1491,7 +1491,7 @@
     const updateCount = () => {
       const tr = [...tracks.values()].filter((x) => cat(x.f) === "trails");
       const shownT = tr.filter((x) => !hiddenTracks.has(x.f.id) && passesTrailFilters(x.f)).length;
-      const fp = featuredPlaces(), shownP = fp.filter((pl) => !adv.hiddenTypes.includes(pl.f.properties.icon)).length;
+      const fp = featuredPlaces(), shownP = fp.filter((pl) => !adv.hiddenPlaces.includes(pl.f.id)).length;
       countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · <b>${shownP} of ${fp.length}</b> places`;
     };
     const refilter = () => { refreshTracks(); refreshPlaces(); declutterSoon(); updateCount(); };
@@ -1499,22 +1499,23 @@
       adv.lengthFilter, (v) => { adv.lengthFilter = v; refilter(); });
     seg($("#a-steep", body), [["all", "Any"], ["flat", "Flat"], ["gentle", "Gentle"], ["hilly", "Hilliest"]],
       adv.steepFilter, (v) => { adv.steepFilter = v; refilter(); });
-    const types = [...new Set([...places.values()].map((pl) => pl.f.properties.icon))];
+    // One chip per named place, with the same name and icon as on the map, so renaming a place renames its chip too.
+    const named = featuredPlaces().sort((a, b) => placeTitle(a).localeCompare(placeTitle(b)));
     const tyEl = $("#a-types", body);
-    const typeBtns = types.map((ty) => {
-      const b = document.createElement("button");
-      const on = () => !adv.hiddenTypes.includes(ty);
+    const typeBtns = named.map((pl) => {
+      const b = document.createElement("button"), id = pl.f.id;
+      const on = () => !adv.hiddenPlaces.includes(id);
       b.className = "chip toggle" + (on() ? " on" : "");
-      b.innerHTML = `${icon(ty)} ${esc(KM.ICONS[ty]?.[1] || ty)}`;
+      b.innerHTML = `${icon(pl.f.properties.icon)} ${esc(placeTitle(pl))}`;
       b.onclick = () => {
-        adv.hiddenTypes = on() ? [...adv.hiddenTypes, ty] : adv.hiddenTypes.filter((x) => x !== ty);
+        adv.hiddenPlaces = on() ? [...adv.hiddenPlaces, id] : adv.hiddenPlaces.filter((x) => x !== id);
         b.classList.toggle("on", on());
         refilter();
       };
       tyEl.append(b);
       return b;
     });
-    const allTypes = (show) => { adv.hiddenTypes = show ? [] : [...types]; typeBtns.forEach((b) => b.classList.toggle("on", show)); refilter(); };
+    const allTypes = (show) => { adv.hiddenPlaces = show ? [] : named.map((pl) => pl.f.id); typeBtns.forEach((b) => b.classList.toggle("on", show)); refilter(); };
     $("#a-types-all", body).onclick = () => allTypes(true);
     $("#a-types-none", body).onclick = () => allTypes(false);
     updateCount();

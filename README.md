@@ -48,8 +48,8 @@ GitHub Pages from the `docs/` folder.
   - *Trail colours & lines:* colour by one colour / each trail / steepness / length, pick the single trail colour,
     line style (the look's own, solid, dashed, dotted), thickness, see-through, map brightness, dark outline on or
     off, and *Moving trails* (dashes flow along every trail).
-  - *Filter trails & places:* trail length, steepness, kinds of places (with Show all /
-    Hide all), and a live count of what's showing.
+  - *Filter trails & places:* trail length, steepness, each named place by its own name (with Show all /
+    Hide all), and a live count of what's showing. Renaming a place in the editor renames its filter too.
   - *Labels & extras:* trail name size, distances in metres or feet and miles (everywhere: cards, measure, scale,
     rings), distance rings around the house, direction arrows on named trails, trail lengths next to
     names, compass and scale bar, small photo spots, photo grouping, and shading inside the property line.
