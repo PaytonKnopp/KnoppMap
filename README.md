@@ -1,7 +1,8 @@
 # Knopp Map
 
 An interactive map of the Knopp quarter section: 3 property perimeters, 3 roads, 26 named trails, 14 named places
-and about 230 geotagged field photos. It is a plain static website (Leaflet, no server, no accounts) served by
+and about 230 geotagged field photos, plus two family houses nearby (Old House and CK House), each shown as one pin
+holding all of its photos. It is a plain static website (Leaflet, no server, no accounts) served by
 GitHub Pages from the `docs/` folder.
 
 **Live site:** https://paytonknopp.github.io/KnoppMap/  ·  **Place editor:** https://paytonknopp.github.io/KnoppMap/tag.html
@@ -12,6 +13,7 @@ GitHub Pages from the `docs/` folder.
 
 | | |
 |---|---|
+| ▾ **Knopp Map** (title) | Tap the title for the place switcher: **The Quarter**, **Old House** or **CK House**. The title never changes; the ✓ shows where you are. **Back to the farm** brings you home from anywhere. |
 | 🏠 **Home** | Jump back to the whole property. |
 | 📍 **Places** | List of named places and trails. Tap one to fly there and see its photos. |
 | ▶️ **Tour** | A 14-stop slideshow walk around the quarter with big Back / Next buttons. |
@@ -35,6 +37,10 @@ GitHub Pages from the `docs/` folder.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
   Google Maps driving directions instead.
+- **Family houses:** Old House (62 photos) and CK House (41 photos and the Home Loop driveway track) are one pin
+  each, shown from far out. Tapping the pin opens all of its photos; they never scatter across the map. They're
+  listed under *Family houses* in Places, are searchable, and work with Take me there. They are not in the tour
+  and don't change anything about the quarter.
 - **Photo viewer** shows each photo's name, date and the exact coordinates where it was taken; tap the coordinates
   to open that spot in Google Maps.
 - **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
@@ -74,8 +80,10 @@ GitHub Pages from the `docs/` folder.
 ## Repository layout
 
 ```
-knopp-map.gpx          raw Gaia GPS export (never edited by the build)
-photos/Knopp Map/      original phone photos (GPS + time read from EXIF)
+knopp-map.gpx          raw Gaia GPS export for the quarter (never edited by the build)
+ck-loop.gpx            the Home Loop at CK House (any other *.gpx next to it is read too)
+photos/Knopp Map/      original phone photos of the quarter (GPS + time read from EXIF)
+photos/Old Knopp House/, photos/CK House/   photos of the two family houses
 config/tracks.json     per track: display name, category, colour, loop, snap, manual endpoints, named directions
 config/places.json     named places: name, icon, story, cover photo, photos, featured, optional fixed position
 config/tour.json       tour stops in order, with the text for each stop
@@ -120,6 +128,10 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
 - `config/places.json` is seeded once by grouping photos taken within 20 m, then hand-edited and never overwritten.
   New photos not in any place are grouped into temporary unnamed spots.
 - Named places (`featured`) get a picture icon and a label; unnamed ones are small camera spots.
+- `"site": true` marks a family house (its own pin, shown from far out, listed under *Family houses*, and a choice
+  in the title's place switcher); `"gather": true` puts all of that place's photos on its pin instead of where each
+  was taken. Old House and CK House have both, with `coords` set by hand on the house. A track joins a house with
+  `"site": "<place id>"` in `config/tracks.json` (Home Loop → `ck-house`).
 
 ## Editing places — `/tag.html`
 

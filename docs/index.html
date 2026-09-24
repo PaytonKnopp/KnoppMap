@@ -33,7 +33,7 @@
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/markercluster/MarkerCluster.Default.css">
-  <link rel="stylesheet" href="css/app.css?v=26">
+  <link rel="stylesheet" href="css/app.css?v=27">
 </head>
 <body>
   <div id="map" aria-label="Map of the quarter"></div>
@@ -55,7 +55,7 @@
   </div>
   <header id="topbar">
     <div class="top-left">
-      <h1 id="site-title">Knopp Map</h1>
+      <h1 id="site-title"><button id="site-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="site-menu" title="Go to the quarter or a family house"><span class="st-name">Knopp Map</span><span class="st-caret" aria-hidden="true"></span></button></h1>
       <button id="options-btn" aria-label="Options, looks and filters"><span>⚙️</span> Options</button>
     </div>
     <div class="top-actions">
@@ -65,6 +65,8 @@
       <button id="help-btn" class="tips-btn" aria-label="Welcome tips"><span>💡</span><span class="lbl">Tips</span></button>
     </div>
   </header>
+
+  <div id="site-menu" role="menu" aria-label="Go to" hidden></div>
 
   <div id="legend-pop" role="dialog" aria-labelledby="lp-title" hidden>
     <div class="lp-head"><h2 id="lp-title">Legend</h2><button class="lp-x round mini" aria-label="Close legend">✕</button></div>
@@ -227,7 +229,7 @@
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/markercluster/leaflet.markercluster.js"></script>
-  <script src="js/common.js?v=26"></script>
-  <script src="js/app.js?v=26"></script>
+  <script src="js/common.js?v=27"></script>
+  <script src="js/app.js?v=27"></script>
 </body>
 </html>

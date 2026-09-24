@@ -2,7 +2,7 @@
 
 ## Tracks
 
-32 tracks, 1 waypoint(s). Points: 1798 raw -> 487 after 2 m simplification.
+33 tracks, 1 waypoint(s). Points: 1826 raw -> 495 after 2 m simplification.
 
 ### Loops
 
@@ -84,7 +84,7 @@
 
 ## Photos
 
-258 photos found, 27 hidden as near-duplicates (config/hidden.json), 231 placed on the map.
+365 photos found, 31 hidden as near-duplicates (config/hidden.json), 334 placed on the map.
 
 ### Missing GPS
 
@@ -100,5 +100,5 @@
 
 ## Places
 
-60 places (14 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
+62 places (16 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
 

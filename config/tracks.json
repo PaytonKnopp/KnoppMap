@@ -11,6 +11,10 @@
     "trails": {
       "label": "Trails",
       "order": 3
+    },
+    "houses": {
+      "label": "Other houses",
+      "order": 4
     }
   },
   "tracks": {
@@ -197,6 +201,13 @@
       "category": "boundary",
       "color": "#ff9800",
       "loop": true
+    },
+    "Home Loop": {
+      "name": "Home Loop",
+      "category": "houses",
+      "color": "#ff6200",
+      "snap": false,
+      "site": "ck-house"
     }
   }
 }
