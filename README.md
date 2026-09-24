@@ -91,6 +91,7 @@ config/hidden.json     near-duplicate photos hidden from the map (never deleted;
 config/photos.json     optional per-photo title / caption
 config/site.json       site title, optional password, optional map-style keys
 build/build.py         turns all of the above into the website data
+build/apply_edits.py   applies an edits file downloaded from the place editor, then rebuilds
 build/report.md        what the last build did (joins, trims, loops, photo checks, places, tour)
 docs/                  the website: index.html, tag.html, css/, js/, data/, photos/web, photos/thumb, sw.js
 ```
@@ -135,9 +136,35 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
 
 ## Editing places — `/tag.html`
 
-Rename places, pick icons and cover photos, write stories, move photos between places, split or merge places, and
-drag pins. Edits save in that browser as a draft. Click **Download places.json**, put it in `config/` (or send it to
-Claude), and rebuild.
+The place editor is a private checking tool for the map's keeper. It reads the published map and never changes it by
+itself; edits only reach the family map when the edits file is applied and the site rebuilt.
+
+- **Places tab:** a list of every place (with *Not checked*, *Named*, *Unnamed*, *Houses* and *Edited* filters and a
+  progress bar), the open place (name, icon, named-place switch, story, photos) and a satellite map showing the
+  place's pin plus a numbered dot where each of its photos was taken. **✓ Looks good: next place** ticks a place off.
+- **Photos:** click one to open it big (← → to go through them) with its caption and title, a mini-map of where it
+  was taken, and buttons to hide/show it, make it the cover, move it earlier/later or send it to another place.
+  Drag photos to reorder them or onto a place in the list to move them; tick several to move, split off, hide or show
+  them together. Hidden photos stay in the editor, greyed out, so they can be brought back. *⚠ far* marks a photo
+  taken more than 50 m (150 m for the houses) from its place's pin.
+- **Tour tab:** tour title, and each stop's place and text; reorder, add or remove stops.
+- **Changes tab:** everything that differs from the published map in plain words, **⬇ Download edits** / *Copy
+  edits*, *Load an edits file* (carry on from another device or restore a backup) and *Throw away all my edits*.
+- **Tips tab:** how everything works and the keyboard shortcuts. **Undo / Redo** (Ctrl+Z / Ctrl+Shift+Z) cover
+  every edit.
+
+Work saves in that browser as you go. To publish: **⬇ Download edits** gives one file,
+`knopp-map-edits-<date>.json`, holding the editor's copy of `config/places.json`, `photos.json`, `hidden.json` and
+`tour.json`. Send it to Claude ("Apply my map edits"), or run:
+
+```
+python3 build/apply_edits.py knopp-map-edits-2026-09-24.json --check   # show what would change
+python3 build/apply_edits.py knopp-map-edits-2026-09-24.json           # write the config files and rebuild
+```
+
+The editor loads `docs/data/editor.json` (or `editor.enc` when a password is set), which the full build writes
+next to the map data: the config files as they are, the hidden photos, and where each photo was taken. The family
+map never downloads it.
 
 ## Looks and map styles
 

@@ -101,6 +101,9 @@ def simplify(line, tol):
 
 
 BUNDLE = {}
+# Only for the place editor (tag.html): the config files as written, hidden photos and where every photo was taken.
+# Written to its own file so the family map never downloads it.
+EDITOR = {}
 HIDDEN_SRCS = set()
 SITE_CFG = {}
 FARM_BOUNDS = []
@@ -142,6 +145,26 @@ def write_bundle():
     meta["keys"] = {k: v for k, v in (SITE_CFG.get("keys") or {}).items() if v}
     meta["version"] = hashlib.sha256(raw).hexdigest()[:12]
     (DATA_OUT / "site.json").write_text(json.dumps(meta) + "\n")
+    if EDITOR:
+        write_editor(meta, pw)
+
+
+def write_editor(meta, pw):
+    """editor.json (or editor.enc, locked with the same password) for the place editor. The map never reads it."""
+    EDITOR["version"] = hashlib.sha256(json.dumps(EDITOR, sort_keys=True).encode()).hexdigest()[:12]
+    raw = json.dumps(EDITOR, separators=(",", ":"), ensure_ascii=False).encode()
+    for old in ("editor.json", "editor.enc"):
+        (DATA_OUT / old).unlink(missing_ok=True)
+    if not pw:
+        (DATA_OUT / "editor.json").write_bytes(raw)
+        return
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=base64.b64decode(meta["salt"]),
+                     iterations=meta["iter"]).derive(pw.strip().lower().encode())
+    iv = os.urandom(12)   # its own IV, stored in front of the data
+    (DATA_OUT / "editor.enc").write_bytes(iv + AESGCM(key).encrypt(iv, raw, None))
 
 
 def build_tour(place_feats):
@@ -543,6 +566,35 @@ def build_photos(track_features, resize=True):
                        key=lambda p: p.name)
     files = [p for p in all_files if p.name not in hidden]
     HIDDEN_SRCS.update(photo_name(p.stem) + ".jpg" for p in all_files if p.name in hidden)
+    hidden_feats, taken_at = [], {}
+    for src in all_files:
+        if src.name not in hidden:
+            continue
+        # Hidden photos stay off the map; the editor still shows them so they can be brought back.
+        with Image.open(src) as im:
+            ex = im.getexif()
+            gps, sub = ex.get_ifd(0x8825), ex.get_ifd(0x8769)
+            taken = sub.get(36867) or ex.get(306)
+            if resize and not (WEB_OUT / f"{photo_name(src.stem)}.jpg").exists():
+                img = ImageOps.exif_transpose(im).convert("RGB")
+                web = img.copy()
+                web.thumbnail((WEB_PX, WEB_PX), Image.LANCZOS)
+                web.save(WEB_OUT / f"{photo_name(src.stem)}.jpg", "JPEG", quality=WEB_Q, optimize=True, progressive=True)
+                img.thumbnail((THUMB_PX, THUMB_PX), Image.LANCZOS)
+                img.save(THUMB_OUT / f"{photo_name(src.stem)}.jpg", "JPEG", quality=THUMB_Q, optimize=True)
+        pos = None
+        if gps and 2 in gps and 4 in gps:
+            pos = [round(dms_to_deg(gps[4], gps.get(3, "E")), PRECISION), round(dms_to_deg(gps[2], gps.get(1, "N")), PRECISION)]
+        iso = None
+        if taken:
+            dt = datetime.strptime(taken, "%Y:%m:%d %H:%M:%S")
+            offset = sub.get(36881) or sub.get(36880)
+            if offset:
+                sign = -1 if offset.startswith("-") else 1
+                h, m = offset.lstrip("+-").split(":")
+                dt = dt.replace(tzinfo=timezone(sign * timedelta(hours=int(h), minutes=int(m))))
+            iso = dt.isoformat()
+        hidden_feats.append({"file": src.stem, "src": photo_name(src.stem), "taken": iso, "pos": pos})
     for n, src in enumerate(files, 1):
         with Image.open(src) as im:
             ex = im.getexif()
@@ -585,6 +637,7 @@ def build_photos(track_features, resize=True):
             if d < near_d:
                 near, near_d = name, d
         cap = captions.get(src.name, {})
+        taken_at[src.stem] = [round(lon, PRECISION), round(lat, PRECISION)]
         feats.append({
             "type": "Feature",
             "id": stem,
@@ -597,6 +650,8 @@ def build_photos(track_features, resize=True):
         if n % 25 == 0:
             print(f"  photos {n}/{len(files)}", file=sys.stderr)
 
+    EDITOR["hiddenPhotos"] = hidden_feats
+    EDITOR["takenAt"] = taken_at   # before a family house gathers its photos onto its pin
     report += ["## Photos\n", f"{len(all_files)} photos found, {len(hidden & {p.name for p in all_files})} hidden as near-duplicates "
                f"(config/hidden.json), {len(feats)} placed on the map.\n",
                "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), "",
@@ -696,6 +751,7 @@ def main():
     else:
         photo_feats, r = build_photos(feats, resize=not args.no_resize)
         report += r + build_places(photo_feats)
+        EDITOR["config"] = {name: load_json(CONFIG_DIR / f"{name}.json", None) for name in ("places", "photos", "hidden", "tour")}
         write_data("photos", {"type": "FeatureCollection", "features": photo_feats})
         keep = {f["properties"]["src"] + ".jpg" for f in photo_feats} | HIDDEN_SRCS
         for d in (WEB_OUT, THUMB_OUT):

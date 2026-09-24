@@ -5,47 +5,189 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="icons/icon-32.png">
-  <title>Knopp Map – Place Tagger</title>
+  <title>Knopp Map – Place Editor</title>
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
-  <link rel="stylesheet" href="css/tag.css?v=2">
+  <link rel="stylesheet" href="css/tag.css?v=3">
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Place Tagger</h1>
-      <p>Name the places, pick a cover photo, add a story. Your edits save in this browser as you go.</p>
+  <header class="top">
+    <div class="brand">
+      <h1>Place Editor</h1>
+      <span class="note">Only you see this page. Nothing changes on the family map until you send your edits to Claude.</span>
     </div>
+    <nav class="tabs" role="tablist">
+      <button data-tab="places" class="on">📍 Places</button>
+      <button data-tab="tour">▶️ Tour</button>
+      <button data-tab="changes">📝 Changes <span id="change-count" class="count"></span></button>
+      <button data-tab="tips">💡 Tips</button>
+    </nav>
     <div class="head-actions">
-      <button id="export" class="primary">⬇ Download places.json</button>
-      <button id="copy">Copy</button>
-      <button id="reset" class="danger">Start over</button>
+      <button id="undo" title="Undo (Ctrl+Z)" disabled>↶<span class="wide-only"> Undo</span></button>
+      <button id="redo" title="Redo (Ctrl+Shift+Z)" disabled>↷<span class="wide-only"> Redo</span></button>
+      <button id="export" class="primary" title="Download a file with all your edits to send to Claude">⬇ Download<span class="wide-only"> edits</span></button>
     </div>
   </header>
-  <details class="howto">
-    <summary>How to publish your changes</summary>
-    <ol>
-      <li>Click <b>Download places.json</b>.</li>
-      <li>On GitHub, open the repo → <b>config</b> folder → <b>Add file → Upload files</b>, drop the file in and commit to <b>main</b>
-        (it replaces the old one). Or just send the file to Claude.</li>
-      <li>Ask Claude to "rebuild the map" (or run <code>python3 build/build.py</code>) so the family map picks it up.</li>
-    </ol>
-    <p>Tips: click photos to select them, then use <b>Move selected</b> to put them in another place or <b>New place</b> to split them off.
-      ⭐ sets the cover photo. Drag a pin on the map to move a place. Places marked <span class="badge">Claude's guess</span> were named from the photos — please check them.</p>
-  </details>
-  <div class="toolbar">
-    <input id="search" type="search" placeholder="Search places…">
-    <div class="seg" id="filter">
-      <button data-f="all" class="on">All</button><button data-f="named">Named</button><button data-f="unnamed">Unnamed</button><button data-f="guess">To check</button>
-    </div>
-    <span id="stats"></span>
-  </div>
-  <main>
-    <div id="map"></div>
-    <div id="list"></div>
+
+  <!-- ============================================================ places -->
+  <main id="view-places" class="view">
+    <aside id="side">
+      <div class="side-head">
+        <button data-a="close-list" class="only-narrow close-list">✕ Close</button>
+        <input id="search" type="search" placeholder="Search names, stories, captions…" aria-label="Search places">
+        <div class="chips" id="filter">
+          <button data-f="all" class="on">All</button>
+          <button data-f="todo">Not checked</button>
+          <button data-f="named">Named</button>
+          <button data-f="unnamed">Unnamed</button>
+          <button data-f="houses">Houses</button>
+          <button data-f="changed">Edited</button>
+        </div>
+        <div class="progress"><div class="bar"><i id="progress-bar"></i></div><span id="progress-text"></span></div>
+      </div>
+      <div id="list" role="listbox" aria-label="Places"></div>
+    </aside>
+
+    <section id="place" aria-live="polite"></section>
+
+    <section id="mapwrap">
+      <div id="map"></div>
+      <div class="map-tools">
+        <label><input type="checkbox" id="show-all-photos"> Every photo on the map</label>
+        <label><input type="checkbox" id="show-trails" checked> Trails</label>
+        <button id="fit-place">Zoom to place</button>
+        <button id="fit-all">Whole quarter</button>
+      </div>
+      <div class="map-key">
+        <span><i class="k pin-k"></i>this place's pin</span>
+        <span><i class="k dot-k"></i>where a photo was taken</span>
+        <span><i class="k dot-k cover"></i>cover</span>
+        <span><i class="k dot-k hidden"></i>hidden</span>
+        <span><i class="k dot-k sel"></i>selected</span>
+      </div>
+    </section>
   </main>
-  <div id="viewer" hidden><img alt=""><button aria-label="Close">✕</button></div>
+
+  <!-- ============================================================ tour -->
+  <main id="view-tour" class="view page" hidden></main>
+
+  <!-- ============================================================ changes -->
+  <main id="view-changes" class="view page" hidden></main>
+
+  <!-- ============================================================ tips -->
+  <main id="view-tips" class="view page" hidden>
+    <div class="tips">
+      <h2>How to use the editor</h2>
+      <p class="lead">The editor is a safe copy of the map. Try anything you like: <b>Undo</b> takes back any step, and the family map
+        stays exactly as it is until you send your edits to Claude.</p>
+
+      <div class="tip-grid">
+        <section>
+          <h3>1 · Go through the places</h3>
+          <ul>
+            <li>Pick a place from the list on the left, or click its pin on the map.</li>
+            <li>Check its <b>name</b>, <b>icon</b> and <b>story</b>, then look over its photos.</li>
+            <li>When it's right, press <b>✓ Looks good: next place</b>. That ticks it off and opens the next place.</li>
+            <li>The <b>Not checked</b> filter shows only what's left. The bar at the top of the list shows how far along you are.</li>
+            <li>Ticks are only for you: they help you keep your place and never change the map.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>2 · Check the photos</h3>
+          <ul>
+            <li><b>Click a photo</b> to open it big. Use <kbd>←</kbd> <kbd>→</kbd> to go through them all.</li>
+            <li>While it's open you can write a <b>caption</b>, make it the <b>cover</b>, <b>hide</b> it, move it earlier or later, or send it to another place.</li>
+            <li>A small map beside the photo shows <b>where it was taken</b> compared with the place's pin.</li>
+            <li><b>⚠ far</b> on a photo means it was taken a long way from its place's pin, so check that it belongs there.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>3 · Hide the ones you don't want</h3>
+          <ul>
+            <li><b>🙈</b> on a photo (or <kbd>H</kbd> in the big view) hides it from the family map.</li>
+            <li>Hidden photos stay here, greyed out, so you can bring them back with <b>👁</b>.</li>
+            <li>Nothing is ever deleted: the original stays safe in the photos folder.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>4 · Order, cover and captions</h3>
+          <ul>
+            <li><b>Drag a photo</b> to change its order. The family map shows them in this order.</li>
+            <li><b>Sort by time</b> puts them back in the order they were taken.</li>
+            <li><b>⭐</b> makes a photo the cover (the big picture on the place's card).</li>
+            <li>A <b>caption</b> shows under the photo in the family map's viewer, and search finds it.
+              A <b>title</b> replaces the place name as that photo's heading.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>5 · Move photos between places</h3>
+          <ul>
+            <li>Tick the <b>☐</b> in a photo's corner to select it. <kbd>Shift</kbd>-click selects a whole run.</li>
+            <li>Then use the blue bar: <b>Move to…</b>, <b>New place from these</b>, <b>Hide</b> or <b>Show</b>.</li>
+            <li>You can also <b>drag a photo onto a place in the list</b> on the left.</li>
+            <li><b>Merge</b> (bottom of a place) folds a whole place into another. Any tour stop follows it.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>6 · Pins and the map</h3>
+          <ul>
+            <li>The open place's pin is big. Its photos show as numbered dots where each was taken.</li>
+            <li><b>Drag the pin</b> to put the place exactly where it should be. <b>Put pin back</b> returns it to the middle of its photos.</li>
+            <li><b>Every photo on the map</b> shows all the photos as small dots, which helps you spot one filed under the wrong place. Click a dot to open it.</li>
+            <li>Hover a photo to light up its dot, or hover a dot to light up the photo.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>7 · The tour</h3>
+          <ul>
+            <li>The <b>Tour</b> tab lists the stops in order. Change a stop's text, pick a different place, move it up or down, add or remove stops.</li>
+            <li>A stop with no text uses the place's story.</li>
+          </ul>
+        </section>
+        <section>
+          <h3>8 · Send your edits to Claude</h3>
+          <ul>
+            <li>The <b>Changes</b> tab lists everything you've changed, in plain words.</li>
+            <li>Press <b>⬇ Download edits</b>. You get one file, <code>knopp-map-edits-….json</code>.</li>
+            <li>In a Claude chat for this project, attach that file and say <b>"Apply my map edits."</b> Claude checks it, rebuilds the map and publishes it.</li>
+            <li>Your edits are saved in this browser as you go, so you can stop and come back later on the <b>same computer and browser</b>.
+              To carry on somewhere else, download the file and use <b>Load an edits file</b> on the other device.</li>
+          </ul>
+        </section>
+      </div>
+
+      <h3>Keyboard shortcuts</h3>
+      <table class="keys">
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd></td><td>Undo / redo (<kbd>⌘</kbd> on a Mac)</td></tr>
+        <tr><td><kbd>Alt</kbd>+<kbd>↓</kbd> / <kbd>Alt</kbd>+<kbd>↑</kbd></td><td>Next / previous place</td></tr>
+        <tr><th colspan="2">With a photo open</th></tr>
+        <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Previous / next photo (or swipe on a phone)</td></tr>
+        <tr><td><kbd>Shift</kbd>+<kbd>←</kbd> <kbd>Shift</kbd>+<kbd>→</kbd></td><td>Move this photo earlier / later</td></tr>
+        <tr><td><kbd>H</kbd></td><td>Hide / show on the family map</td></tr>
+        <tr><td><kbd>C</kbd></td><td>Make it the cover</td></tr>
+        <tr><td><kbd>E</kbd></td><td>Write the caption</td></tr>
+        <tr><td><kbd>Esc</kbd></td><td>Close (or leave the caption box)</td></tr>
+      </table>
+      <p><button class="primary" id="tips-done">Got it, start checking</button></p>
+    </div>
+  </main>
+
+  <!-- ============================================================ photo viewer -->
+  <div id="viewer" hidden role="dialog" aria-modal="true" aria-label="Photo">
+    <div class="vw-photo">
+      <img alt="">
+      <div class="vw-hidden-banner">🙈 Hidden: not on the family map</div>
+      <button class="vw-nav prev" aria-label="Previous photo">‹</button>
+      <button class="vw-nav next" aria-label="Next photo">›</button>
+      <button class="vw-close" aria-label="Close">✕</button>
+    </div>
+    <div class="vw-side"></div>
+  </div>
+
+  <div id="toast" role="status" hidden><span></span><button>Undo</button></div>
+  <div id="loading">Loading the map…</div>
+
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="js/common.js?v=27"></script>
-  <script src="js/tag.js?v=3"></script>
+  <script src="js/tag.js?v=4"></script>
 </body>
 </html>
