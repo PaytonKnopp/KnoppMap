@@ -1,7 +1,7 @@
 # Knopp Map
 
-An interactive map of the Knopp quarter section: 3 property perimeters, 3 roads, 26 named trails, 14 named places
-and about 230 geotagged field photos, plus two family houses nearby (Old House and CK House), each shown as one pin
+An interactive map of the Knopp quarter section: 3 property perimeters, a driveway, 28 named trails, 14 named places
+and about 185 geotagged field photos, plus two family houses nearby (Old House and CK House), each shown as one pin
 holding all of its photos. It is a plain static website (Leaflet, no server, no accounts) served by
 GitHub Pages from the `docs/` folder.
 
@@ -16,7 +16,7 @@ GitHub Pages from the `docs/` folder.
 | ▾ **Knopp Map** (title) | Tap the title for the place switcher: **Main Quarter**, **Old House** or **CK House**. The title never changes; the ✓ shows where you are. **Back to the farm** brings you home from anywhere. |
 | 🏠 **Home** | Jump back to the whole property. |
 | 📍 **Places** | List of named places and trails. Tap one to fly there and see its photos. |
-| ▶️ **Tour** | A 14-stop slideshow walk around the quarter with big Back / Next buttons. |
+| ▶️ **Tour** | A 13-stop slideshow walk around the quarter with big Back / Next buttons. |
 | 〰️ **Trails** | Show or hide trail lines. Tap any trail for length, climb, an elevation chart, connecting trails and photos. |
 | 🧭 **Me** | Your live position (when you're at the quarter) with the nearest place and direction. A blue beam on the dot shows which way you're facing, like Google Maps (iPhones ask to allow motion & orientation). |
 | 🔍 **Search** | Find places, trails and photo captions. Words can be in any order and small typos are fine ("payton trail", "britany"); press Enter to open the top result, or `/` to open search on a computer. |
@@ -37,7 +37,7 @@ GitHub Pages from the `docs/` folder.
 - **Take me there** (on every place card and tour stop) draws a blue walking route along the trails from your
   position, with distance, walking time, a direction arrow and "You've arrived". Away from the quarter it offers
   Google Maps driving directions instead.
-- **Family houses:** Old House (62 photos) and CK House (41 photos and the Home Loop driveway track) are one pin
+- **Family houses:** Old House (53 photos) and CK House (38 photos and the Home Loop driveway track) are one pin
   each, shown from far out. Tapping the pin opens all of its photos; they never scatter across the map. They're
   listed under *Family houses* in Places, are searchable, and work with Take me there. They are not in the tour
   and don't change anything about the quarter.
