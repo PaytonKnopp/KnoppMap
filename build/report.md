@@ -21,7 +21,7 @@
 - **Quarter Section Perimeter**: joined paused segment (gap 6 m)
 - **Acreage Perimeter**: joined paused segment (gap 3 m)
 - **Shooting Range**: joined paused segment (gap 3 m)
-- **Ring Road (MM, FF, CC)**: joined paused segment (gap 1 m)
+- **Ring Road**: joined paused segment (gap 1 m)
 
 ### End snapping (within 25 m, looking back 25 m for overshoot)
 
@@ -29,16 +29,16 @@
 |---|---|---|---|---|---|
 | Roger Trail | start | Margaret Trail | joined | 0.2 | 0.0 |
 | Roger Trail | end | N/S Trail | extended | 7.4 | 0.0 |
-| Roper Trail | start | Ring Road (MM, FF, CC) | joined | 0.8 | 0.0 |
+| Roper Trail | start | Ring Road | joined | 0.8 | 0.0 |
 | Roper Trail | end | Cabin Trail | joined | 0.3 | 0.0 |
 | Driveway & Main Yard | start | Quarter Section Perimeter | extended | 2.9 | 0.0 |
 | Driveway & Main Yard | end | Quarter Section Perimeter | trimmed at crossing | 0.0 | 2.7 |
-| N/S Trail | start | Ring Road (MM, FF, CC) | joined | 0.4 | 0.0 |
-| N/S Trail | end | Ring Road (MM, FF, CC) | joined | 0.4 | 0.0 |
+| N/S Trail | start | Ring Road | joined | 0.4 | 0.0 |
+| N/S Trail | end | Ring Road | joined | 0.4 | 0.0 |
 | Clint Trail | start | Cabin Trail | joined | 0.1 | 0.0 |
 | Clint Trail | end | Roper Trail | joined | 0.6 | 0.0 |
 | Outside Trail | start | Quarter Section Perimeter | trimmed at crossing | 0.0 | 1.7 |
-| Outside Trail | end | Ring Road (MM, FF, CC) | joined | 0.9 | 0.0 |
+| Outside Trail | end | Ring Road | joined | 0.9 | 0.0 |
 | Tree Farm Trail | start | Cabin Trail | extended | 1.3 | 0.0 |
 | Tree Farm Trail | end | Cabin Trail | extended | 1.4 | 0.0 |
 | Trailhead | start | Cabin Trail | trimmed at crossing | 0.0 | 2.7 |
@@ -49,7 +49,7 @@
 | Loraly Trail | end | Roper Trail | extended | 1.8 | 0.0 |
 | Hill Behind House Trails | start | Driveway & Main Yard | joined | 0.4 | 0.0 |
 | Hill Behind House Trails | end | Backroad Trail | extended | 14.3 | 0.0 |
-| Margaret Trail | start | Ring Road (MM, FF, CC) | trimmed at crossing | 0.0 | 1.4 |
+| Margaret Trail | start | Ring Road | trimmed at crossing | 0.0 | 1.4 |
 | Margaret Trail | end | Trailhead | extended | 1.7 | 0.0 |
 | Payton and Caine Trail | start | Cabin Perimeter | extended | 10.3 | 0.0 |
 | Payton and Caine Trail | end | Cabin Trail | extended | 5.0 | 0.0 |
@@ -70,11 +70,11 @@
 | Brittney Trail | start | N/S Trail | trimmed at crossing | 0.0 | 22.0 |
 | Brittney Trail | end | Cabin Trail | extended | 2.3 | 0.0 |
 | Shooting Range | start | Backroad Trail | extended | 7.0 | 0.0 |
-| Shooting Range | end | Ring Road (MM, FF, CC) | trimmed at crossing | 0.0 | 18.0 |
-| Ring Road (MM, FF, CC) | start | Cabin Perimeter | joined | 0.7 | 0.0 |
-| Ring Road (MM, FF, CC) | end | Cougar Bridge Trail | joined | 0.5 | 0.0 |
+| Shooting Range | end | Ring Road | trimmed at crossing | 0.0 | 18.0 |
+| Ring Road | start | Cabin Perimeter | joined | 0.7 | 0.0 |
+| Ring Road | end | Cougar Bridge Trail | joined | 0.5 | 0.0 |
 | Cougar Bridge Trail | start | Backroad Trail | joined | 0.2 | 0.0 |
-| Cougar Bridge Trail | end | Ring Road (MM, FF, CC) | joined | 0.4 | 0.0 |
+| Cougar Bridge Trail | end | Ring Road | joined | 0.4 | 0.0 |
 | Taylor Trail | start | Tracy Trail | extended | 2.3 | 0.0 |
 | Taylor Trail | end | Cabin Trail | extended | 7.5 | 0.0 |
 | Field Highway Trail | start | Tree Farm Trail | extended | 2.7 | 0.0 |
