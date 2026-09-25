@@ -137,7 +137,8 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
 **Places**
 - `config/places.json` is seeded once by grouping photos taken within 20 m, then hand-edited and never overwritten.
   New photos not in any place are grouped into temporary unnamed spots.
-- Named places (`featured`) get a picture icon and a label; unnamed ones are small camera spots.
+- Named places (`featured`) get a picture icon and a label; unnamed ones are small camera spots. `"label"` on an unnamed spot
+  puts a text tag on the map beside it, drawn like a trail name (Chicken Crossing, Moose Meadow, Fawn Flats).
 - `"site": true` marks a family house (its own pin, shown from far out, listed under *Family houses*, and a choice
   in the title's place switcher); `"gather": true` puts all of that place's photos on its pin instead of where each
   was taken. Old House and CK House have both, with `coords` set by hand on the house. A track joins a house with

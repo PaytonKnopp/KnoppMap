@@ -151,6 +151,7 @@
       }
       if ((b.icon || "photo") !== (p.icon || "photo")) add(`${nameOf(p)}: icon ${icon(b.icon)} → ${icon(p.icon)}`);
       if (!!b.featured !== !!p.featured && !(p.featured && !b.name && p.name)) add(`${nameOf(p)}: ${p.featured ? "now shown as a named place" : "now a small camera spot"}`);
+      if ((b.label || "") !== (p.label || "")) add(`${nameOf(p)}: ${p.label ? `map label “${p.label}”` : "map label removed"}`);
       if ((b.story || "") !== (p.story || "")) add(`${nameOf(p)}: story ${!b.story ? "added" : !p.story ? "removed" : "changed"}`);
       if (coverOf(b, BHID) !== coverOf(p)) add(`${nameOf(p)}: new cover photo${coverOf(p) ? ` (${stem(coverOf(p))})` : ""}`);
       if (!same(b.coords || null, p.coords || null)) {
@@ -334,7 +335,7 @@
     if (filter === "houses" && !pl.site) return false;
     if (filter === "changed" && !changedIds().has(pl.id)) return false;
     if (query) {
-      const hay = [pl.name, pl.story, pl.id, ICONS[pl.icon]?.[1],
+      const hay = [pl.name, pl.label, pl.story, pl.id, ICONS[pl.icon]?.[1],
         ...pl.photos.map((f) => `${stem(f)} ${capOf(f).title || ""} ${capOf(f).caption || ""}`)].join(" ").toLowerCase();
       if (!query.split(/\s+/).every((w) => hay.includes(w))) return false;
     }
@@ -344,7 +345,7 @@
     const c = coverOf(pl), n = shownOf(pl).length, h = hiddenOf(pl).length;
     return `<div class="row${pl.id === cur ? " cur" : ""}${reviewed[pl.id] ? " done" : ""}" data-id="${esc(pl.id)}" role="option" tabindex="0" aria-selected="${pl.id === cur}">
       ${c ? `<img src="${esc(photoUrl(PH.get(c), "thumb"))}" alt="" loading="lazy" draggable="false">` : `<span class="noimg">${icon(pl.icon)}</span>`}
-      <span class="t"><b>${pl.name ? `${icon(pl.icon)} ${esc(pl.name)}` : "<i>Unnamed spot</i>"}</b>
+      <span class="t"><b>${pl.name ? `${icon(pl.icon)} ${esc(pl.name)}` : pl.label ? `<i>🏷️ ${esc(pl.label)}</i>` : "<i>Unnamed spot</i>"}</b>
         <small>${esc(pl.id)} · ${plural(n, "photo")}${h ? ` · ${h} hidden` : ""}</small></span>
       <span class="marks">${ch.has(pl.id) ? `<i class="m-edit" title="You've changed this place">✎</i>` : ""}${reviewed[pl.id] ? `<i class="m-done" title="Checked">✓</i>` : ""}</span>
     </div>`;
@@ -453,6 +454,8 @@
         <label class="check"><input data-k="featured" type="checkbox" ${pl.featured ? "checked" : ""}>
           Show as a named place <small>(picture pin with a label, listed under Places and in search; off = a small camera spot)</small></label>
         <textarea data-k="story" rows="2" placeholder="A story or memory about this place (optional; shown under the cover photo)" aria-label="Story">${esc(pl.story || "")}</textarea>
+        ${!pl.name || pl.label ? `<label class="map-label">🏷️ Map label <small>optional text shown on the map like a trail name, without making this a named place</small>
+          <input data-k="label" type="text" value="${esc(pl.label || "")}" placeholder="e.g. Moose Meadow"></label>` : ""}
         <div class="facts">
           ${pl.site ? `<span class="fact">🏡 Family house: its own pin, all photos shown on it</span>` : ""}
           ${stops.length ? `<span class="fact">▶️ Tour stop ${stops.join(", ")}</span>` : ""}
@@ -574,6 +577,10 @@
       if (box) box.checked = !!pl.featured;
       drawMap(false);
     }
+    if (k === "label") {
+      change(`Map label for ${pl.id}`, () => { if (v.trim()) pl.label = v; else delete pl.label; }, { key: "label:" + pl.id, quiet: true });
+      drawMap(false);
+    }
     if (k === "story") change(`Story for ${titleOf(pl)}`, () => { pl.story = v; }, { key: "story:" + pl.id, quiet: true });
   });
 
@@ -665,7 +672,7 @@
       const m = L.marker([c[1], c[0]], {
         icon: L.divIcon({ className: "", iconSize: [0, 0], html: `<div class="pin${me ? " cur" : ""}${p.name ? "" : " unnamed"}${reviewed[p.id] ? " done" : ""}">${icon(p.icon)}</div>` }),
         draggable: me, zIndexOffset: me ? 500 : 0, keyboard: false,
-      }).bindTooltip(`<b>${esc(titleOf(p))}</b> · ${plural(shownOf(p).length, "photo")}${me ? "<br><small>Drag to move this pin</small>" : ""}`, { direction: "top", offset: [0, -16] });
+      }).bindTooltip(`<b>${esc(p.name || (p.label ? `🏷️ ${p.label}` : titleOf(p)))}</b> · ${plural(shownOf(p).length, "photo")}${me ? "<br><small>Drag to move this pin</small>" : ""}`, { direction: "top", offset: [0, -16] });
       if (me) m.on("dragend", () => change(`Moved the pin of ${titleOf(p)}`, () => { const ll = m.getLatLng(); p.coords = [+ll.lng.toFixed(6), +ll.lat.toFixed(6)]; delete p.guess; }));
       else m.on("click", () => openPlace(p.id, { fit: false }));
       m.addTo(pinLayer);
@@ -1099,8 +1106,10 @@
     const draft = store.get("tagDraft2", null);
     if (draft?.state) {
       if (draft.base === ed.version) S = draft.state;
-      else if (!same(draft.state, BASE) && confirm("The family map has been updated since you last edited here.\n\n"
-        + "OK = keep your edits and carry on (recommended if you haven't sent them to Claude yet)\nCancel = start fresh from the updated map")) S = draft.state;
+      // After Claude applies an edits file (often with small fixes), starting fresh is the usual answer.
+      else if (!same(draft.state, BASE) && !confirm("The family map has been updated since you last edited here.\n\n"
+        + "OK = start fresh from the updated map (choose this once Claude has applied your edits)\n"
+        + "Cancel = keep the edits in this browser (only if you haven't sent them to Claude yet)")) S = draft.state;
       if (draft.base !== ed.version && S !== draft.state) store.set("tagDraft2", null);
     } else {
       const old = store.get("tagDraft", null), op = Array.isArray(old) ? old : old?.places;

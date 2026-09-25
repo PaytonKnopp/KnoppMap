@@ -3,7 +3,7 @@
   "stops": [
     {
       "place": "spot-10",
-      "text": "Welcome! This is where the gravel road turns in and the driveway begins."
+      "text": "Welcome! This is where the road turns in and the driveway begins."
     },
     {
       "place": "spot-01",
@@ -11,19 +11,15 @@
     },
     {
       "place": "spot-02",
-      "text": "The back deck, looking out over the yard and garden."
+      "text": "The back deck, looking out over the backyard and garden."
     },
     {
       "place": "spot-03",
-      "text": "The hill behind the house, with its sitting area and flower beds."
-    },
-    {
-      "place": "spot-07",
-      "text": "The greenhouse, shop and sheds on the north side of the yard."
+      "text": "The hill behind the house, with its sitting area, fancy creations and flower beds."
     },
     {
       "place": "spot-13",
-      "text": "The target range, just west of the yard."
+      "text": "Many homemade targets to shoot at."
     },
     {
       "place": "spot-12",
@@ -31,31 +27,31 @@
     },
     {
       "place": "spot-05",
-      "text": "The cabin, tucked into the trees at the end of Cabin Trail."
+      "text": "The host of many events and activities."
     },
     {
       "place": "brush-piles",
-      "text": "The brush piles, joined by Brush Pile Trail through the trees."
+      "text": "Large brush piles, joined by Brush Pile Trail."
     },
     {
       "place": "spot-06",
-      "text": "The main culvert, where the creek passes under the trail by the pasture."
+      "text": "The main culvert crossing, which leads to the hill and start of the trails."
     },
     {
       "place": "spot-19",
-      "text": "The lone tree, where the horses like to graze along the fence."
+      "text": "The lone tree, and where the horses like to hang out."
     },
     {
       "place": "spot-20",
-      "text": "The pond in the north field."
+      "text": "The pond in the north field. A good vantage point."
     },
     {
       "place": "spot-17",
-      "text": "The acreage entrance in the northeast corner."
+      "text": "The acreage entrance in the northeast corner. You can see the mountains from here."
     },
     {
       "place": "spot-18",
-      "text": "Last stop: the southwest gate in the far corner of the quarter (government access)."
+      "text": "Last stop: the southwest gate in the far southwest corner of the quarter (government land)."
     }
   ]
 }

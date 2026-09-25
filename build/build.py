@@ -652,7 +652,7 @@ def build_photos(track_features, resize=True):
 
     EDITOR["hiddenPhotos"] = hidden_feats
     EDITOR["takenAt"] = taken_at   # before a family house gathers its photos onto its pin
-    report += ["## Photos\n", f"{len(all_files)} photos found, {len(hidden & {p.name for p in all_files})} hidden as near-duplicates "
+    report += ["## Photos\n", f"{len(all_files)} photos found, {len(hidden & {p.name for p in all_files})} hidden "
                f"(config/hidden.json), {len(feats)} placed on the map.\n",
                "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), "",
                f"### Locations corrected from the GPS track (camera was over {FIX_OFF_M} m off)\n", *(fixes or ["- none"]), ""]
@@ -725,6 +725,8 @@ def build_places(photo_feats):
             "hero": hero[:-4] if hero else None, "photos": [m["properties"]["file"] for m in members],
             "featured": bool(p.get("featured", bool(p.get("name")))), "guess": bool(p.get("guess")),
             "moved": bool(p.get("coords")),
+            # A text tag on the map, drawn like a trail name, for a spot that isn't a named place (e.g. a trail sign).
+            **({"label": p["label"]} if p.get("label") else {}),
             **({"site": True} if p.get("site") else {}), **({"gather": True} if p.get("gather") else {}),
         }, "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]}})
     loose = [f for f in by_file if f not in claimed]
