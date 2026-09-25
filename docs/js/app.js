@@ -634,6 +634,11 @@
       alt: f.properties.name || "Photo spot", zIndexOffset: f.properties.featured ? 500 : 0, riseOnHover: true });
     marker.on("click", () => openPlace(f.id));
     const pl = { f, marker, photos: f.properties.photos.map((id) => photoById.get(id)).filter(Boolean) };
+    // Some photo spots carry a text tag (a trail sign such as "Moose Meadow"): drawn like a trail name, just below the spot.
+    if (f.properties.label) {
+      pl.label = L.tooltip({ permanent: true, direction: "bottom", offset: [0, 10], className: "trail-label spot-label", interactive: false })
+        .setLatLng([lat, lon]).setContent(esc(f.properties.label));
+    }
     places.set(f.id, pl);
     if (canHover) {
       const hero = heroOf(pl);
@@ -654,6 +659,11 @@
       const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= at : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
       if (show && !map.hasLayer(pl.marker)) pl.marker.addTo(map);
       if (!show && map.hasLayer(pl.marker)) map.removeLayer(pl.marker);
+      if (pl.label) {
+        const lab = labelsOn && z >= Z.trailLabels;
+        if (lab && !map.hasLayer(pl.label)) pl.label.addTo(map);
+        if (!lab && map.hasLayer(pl.label)) map.removeLayer(pl.label);
+      }
     });
     if (farmPin) {
       const show = z < Math.min(Z.farmPin, placesAt);
@@ -951,7 +961,9 @@
       });
     const labels = [...tracks.values()].filter((t) => map.hasLayer(t.label))
       .sort((a, b) => (b.f.id === selectedTrack) - (a.f.id === selectedTrack))
-      .map((t) => t.label.getElement()).filter(Boolean).map((el) => ({ el, r: el.getBoundingClientRect() }));
+      .map((t) => t.label.getElement())
+      .concat([...places.values()].filter((pl) => pl.label && map.hasLayer(pl.label)).map((pl) => pl.label.getElement()))
+      .filter(Boolean).map((el) => ({ el, r: el.getBoundingClientRect() }));
     const boxes = [], hide = new Map();
     const overlaps = (r, pad = 3) => boxes.some((b) => r.left < b.right + pad && r.right > b.left - pad && r.top < b.bottom + pad && r.bottom > b.top - pad);
     for (const { pin, name, br, nr } of pins) {
@@ -1503,7 +1515,7 @@
 
     const basic = $("#m-basic", body);
     check(basic, `${TRAIL_SVG} Trails &amp; driveway`, trailsOn, (v) => setTrails(v));
-    check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); declutterSoon(); });
+    check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); refreshPlaces(); declutterSoon(); });
     check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutterSoon(); });
     check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
     seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; store.set("textSize", i); applySize(); setSum("text", SIZE_NAMES[i]); });

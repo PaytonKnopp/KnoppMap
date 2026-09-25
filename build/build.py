@@ -725,6 +725,8 @@ def build_places(photo_feats):
             "hero": hero[:-4] if hero else None, "photos": [m["properties"]["file"] for m in members],
             "featured": bool(p.get("featured", bool(p.get("name")))), "guess": bool(p.get("guess")),
             "moved": bool(p.get("coords")),
+            # A text tag on the map, drawn like a trail name, for a spot that isn't a named place (e.g. a trail sign).
+            **({"label": p["label"]} if p.get("label") else {}),
             **({"site": True} if p.get("site") else {}), **({"gather": True} if p.get("gather") else {}),
         }, "geometry": {"type": "Point", "coordinates": [round(lon, PRECISION), round(lat, PRECISION)]}})
     loose = [f for f in by_file if f not in claimed]

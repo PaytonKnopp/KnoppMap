@@ -566,7 +566,8 @@
       "coords": [
         -114.651552,
         52.224271
-      ]
+      ],
+      "label": "Chicken Crossing"
     },
     {
       "id": "spot-41",
@@ -728,7 +729,8 @@
       "photos": [
         "20260905_145833.jpg"
       ],
-      "featured": false
+      "featured": false,
+      "label": "Moose Meadow"
     },
     {
       "id": "spot-61",
@@ -743,7 +745,8 @@
       "coords": [
         -114.648088,
         52.224303
-      ]
+      ],
+      "label": "Fawn Flats"
     },
     {
       "id": "spot-62",
