@@ -652,7 +652,7 @@ def build_photos(track_features, resize=True):
 
     EDITOR["hiddenPhotos"] = hidden_feats
     EDITOR["takenAt"] = taken_at   # before a family house gathers its photos onto its pin
-    report += ["## Photos\n", f"{len(all_files)} photos found, {len(hidden & {p.name for p in all_files})} hidden as near-duplicates "
+    report += ["## Photos\n", f"{len(all_files)} photos found, {len(hidden & {p.name for p in all_files})} hidden "
                f"(config/hidden.json), {len(feats)} placed on the map.\n",
                "### Missing GPS\n", *([f"- {m}" for m in missing] or ["- none"]), "",
                f"### Locations corrected from the GPS track (camera was over {FIX_OFF_M} m off)\n", *(fixes or ["- none"]), ""]

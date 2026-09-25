@@ -84,7 +84,7 @@
 
 ## Photos
 
-365 photos found, 31 hidden as near-duplicates (config/hidden.json), 334 placed on the map.
+365 photos found, 89 hidden (config/hidden.json), 276 placed on the map.
 
 ### Missing GPS
 
@@ -96,9 +96,9 @@
 
 ## Tour
 
-14 stops (config/tour.json).
+13 stops (config/tour.json).
 
 ## Places
 
-62 places (16 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
+43 places (16 named). 0 photos not in any place. 0 new photos grouped into 0 unnamed spots (name them in the tagger).
 

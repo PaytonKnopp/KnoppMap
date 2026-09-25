@@ -1099,8 +1099,10 @@
     const draft = store.get("tagDraft2", null);
     if (draft?.state) {
       if (draft.base === ed.version) S = draft.state;
-      else if (!same(draft.state, BASE) && confirm("The family map has been updated since you last edited here.\n\n"
-        + "OK = keep your edits and carry on (recommended if you haven't sent them to Claude yet)\nCancel = start fresh from the updated map")) S = draft.state;
+      // After Claude applies an edits file (often with small fixes), starting fresh is the usual answer.
+      else if (!same(draft.state, BASE) && !confirm("The family map has been updated since you last edited here.\n\n"
+        + "OK = start fresh from the updated map (choose this once Claude has applied your edits)\n"
+        + "Cancel = keep the edits in this browser (only if you haven't sent them to Claude yet)")) S = draft.state;
       if (draft.base !== ed.version && S !== draft.state) store.set("tagDraft2", null);
     } else {
       const old = store.get("tagDraft", null), op = Array.isArray(old) ? old : old?.places;
