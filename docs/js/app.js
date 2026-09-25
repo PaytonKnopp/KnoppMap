@@ -424,7 +424,7 @@
   let photosOn = true;
   let labelsOn = true;
   const ADV_DEFAULTS = { colourMode: "simple", trailColour: null, lineStyle: "theme", outline: true, flow: false, thickness: 1, lineOpacity: 100,
-    placeNames: true, minorSpots: true, hiddenPlaces: [], lengthFilter: "all", steepFilter: "all", trailDay: "all", cluster: true, boundaryFill: true,
+    placeNames: true, placesOn: true, minorSpots: true, hiddenPlaces: [], lengthFilter: "all", steepFilter: "all", trailDay: "all", cluster: true, boundaryFill: true,
     dirArrows: true, labelSize: 1, labelLengths: false, rings: false, compass: true, units: "metric" };
   const adv = { ...ADV_DEFAULTS, hiddenPlaces: [] };
   const LENGTHS = { all: [0, 1e9], short: [0, 250], medium: [250, 600], long: [600, 1e9] };
@@ -656,7 +656,7 @@
       const typeOk = !adv.hiddenPlaces.includes(pl.f.id);
       // The family houses stand alone far from anything else, so their pins show from much further out.
       const at = p.site ? Z.sites : placesAt;
-      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? z >= at : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
+      const show = pl.f.id === selectedPlace || (typeOk && (p.featured ? adv.placesOn && z >= at : adv.minorSpots && z >= Z.minorPlaces && !photosOn));
       if (show && !map.hasLayer(pl.marker)) pl.marker.addTo(map);
       if (!show && map.hasLayer(pl.marker)) map.removeLayer(pl.marker);
       if (pl.label) {
@@ -666,7 +666,7 @@
       }
     });
     if (farmPin) {
-      const show = z < Math.min(Z.farmPin, placesAt);
+      const show = adv.placesOn && z < Math.min(Z.farmPin, placesAt);
       if (show && !map.hasLayer(farmPin)) farmPin.addTo(map);
       if (!show && map.hasLayer(farmPin)) map.removeLayer(farmPin);
     }
@@ -1452,7 +1452,7 @@
       ${sec("look", "🎨", "Look", esc(THEMES[theme].label), `<div class="theme-grid" id="m-theme"></div>`)}
       ${sec("style", "🗺️", "Map style", esc(BASEMAPS[baseKey]?.label || ""), `<div class="style-grid" id="m-base"></div>`)}
       ${sec("layers", "🌦️", "Weather", "Live precipitation radar and current weather", `<div id="m-over"></div>`)}
-      ${sec("show", "👁️", "What's on the map", "Trails, names, photos", `<div id="m-basic"></div>`)}
+      ${sec("show", "👁️", "What's on the map", "Trails, places, photos, property lines", `<div id="m-basic"></div>`)}
       ${sec("text", "🔠", "Text size", SIZE_NAMES[sizeIdx], `<div class="seg" id="m-size"></div>`)}
       ${sec("save", "💾", "Print & offline", "Print this view, use without internet", `
         <p class="note">Prints exactly what you see now: the look, map style and filters you picked.</p>
@@ -1516,8 +1516,22 @@
     const basic = $("#m-basic", body);
     check(basic, `${TRAIL_SVG} Trails &amp; driveway`, trailsOn, (v) => setTrails(v));
     check(basic, "🏷️ Trail names (when zoomed in)", labelsOn, (v) => { labelsOn = v; refreshTracks(); refreshPlaces(); declutterSoon(); });
+    check(basic, "📍 Places <small>(the pins with pictures)</small>", adv.placesOn, (v) => { adv.placesOn = v; refreshPlaces(); declutterSoon(); updateCount(); });
     check(basic, "🔤 Place names next to pins", adv.placeNames, (v) => { adv.placeNames = v; places.forEach((pl) => pl.marker.setIcon(placeIcon(pl.f, pl.f.id === selectedPlace))); declutterSoon(); });
     check(basic, "📷 Photos on the map <small>(grouped with a count; they spread out as you zoom in)</small>", photosOn, (v) => setPhotos(v));
+    check(basic, "📷 Photo spots <small>(the small camera pins that stand in for photos when those are off)</small>", adv.minorSpots, (v) => { adv.minorSpots = v; refreshPlaces(); declutterSoon(); });
+    // One box per property line; the same switch as its row under Trails one by one, so the two stay in step.
+    const trackSyncs = [];
+    const showTrack = (id, on) => {
+      setTrackHidden(id, !on);
+      $$("input[data-track]", body).forEach((b) => { if (b.dataset.track === id) b.checked = on; });
+      trackSyncs.forEach((f) => f());
+    };
+    [...tracks.values()].filter((t) => !isTrail(t.f)).sort((a, b) => a.f.properties.name.localeCompare(b.f.properties.name)).forEach((t) => {
+      const col = (t.f.id === "quarter-section-perimeter" && THEMES[theme].lines.boundary) || t.f.properties.color;
+      check(basic, `<span class="bound-sw" style="border-color:${esc(col)}"></span> ${esc(t.f.properties.name)}`,
+        !hiddenTracks.has(t.f.id), (v) => showTrack(t.f.id, v)).dataset.track = t.f.id;
+    });
     seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; store.set("textSize", i); applySize(); setSum("text", SIZE_NAMES[i]); });
     $("#m-print", body).onclick = printMap;
     offlinePanel($("#m-offline", body));
@@ -1564,7 +1578,8 @@
       const tr = [...tracks.values()].filter((x) => cat(x.f) === "trails");
       const shownT = tr.filter((x) => !hiddenTracks.has(x.f.id) && passesTrailFilters(x.f)).length;
       const fp = featuredPlaces(), shownP = fp.filter((pl) => !adv.hiddenPlaces.includes(pl.f.id)).length;
-      countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · <b>${shownP} of ${fp.length}</b> places`;
+      countEl.innerHTML = `Showing <b>${shownT} of ${tr.length}</b> trails · ` +
+        (adv.placesOn ? `<b>${shownP} of ${fp.length}</b> places` : `places are turned off under What's on the map`);
     };
     const refilter = () => { refreshTracks(); refreshPlaces(); declutterSoon(); updateCount(); };
     seg($("#a-length", body), [["all", "Any"], ["short", "Under " + fmtLen(250)], ["medium", fmtLen(250) + "–" + fmtLen(600)], ["long", "Over " + fmtLen(600)]],
@@ -1604,7 +1619,6 @@
     check(ac, "➜ Direction arrows on named trails", adv.dirArrows, (v) => { adv.dirArrows = v; refreshTracks(); });
     check(ac, "📏 Trail lengths next to trail names", adv.labelLengths, (v) => { adv.labelLengths = v; applyLabelLook(); declutterSoon(); });
     check(ac, "🧭 Compass and scale bar", adv.compass, (v) => { adv.compass = v; placeCornerControls(); });
-    check(ac, "📷 Small photo spots <small>(when zoomed in)</small>", adv.minorSpots, (v) => { adv.minorSpots = v; refilter(); });
     check(ac, "🗂️ Group nearby photos together", adv.cluster, (v) => { adv.cluster = v; refreshPhotos(); });
     check(ac, "🟩 Shade inside the property line", adv.boundaryFill, (v) => { adv.boundaryFill = v; restyleAll(); });
 
@@ -1626,14 +1640,16 @@
           <label class="grow" for="t-${esc(t.f.id)}">${esc(t.f.properties.name)}</label>
           <button class="round mini" aria-label="About ${esc(t.f.properties.name)}">›</button>`;
         const box = $("input", r);
+        box.dataset.track = t.f.id;
         box.checked = !hiddenTracks.has(t.f.id);
-        box.onchange = () => { setTrackHidden(t.f.id, !box.checked); sync(); };
+        box.onchange = () => showTrack(t.f.id, box.checked);
         $("button", r).onclick = () => openTrail(t.f.id, { back: true });
         sub.append(r);
         return box;
       });
       const sync = () => { master.checked = boxes.every((b) => b.checked); master.indeterminate = !master.checked && boxes.some((b) => b.checked); };
-      master.onchange = () => boxes.forEach((b, i) => { b.checked = master.checked; setTrackHidden(items[i].f.id, !master.checked); });
+      master.onchange = () => items.forEach((t) => showTrack(t.f.id, master.checked));
+      trackSyncs.push(sync);
       sync();
       list.append(head, sub);
     });
