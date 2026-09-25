@@ -114,6 +114,7 @@ body { font-family: var(--body-font); color: var(--ink); }
 .check-row { display: flex; align-items: center; gap: 0.7rem; min-height: 2.6rem; cursor: pointer; }
 .check-row input { width: 1.4rem; height: 1.4rem; accent-color: var(--green); margin: 0; flex: none; }
 .check-row .swatch { width: 1.6rem; height: 0.35rem; border-radius: 3px; flex: none; box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+.check-row .bound-sw { display: inline-block; width: 1.3rem; vertical-align: middle; border-top: 3px dashed; margin-right: 0.15rem; filter: drop-shadow(0 0 1px rgba(0,0,0,.6)); }
 .check-row .grow { flex: 1; }
 .check-row small { color: var(--muted); }
 .check-row.group { font-weight: 700; border-top: 1px solid var(--line); padding-top: 0.3rem; margin-top: 0.3rem; }
