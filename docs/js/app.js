@@ -27,11 +27,31 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, ms);
   }
+  // Distances on the WGS84 ellipsoid GPS uses (Vincenty's formula): exact to the millimetre. A round earth would come out
+  // 0.3 % short east-west at the quarter's latitude.
+  const WGS_A = 6378137, WGS_F = 1 / 298.257223563, WGS_B = WGS_A * (1 - WGS_F);
   function distM(a, b) {
-    const R = 6371000, r = Math.PI / 180;
-    const dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
-    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(h));
+    const r = Math.PI / 180, L = (b.lng - a.lng) * r;
+    const U1 = Math.atan((1 - WGS_F) * Math.tan(a.lat * r)), U2 = Math.atan((1 - WGS_F) * Math.tan(b.lat * r));
+    const sU1 = Math.sin(U1), cU1 = Math.cos(U1), sU2 = Math.sin(U2), cU2 = Math.cos(U2);
+    let lam = L, sS, cS, sig, c2a, c2m;
+    for (let i = 0; i < 100; i++) {
+      const sl = Math.sin(lam), cl = Math.cos(lam);
+      sS = Math.hypot(cU2 * sl, cU1 * sU2 - sU1 * cU2 * cl);
+      if (!sS) return 0;
+      cS = sU1 * sU2 + cU1 * cU2 * cl;
+      sig = Math.atan2(sS, cS);
+      const sa = (cU1 * cU2 * sl) / sS;
+      c2a = 1 - sa * sa;
+      c2m = c2a ? cS - (2 * sU1 * sU2) / c2a : 0;
+      const C = (WGS_F / 16) * c2a * (4 + WGS_F * (4 - 3 * c2a)), prev = lam;
+      lam = L + (1 - C) * WGS_F * sa * (sig + C * sS * (c2m + C * cS * (-1 + 2 * c2m * c2m)));
+      if (Math.abs(lam - prev) < 1e-12) break;
+    }
+    const u2 = (c2a * (WGS_A * WGS_A - WGS_B * WGS_B)) / (WGS_B * WGS_B);
+    const A = 1 + (u2 / 16384) * (4096 + u2 * (-768 + u2 * (320 - 175 * u2))), B = (u2 / 1024) * (256 + u2 * (-128 + u2 * (74 - 47 * u2)));
+    const ds = B * sS * (c2m + (B / 4) * (cS * (-1 + 2 * c2m * c2m) - (B / 6) * c2m * (-3 + 4 * sS * sS) * (-3 + 4 * c2m * c2m)));
+    return WGS_B * A * (sig - ds);
   }
   function bearing(a, b) {
     const r = Math.PI / 180;
@@ -442,6 +462,8 @@
   const photoById = new Map();
   let allPhotos = [];
   let categories = {};
+  let heightNoise = 1.5;   // metres a GPS height can be out after the build has levelled them (the build measures it)
+  const fmtNoise = () => (adv.units === "imperial" ? Math.round(heightNoise * 3.28084) + " ft" : heightNoise.toFixed(1) + " m");
   let tour = { stops: [] };
   let selectedTrack = null, selectedPlace = null;
 
@@ -1687,21 +1709,25 @@
   const fmtDur = (mins) => (mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}`);
   /** "9.4 km" → ["9.4", "km"]: a big number with its unit set smaller. */
   const splitUnit = (s) => { const i = s.lastIndexOf(" "); return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + 1)]; };
-  /** Area inside a lon/lat ring, in square metres (flat is exact enough over a quarter section). */
+  /** Area inside a lon/lat ring, in square metres: a flat grid scaled to the WGS84 ellipsoid at the ring's middle, which
+   *  over a quarter section is exact to a few square metres (a round earth would come out 0.4 % small here). */
   function ringArea(ring) {
-    const r = Math.PI / 180, [x0, y0] = ring[0];
+    const r = Math.PI / 180, [x0, y0] = ring[0], mid = ((Math.min(...ring.map((c) => c[1])) + Math.max(...ring.map((c) => c[1]))) / 2) * r;
     let a = 0;
     for (let i = 0; i < ring.length; i++) {
       const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length];
       a += (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
     }
-    return (Math.abs(a) / 2) * (6371008.8 * r) ** 2 * Math.cos(y0 * r);
+    const e2 = WGS_F * (2 - WGS_F), w = Math.sqrt(1 - e2 * Math.sin(mid) ** 2);
+    const perLat = (WGS_A * (1 - e2)) / w ** 3 * r, perLng = (WGS_A / w) * Math.cos(mid) * r;   // metres per degree
+    return (Math.abs(a) / 2) * perLat * perLng;
   }
-  /** [in the chosen units, in the other ones]: hectares (or m² when small) and acres (or square feet). */
+  /** [in the chosen units, in the other ones]: hectares (or m² when small) and acres (or square feet), to the precision
+   *  a GPS-traced outline supports. */
   function fmtArea(m2) {
     const ha = m2 / 1e4, ac = m2 / 4046.8564224;
-    const metric = m2 < 5000 ? `${Math.round(m2).toLocaleString()} m²` : `${ha.toFixed(ha < 10 ? 2 : 1)} ha`;
-    const imperial = ac < 1 ? `${Math.round(m2 * 10.7639).toLocaleString()} sq ft` : `${ac.toFixed(ac < 10 ? 1 : 0)} acres`;
+    const metric = m2 < 5000 ? `${(Math.round(m2 / 10) * 10).toLocaleString()} m²` : `${ha.toFixed(1)} ha`;
+    const imperial = ac < 1 ? `${(Math.round((m2 * 10.7639) / 100) * 100).toLocaleString()} sq ft` : `${ac.toFixed(ac < 10 ? 1 : 0)} acres`;
     return adv.units === "imperial" ? [imperial, metric] : [metric, imperial];
   }
   // "about two-thirds the height of", "about 1.4 times the height of"
@@ -1725,7 +1751,7 @@
       const p = f.properties;
       return { id: f.id, name: p.name, len: p.length_m || 0, gain: p.gain_m || 0, loss: p.loss_m || 0, steep: steepness(p),
         photos: allPhotos.filter((x) => x.p.near === p.name).map((x) => x.p),   // the same photos as the trail card's
-        links: (p.connects || []).filter((c) => trailIds.has(c)).length, recorded: p.recorded };
+        links: (p.connects || []).filter((c) => trailIds.has(c)).length, recorded: p.recorded, shared: p.shared_m || 0 };
     });
     const sum = (list, k) => list.reduce((s, x) => s + (x[k] || 0), 0);
     // Highest and lowest point along any line on the quarter: the same heights as the trail cards' elevation charts.
@@ -1739,7 +1765,8 @@
       });
     });
     const bounds = onQuarter.filter((f) => cat(f) === "boundary" && f.geometry.type === "Polygon")
-      .map((f) => ({ f, area: ringArea(f.geometry.coordinates[0]), around: f.properties.length_m || 0 })).sort((a, b) => b.area - a.area);
+      // The build measures each area from every recorded point; the drawn outline (smoothed to 2 m) is the fallback.
+      .map((f) => ({ f, area: f.properties.area_m2 || ringArea(f.geometry.coordinates[0]), around: f.properties.length_m || 0 })).sort((a, b) => b.area - a.area);
     const quarter = bounds.find((b) => b.f.id === "quarter-section-perimeter") || bounds[0] || null;
     if (quarter) {
       const qb = L.geoJSON(quarter.f).getBounds(), mid = qb.getCenter();
@@ -1769,7 +1796,8 @@
     for (let i = 1; i < stops.length; i++) tourLen += routeBetween(stops[i - 1].marker.getLatLng(), stops[i].marker.getLatLng()).len;
     destSnap = keepSnap;
     statsData = {
-      trails, trailLen: sum(trails, "len"), gain: sum(trails, "gain"), loss: sum(trails, "loss"),
+      // trailLen adds every trail up; pathLen is the path on the ground, where a stretch two trails share counts once.
+      trails, trailLen: sum(trails, "len"), pathLen: sum(trails, "len") - sum(trails, "shared"), gain: sum(trails, "gain"), loss: sum(trails, "loss"),
       driveLen: onQuarter.filter((f) => cat(f) === "roads").reduce((s, f) => s + (f.properties.length_m || 0), 0),
       // The days the trails were recorded, as dates at the quarter (fmtDate uses its time zone).
       mapped: [...new Set(trails.map((t) => t.recorded).filter(Boolean).sort().map((r) => fmtDate(r, false)))],
@@ -1830,9 +1858,9 @@
   // What the leaderboard can rank the trails by.
   const BOARDS = {
     length: { label: "Length", note: "End to end, as mapped with GPS.", val: (s) => s.len, fmt: (s) => fmtLen(s.len) },
-    hills: { label: "Hills", note: "How much each trail climbs ↗ and drops ↘, walked the way it was mapped.",
+    hills: { label: "Hills", note: () => `How much each trail climbs ↗ and drops ↘, walked the way it was mapped. GPS heights wander by about ${fmtNoise()}, which can add or hide a metre or two on a long trail.`,
       val: (s) => s.gain + s.loss, fmt: (s) => `↗ ${fmtH(s.gain)} ↘ ${fmtH(s.loss)}` },
-    steep: { label: "Steepness", note: "Average slope: the climb (or drop, if bigger) over the trail’s length. Phone GPS heights are rough, so slopes within about 0.3 % of each other are really a tie.",
+    steep: { label: "Steepness", note: () => `Average slope: the climb (or drop, if bigger) over the trail’s length. GPS heights are good to about ${fmtNoise()}, so a 150 m trail’s slope can be out by about ${Math.round((heightNoise / 150) * 100)} %: close ones may be the other way round on the ground.`,
       val: (s) => s.steep, fmt: (s) => s.steep.toFixed(1) + " %" },
     photos: { label: "Photos", note: "Photos taken along each trail.", val: (s) => s.photos.length, fmt: (s) => plural(s.photos.length, "photo") },
   };
@@ -1859,10 +1887,15 @@
     // ---- records: each card opens its trail or place
     const top = (f) => [...S.trails].sort((a, b) => f(b) - f(a) || b.len - a.len || a.name.localeCompare(b.name))[0];
     const rec = (e, label, value, name, open = "", tie = []) => `<${open ? `button ${open}` : "div"} class="sp-rec"><span class="e" aria-hidden="true">${e}</span>
-      <small>${label}</small><b>${value}</b><span>${name}${tie.length ? `<em class="sp-tie">practically tied with ${esc(listWords(tie))}</em>` : ""}</span></${open ? "button" : "div"}>`;
-    // Phone GPS heights are good to about a metre along a trail, so slopes this close together are really a tie.
-    const TIE = 0.3;
-    const tiedWith = (best, key) => S.trails.filter((s) => s !== best && Math.abs(key(s) - key(best)) < TIE).map((s) => s.name);
+      <small>${label}</small><b>${value}</b><span>${name}${tie.length ? `<em class="sp-tie">GPS can’t tell it apart from ${esc(listWords(tie))}</em>` : ""}</span></${open ? "button" : "div"}>`;
+    // A trail's slope can be out by about the height noise over its length, so two trails whose slopes are closer than
+    // that (both uncertainties together) could be the other way round on the ground: the card names them as a tie.
+    const slopeNoise = (s) => (heightNoise / s.len) * 100;
+    const tiedWith = (best) => {
+      const names = S.trails.filter((s) => s !== best && Math.abs(s.steep - best.steep) < Math.hypot(slopeNoise(s), slopeNoise(best)))
+        .sort((a, b) => Math.abs(a.steep - best.steep) - Math.abs(b.steep - best.steep)).map((s) => s.name);
+      return names.length > 3 ? [...names.slice(0, 2), plural(names.length - 2, "other")] : names;
+    };
     const tr = (t) => `data-trail="${esc(t.id)}"`;
     const spot = (x) => `data-trail="${esc(x.f.id)}" data-frac="${x.frac.toFixed(4)}"`;
     const records = [];
@@ -1871,8 +1904,8 @@
         top((s) => s.links), top((s) => s.photos.length)];
       records.push(rec("📏", "Longest trail", fmtLen(long.len), esc(long.name), tr(long)),
         rec("🐜", "Shortest trail", fmtLen(short.len), esc(short.name), tr(short)),
-        rec("⛰️", "Steepest trail", `${steep.steep.toFixed(1)} % slope`, esc(steep.name), tr(steep), tiedWith(steep, (s) => s.steep)),
-        rec("🌾", "Flattest trail", flat.steep < 0.05 ? "Dead flat" : `${flat.steep.toFixed(1)} % slope`, esc(flat.name), tr(flat), tiedWith(flat, (s) => s.steep)));
+        rec("⛰️", "Steepest trail", `${steep.steep.toFixed(1)} % slope`, esc(steep.name), tr(steep), tiedWith(steep)),
+        rec("🌾", "Flattest trail", flat.steep < 0.05 ? "Dead flat" : `${flat.steep.toFixed(1)} % slope`, esc(flat.name), tr(flat), tiedWith(flat)));
       if (hub.links) records.push(rec("🔗", "Most connected", plural(hub.links, "trail"), `${esc(hub.name)} meets them all`, tr(hub)));
       if (snap.photos.length) records.push(rec("📸", "Most photographed trail", plural(snap.photos.length, "photo"), esc(snap.name), tr(snap)));
     }
@@ -1908,8 +1941,9 @@
         <div class="sp-tile sp-main">
           <span class="sp-deco" aria-hidden="true">${TRAIL_SVG}</span>
           <span class="sp-lbl">Total trail distance</span>
-          ${big(...splitUnit(fmtLen(S.trailLen)))}
-          <small class="sp-sub">${plural(n, "named trail")} · about <b>${fmtDur(walkMins(S.trailLen))}</b> to walk them all${S.driveLen ? ` · plus ${fmtLen(S.driveLen)} of driveway` : ""}</small>
+          ${big(...splitUnit(fmtLen(S.pathLen)))}
+          <small class="sp-sub">${plural(n, "named trail")}${fmtLen(S.trailLen) !== fmtLen(S.pathLen) ? ` (${fmtLen(S.trailLen)} added up one by one; a few share short stretches)` : ""}
+            · about <b>${fmtDur(walkMins(S.pathLen))}</b> to walk it all${S.driveLen ? ` · plus ${fmtLen(S.driveLen)} of driveway` : ""}</small>
         </div>
         ${tile(TRAIL_SVG, [String(n), ""], "trails", n ? `averaging ${fmtLen(S.trailLen / n)}` : "")}
         ${tile("📷", [String(allPhotos.length), ""], "photos", `taken on ${plural(S.days.length, "day")}`)}
@@ -1960,9 +1994,9 @@
         ${tile("🔻", splitUnit(fmtH(S.lo.e)), "lowest", esc(S.lo.f.properties.name), "sm")}
         ${tile("↕️", splitUnit(fmtH(S.hi.e - S.lo.e)), "difference", "", "sm")}
       </div>
-      <p class="note">Heights above sea level from the phone’s GPS, evened out so every recording agrees (within a few
-        metres) wherever trails meet; the heights themselves can be several metres out, but the rises and drops between
-        places are closer. Walking every trail once, the way it was mapped, climbs
+      <p class="note">Heights above sea level from the phone’s GPS, evened out so the recordings agree where trails meet
+        (to about ${fmtNoise()}). Rises and drops between places are good to about that; the heights above sea level
+        themselves can be several metres out. Walking every trail once, the way it was mapped, climbs
         <b>↗ ${fmtH(S.gain)}</b> and drops <b>↘ ${fmtH(S.loss)}</b> in all.</p>` : ""}
 
       <h3>📍 Places &amp; tour</h3>
@@ -1989,7 +2023,7 @@
       const B = BOARDS[boardBy];
       const rows = [...S.trails].sort((a, b) => B.val(b) - B.val(a) || b.len - a.len || a.name.localeCompare(b.name));
       const max = Math.max(...rows.map(B.val)) || 1;
-      $('[data-slot="lbnote"]', body).textContent = B.note;
+      $('[data-slot="lbnote"]', body).textContent = typeof B.note === "function" ? B.note() : B.note;
       board.replaceChildren(...rows.map((s, i) => {
         const v = B.val(s), rank = rows.findIndex((o) => B.val(o) === v) + 1, medal = v > 0 && rank <= 3;
         const b = document.createElement("button");
@@ -2065,7 +2099,7 @@
     houses.forEach(({ pl, loop, away }) => {
       const row = placeRow(pl);
       $("small", row).textContent = [plural(pl.photos.length, "photo"), loop && `${loop.f.properties.name} ${fmtLen(loop.f.properties.length_m)}`,
-        away && `${fmtLen(away)} from the quarter`].filter(Boolean).join(" · ");
+        away && `${fmtLen(away)} from the quarter as the crow flies`].filter(Boolean).join(" · ");
       hs.append(row);
     });
     $('[data-act="tour"]', body)?.addEventListener("click", () => startTour(0));
@@ -2077,7 +2111,7 @@
   function statsSummary() {
     if (!siteMeta || !tracks.size) return "Totals, records and fun facts";
     const S = statsFor();
-    return `${plural(S.trails.length, "trail")} · ${fmtLen(S.trailLen)} · ${plural(allPhotos.length, "photo")} · records`;
+    return `${plural(S.trails.length, "trail")} · ${fmtLen(S.pathLen)} · ${plural(allPhotos.length, "photo")} · records`;
   }
 
   // ================================================================ lightbox (zoom, pan, swipe, filmstrip)
@@ -3326,6 +3360,7 @@
     document.title = meta.title || "Knopp Map";
     addKeyedStyles(meta.keys);
     categories = data.tracks.categories || {};
+    heightNoise = data.tracks.height_noise_m || heightNoise;
     tour = data.tour || { stops: [] };
     data.tracks.features.filter((f) => f.geometry.type !== "Point").forEach(addTrack);
 

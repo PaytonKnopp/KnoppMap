@@ -42,11 +42,17 @@ THUMB_PX, THUMB_Q = 360, 72
 NEAR_TRACK_M = 25.0
 LEVEL_M = 5.0             # recordings passing within this of each other should read the same height there
 SPIKE_M = 5.0             # a height reading this far from its neighbours is a GPS glitch, not the ground
+SHARED_M = 3.0            # a trail this close to another, running the same way, is on the same path
+SHARED_RUN_M = 10.0       # ...for at least this far (shorter is just two trails meeting)
 ON_LINE_M = 4.0           # a height reading this close to the finished line belongs to it (the line is the same recording, simplified 2 m)
 
-LAT0 = 52.2
-KX = 111320.0 * math.cos(math.radians(LAT0))
-KY = 110540.0
+# Metres per degree at the quarter on the WGS84 ellipsoid GPS uses (north-south from the meridian radius, east-west from
+# the prime-vertical radius). Over a few kilometres a flat grid with these is exact to well under a centimetre.
+LAT0 = 52.228
+_E2 = 1 / 298.257223563 * (2 - 1 / 298.257223563)
+_W = math.sqrt(1 - _E2 * math.sin(math.radians(LAT0)) ** 2)
+KX = math.radians(1) * 6378137.0 / _W * math.cos(math.radians(LAT0))
+KY = math.radians(1) * 6378137.0 * (1 - _E2) / _W ** 3
 
 
 def to_xy(p):
@@ -297,6 +303,83 @@ def insert_vertex(line, q):
     return q
 
 
+def join_crossings(tracks):
+    """Trails (and the driveway) that cross in the middle, where neither ends, meet there too: both get the crossing as
+    one shared point, so walking directions can turn there and each lists the other under Connects to. The lines keep
+    their shape (a point on a straight stretch). Returns the pairs of names that were joined."""
+    lines = [(t["name"], part) for t in tracks if t["category"] != "boundary" and not t.get("site") for part in t["parts"]]
+    xy = lambda part: [to_xy(p) for p in part]
+    boxes = [(min(x for x, _ in xy(p)), min(y for _, y in xy(p)), max(x for x, _ in xy(p)), max(y for _, y in xy(p))) for _, p in lines]
+    joined = set()
+    for i in range(len(lines)):
+        for j in range(i + 1, len(lines)):
+            (na, pa), (nb, pb), a, b = lines[i], lines[j], boxes[i], boxes[j]
+            if na == nb or a[0] > b[2] or b[0] > a[2] or a[1] > b[3] or b[1] > a[3]:
+                continue
+            while True:
+                shared = set(pa) & set(pb)
+                hit = next((r[0] for k in range(len(pa) - 1) for m in range(len(pb) - 1)
+                            for r in [seg_intersect(pa[k], pa[k + 1], pb[m], pb[m + 1])]
+                            if r and not any(dist(r[0], v) < 0.5 for v in shared)), None)
+                if not hit:
+                    break
+                q = insert_vertex(pa, hit)
+                q2 = insert_vertex(pb, q)
+                if q2 != q:   # the second line already had a vertex within 0.3 m: both use that one
+                    pa[pa.index(q)] = q2
+                joined.add((na, nb))
+    return joined
+
+
+def shared_path(tracks):
+    """Where one trail runs along another (within SHARED_M, the same way, for SHARED_RUN_M or more), that stretch is one
+    path on the ground though both trails include it. Longer trails are counted first, so the shorter trail's stretch is
+    the one marked as shared. Returns {trail name: metres of it that run along a trail counted before it}."""
+    trails = sorted((t for t in tracks if t["category"] == "trails" and not t.get("site")),
+                    key=lambda t: -sum(line_length(p) for p in t["parts"]))
+    segs = {}   # name -> [(a, b, heading, bbox)] in metres
+    for t in trails:
+        out = []
+        for part in t["parts"]:
+            for a, b in zip(part, part[1:]):
+                (ax, ay), (bx, by) = to_xy(a), to_xy(b)
+                out.append(((ax, ay), (bx, by), math.atan2(by - ay, bx - ax),
+                            (min(ax, bx) - SHARED_M, min(ay, by) - SHARED_M, max(ax, bx) + SHARED_M, max(ay, by) + SHARED_M)))
+        segs[t["name"]] = out
+
+    def along_counted(x, y, h, counted):
+        for name in counted:
+            for (ax, ay), (bx, by), hb, (x0, y0, x1, y1) in segs[name]:
+                if not (x0 <= x <= x1 and y0 <= y <= y1):
+                    continue
+                dx, dy = bx - ax, by - ay
+                L2 = dx * dx + dy * dy
+                k = 0 if not L2 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / L2))
+                if math.hypot(ax + k * dx - x, ay + k * dy - y) <= SHARED_M and \
+                        abs((h - hb + math.pi / 2) % math.pi - math.pi / 2) < math.radians(25):
+                    return True
+        return False
+
+    shared, counted = {}, []
+    for t in trails:
+        total = run = 0.0
+        for (ax, ay), (bx, by), h, _ in segs[t["name"]]:
+            L = math.hypot(bx - ax, by - ay)
+            n = max(1, int(L))   # a sample every metre or so
+            for i in range(n):
+                k = (i + 0.5) / n
+                if along_counted(ax + k * (bx - ax), ay + k * (by - ay), h, counted):
+                    run += L / n
+                else:
+                    total += run if run >= SHARED_RUN_M else 0
+                    run = 0.0
+        total += run if run >= SHARED_RUN_M else 0
+        if total:
+            shared[t["name"]] = total
+        counted.append(t["name"])
+    return shared
+
+
 def connect_end(line, others, at_start):
     """Make one end of a track meet its neighbour: trim a stub that runs past a crossing, or extend a short end."""
     if len(line) < 2:
@@ -398,7 +481,7 @@ def level_heights(tracks):
                     pairs.append((i, j, ea - eb))
                     last = pa
     if not pairs:
-        return ["### Heights\n", "- no recordings cross, nothing to level", ""]
+        return ["### Heights\n", "- no recordings cross, nothing to level", ""], None
     met = sorted({k for i, j, _ in pairs for k in (i, j)})
     links = {k: [] for k in met}
     for i, j, dz in pairs:
@@ -419,13 +502,17 @@ def level_heights(tracks):
         tracks[k]["prof"] = [(p, e + s) for p, e in tracks[k]["prof"]]
     before = sorted(abs(dz) for _, _, dz in pairs)
     after = sorted(abs(dz + shift[i] - shift[j]) for i, j, dz in pairs)
+    # How far apart two readings of the same spot still are, typically (root mean square): the height noise that is
+    # left, and so about how far out the rise from one spot to another can be.
+    noise = math.sqrt(sum(x * x for x in after) / len(after))
     return ["### Heights levelled\n",
             f"Where recordings pass within {LEVEL_M:g} m of each other ({len(pairs)} spots) their heights differed by "
             f"up to {before[-1]:.1f} m (median {before[len(before) // 2]:.1f} m); after one shift per recording, by up to "
             f"{after[-1]:.1f} m (median {after[len(after) // 2]:.1f} m).\n",
             "| Recording | Recorded | Height shift (m) |", "|---|---|---|",
             *[f"| {tracks[k]['name']} | {(tracks[k]['start'] or '')[:16].replace('T', ' ')} UTC | {shift[k]:+.1f} |"
-              for k in sorted(met, key=lambda k: -abs(shift[k])) if abs(shift[k]) >= 0.5], ""]
+              for k in sorted(met, key=lambda k: -abs(shift[k])) if abs(shift[k]) >= 0.5], "",
+            f"Height noise left over (root mean square at those spots): {noise:.1f} m.\n"], noise
 
 
 def on_line(prof, parts):
@@ -528,6 +615,10 @@ def build_tracks():
             if gap <= CLOSE_LOOP_M:
                 part.append(part[0])
                 log_loop.append(f"- **{t['name']}**: closed loop (gap {gap:.1f} m)")
+                # The area inside, from every recorded point: smoothing the outline to 2 m cuts its corners, which on
+                # a small loop like the cabin's takes off a tenth of the area.
+                xy = [to_xy(p) for p in part]
+                t["area"] = abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(xy, xy[1:]))) / 2
             else:
                 log_loop.append(f"- **{t['name']}**: NOT closed, start/end are {gap:.0f} m apart")
 
@@ -536,9 +627,10 @@ def build_tracks():
         t["prof"], off = drop_height_spikes(t["prof"])
         if off:
             log_spikes.append(f"| {t['name']} | {len(off)} | {', '.join(f'{d:+.0f}' for d in off)} |")
+    level_lines, height_noise = level_heights(tracks)
     log_level = ["### Height glitches left out\n", f"Readings more than {SPIKE_M:g} m from their neighbours (mostly the first "
                  "seconds of a recording, while GPS height settles).\n", "| Track | Readings | Off by (m) |", "|---|---|---|",
-                 *(log_spikes or ["| none | | |"]), "", *level_heights(tracks)]
+                 *(log_spikes or ["| none | | |"]), "", *level_lines]
     raw_pts = sum(len(p) for t in tracks for p in t["parts"])
     # Simplify first so the junction points added below are never moved afterwards.
     for t in tracks:
@@ -555,6 +647,8 @@ def build_tracks():
                         log_snap.append(f"| {t['name']} | {'start' if at_start else 'end'} | {info['with']} "
                                         f"| {info['how']} | {info['moved']:.1f} | {info['trimmed']:.1f} |")
 
+    crossed = join_crossings(tracks)
+    shared = shared_path(tracks)
     features, out_pts = [], 0
     for t in tracks:
         parts = []
@@ -574,6 +668,8 @@ def build_tracks():
             "properties": {
                 "name": t["name"], "category": t["category"], "color": t["color"],
                 "length_m": round(sum(line_length(p) for p in parts)),
+                **({"area_m2": round(t["area"])} if closed and t.get("area") else {}),
+                **({"shared_m": round(shared[t["name"]])} if shared.get(t["name"]) else {}),
                 "recorded": t["start"],
                 **({"directions": t["directions"]} if t.get("directions") else {}),
                 **({"site": t["site"]} if t.get("site") else {}),
@@ -582,12 +678,19 @@ def build_tracks():
             "geometry": geom,
         })
     connections(features)
+    ids = {f["properties"]["name"]: f["id"] for f in features}
+    for na, nb in crossed:
+        for f in features:
+            other = ids[nb] if f["id"] == ids[na] else ids[na] if f["id"] == ids[nb] else None
+            if other and other not in f["properties"]["connects"]:
+                f["properties"]["connects"] = sorted(f["properties"]["connects"] + [other])
     for w in waypoints:
         features.append({"type": "Feature", "id": slug(w["name"]),
                          "properties": {"name": w["name"], "category": "waypoint"},
                          "geometry": {"type": "Point", "coordinates": [round(c, PRECISION) for c in w["coord"]]}})
 
-    out = {"type": "FeatureCollection", "categories": cfg["categories"], "features": features}
+    out = {"type": "FeatureCollection", "categories": cfg["categories"], "features": features,
+           **({"height_noise_m": round(height_noise, 1)} if height_noise else {})}
     DATA_OUT.mkdir(parents=True, exist_ok=True)
     write_data("tracks", out)
     FARM_BOUNDS[:] = farm_bounds(features)
@@ -596,7 +699,12 @@ def build_tracks():
               f"Points: {raw_pts} raw -> {out_pts} after {SIMPLIFY_M:g} m simplification.\n",
               "### Loops\n", *log_loop, "", "### Joined recording segments\n", *(log_join or ["- none"]), "",
               f"### End snapping (within {SNAP_M:g} m, looking back {TAIL_M:g} m for overshoot)\n",
-              "| Track | End | Joined to | How | Moved (m) | Trimmed (m) |", "|---|---|---|---|---|---|", *log_snap, "", *log_level]
+              "| Track | End | Joined to | How | Moved (m) | Trimmed (m) |", "|---|---|---|---|---|---|", *log_snap, "",
+              "### Crossings joined\n", "Trails that cross in the middle, where neither ends, share the crossing point.\n",
+              *([f"- {a} × {b}" for a, b in sorted(crossed)] or ["- none"]), "",
+              "### Shared path\n", f"Stretches where a trail runs along a longer one (within {SHARED_M:g} m, the same way, for "
+              f"{SHARED_RUN_M:g} m or more): one path on the ground, counted once in the total trail distance.\n",
+              *([f"- {n}: {m:.0f} m" for n, m in sorted(shared.items())] or ["- none"]), "", *log_level]
     return features, report
 
 

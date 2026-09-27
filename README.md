@@ -138,6 +138,13 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
 - Lines are simplified (2 m tolerance), then every trail end is connected: an end touching a trail is locked on, an
   end that crosses a trail and runs on up to 25 m is trimmed back, and an end stopping within 25 m of a trail is
   extended to it. Both lines share the exact junction point.
+- Trails (and the driveway) that cross in the middle, where neither ends, share the crossing point, so each lists the
+  other under *Connects to* and walking directions can turn there.
+- Distances and areas use the WGS84 ellipsoid GPS itself uses (exact metres per degree at the quarter in the build,
+  Vincenty's formula in the app). Each property line's area is measured from every recorded point, not the smoothed
+  outline, which on the small cabin loop would cut off a tenth of it.
+- Where a trail runs along a longer one (within 3 m, the same way, for 10 m or more) that stretch is one path: the
+  Stats panel's total trail distance counts it once (Zoey Trail's end along Finley Trail, for one).
 - `"extend": {"start": [lon, lat], "end": [lon, lat]}` pins an end to a chosen point (used to route Brush Pile
   Trail between the two brush piles); `"snap": false` turns automatic joining off for a track.
 - `"directions"` adds named direction markers (Payton Trail one way, Caine Trail the other).
@@ -147,7 +154,9 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
   recordings, and a recording's first few seconds can be well off while the height settles. So readings more than 5 m
   from their neighbours are left out, and each recording gets one height shift so that recordings agree (to within a
   few metres) wherever they pass within 5 m of each other. Most recordings keep their own heights; `build/report.md`
-  lists every reading left out and every shift. The heights above sea level can still be several metres out overall.
+  lists every reading left out and every shift, and the height noise left over (1.3 m), which the Stats panel uses to say
+  when two trails' slopes are too close for GPS to tell apart. The heights above sea level can still be several metres
+  out overall.
 - A trail's climb, drop and elevation chart use only the readings along its finished line, not the bit of recording
   trimmed off past a junction (Warren Trail's recording starts 18 m before its junction, which made it look 8.6 % steep
   instead of under 2 %).

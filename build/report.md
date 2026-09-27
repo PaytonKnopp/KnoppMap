@@ -2,7 +2,7 @@
 
 ## Tracks
 
-33 tracks, 1 waypoint(s). Points: 1824 raw -> 495 after 2 m simplification.
+33 tracks, 1 waypoint(s). Points: 1824 raw -> 546 after 2 m simplification.
 
 ### Loops
 
@@ -42,16 +42,16 @@
 | Tree Farm Trail | start | Cabin Trail | extended | 1.3 | 0.0 |
 | Tree Farm Trail | end | Cabin Trail | extended | 1.4 | 0.0 |
 | Trailhead | start | Cabin Trail | trimmed at crossing | 0.0 | 2.7 |
-| Trailhead | end | Tracy Trail | extended | 16.0 | 0.0 |
+| Trailhead | end | Tracy Trail | extended | 16.1 | 0.0 |
 | E/W Flyover | start | Brittney Trail | extended | 17.4 | 0.0 |
-| E/W Flyover | end | Quarter Section Perimeter | trimmed at crossing | 0.0 | 11.0 |
+| E/W Flyover | end | Quarter Section Perimeter | trimmed at crossing | 0.0 | 11.1 |
 | Loraly Trail | start | Cabin Trail | joined | 0.2 | 0.0 |
 | Loraly Trail | end | Roper Trail | extended | 1.8 | 0.0 |
 | Hill Behind House Trails | start | Driveway & Main Yard | joined | 0.4 | 0.0 |
-| Hill Behind House Trails | end | Backroad Trail | extended | 14.3 | 0.0 |
+| Hill Behind House Trails | end | Backroad Trail | extended | 14.4 | 0.0 |
 | Margaret Trail | start | Ring Road | trimmed at crossing | 0.0 | 1.4 |
 | Margaret Trail | end | Trailhead | extended | 1.7 | 0.0 |
-| Payton and Caine Trail | start | Cabin Perimeter | extended | 10.3 | 0.0 |
+| Payton and Caine Trail | start | Cabin Perimeter | extended | 10.4 | 0.0 |
 | Payton and Caine Trail | end | Cabin Trail | extended | 5.0 | 0.0 |
 | Cabin Trail | end | Cabin Perimeter | extended | 2.3 | 0.0 |
 | Golf Range | start | Cougar Bridge Trail | trimmed at crossing | 0.0 | 3.4 |
@@ -60,7 +60,7 @@
 | Larry's Crossing | end | Skull Trail | extended | 1.2 | 0.0 |
 | Backroad Trail | start | Golf Range | joined | 0.4 | 0.0 |
 | Backroad Trail | end | Hill Behind House Trails | joined | 0.3 | 0.0 |
-| Warren Trail | start | Trailhead | trimmed at crossing | 0.0 | 19.6 |
+| Warren Trail | start | Trailhead | trimmed at crossing | 0.0 | 19.7 |
 | Warren Trail | end | Brush Pile Trail | trimmed at crossing | 0.0 | 1.8 |
 | Finley Trail | start | Cabin Trail | extended | 1.5 | 0.0 |
 | Finley Trail | end | Brush Pile Trail | joined | 0.5 | 0.0 |
@@ -69,8 +69,8 @@
 | Tracy Trail | end | Cabin Trail | extended | 3.2 | 0.0 |
 | Brittney Trail | start | N/S Trail | trimmed at crossing | 0.0 | 22.0 |
 | Brittney Trail | end | Cabin Trail | extended | 2.3 | 0.0 |
-| Shooting Range | start | Backroad Trail | extended | 7.0 | 0.0 |
-| Shooting Range | end | Ring Road | trimmed at crossing | 0.0 | 18.0 |
+| Shooting Range | start | Backroad Trail | extended | 7.1 | 0.0 |
+| Shooting Range | end | Ring Road | trimmed at crossing | 0.0 | 18.1 |
 | Ring Road | start | Cabin Perimeter | joined | 0.7 | 0.0 |
 | Ring Road | end | Cougar Bridge Trail | joined | 0.5 | 0.0 |
 | Cougar Bridge Trail | start | Backroad Trail | joined | 0.2 | 0.0 |
@@ -78,9 +78,47 @@
 | Taylor Trail | start | Tracy Trail | extended | 2.3 | 0.0 |
 | Taylor Trail | end | Cabin Trail | extended | 7.5 | 0.0 |
 | Field Highway Trail | start | Tree Farm Trail | extended | 2.7 | 0.0 |
-| Field Highway Trail | end | Hill Behind House Trails | extended | 9.6 | 0.0 |
+| Field Highway Trail | end | Hill Behind House Trails | extended | 9.7 | 0.0 |
 | Zoey Trail | start | Cabin Perimeter | joined | 0.6 | 0.0 |
 | Zoey Trail | end | Finley Trail | trimmed at crossing | 0.0 | 2.5 |
+
+### Crossings joined
+
+Trails that cross in the middle, where neither ends, share the crossing point.
+
+- Brush Pile Trail × Cabin Trail
+- Brush Pile Trail × Tracy Trail
+- Brush Pile Trail × Trailhead
+- Cabin Trail × Golf Range
+- Cabin Trail × Ring Road
+- Cabin Trail × Taylor Trail
+- E/W Flyover × Cabin Trail
+- E/W Flyover × Ring Road
+- E/W Flyover × Taylor Trail
+- E/W Flyover × Tracy Trail
+- Finley Trail × Zoey Trail
+- Loraly Trail × Skull Trail
+- Margaret Trail × Payton and Caine Trail
+- N/S Trail × Cabin Trail
+- N/S Trail × E/W Flyover
+- N/S Trail × Finley Trail
+- N/S Trail × Payton and Caine Trail
+- N/S Trail × Tracy Trail
+- N/S Trail × Zoey Trail
+- Outside Trail × Cabin Trail
+- Outside Trail × Cougar Bridge Trail
+- Outside Trail × Shooting Range
+- Roper Trail × Brush Pile Trail
+- Roper Trail × Skull Trail
+- Skull Trail × Ring Road
+
+### Shared path
+
+Stretches where a trail runs along a longer one (within 3 m, the same way, for 10 m or more): one path on the ground, counted once in the total trail distance.
+
+- Golf Range: 25 m
+- Loraly Trail: 11 m
+- Zoey Trail: 37 m
 
 ### Height glitches left out
 
@@ -95,13 +133,13 @@ Readings more than 5 m from their neighbours (mostly the first seconds of a reco
 
 ### Heights levelled
 
-Where recordings pass within 5 m of each other (79 spots) their heights differed by up to 20.8 m (median 3.2 m); after one shift per recording, by up to 4.0 m (median 0.8 m).
+Where recordings pass within 5 m of each other (78 spots) their heights differed by up to 20.8 m (median 3.2 m); after one shift per recording, by up to 4.0 m (median 0.9 m).
 
 | Recording | Recorded | Height shift (m) |
 |---|---|---|
 | Golf Range | 2026-08-23 22:07 UTC | +19.4 |
 | Field Highway Trail | 2026-08-23 22:15 UTC | +17.8 |
-| Shooting Range | 2026-08-23 21:53 UTC | +15.7 |
+| Shooting Range | 2026-08-23 21:53 UTC | +15.6 |
 | Acreage Perimeter | 2026-08-23 21:33 UTC | +11.6 |
 | Quarter Section Perimeter | 2026-08-23 20:40 UTC | -6.2 |
 | Hill Behind House Trails | 2026-08-23 20:29 UTC | -5.9 |
@@ -111,21 +149,23 @@ Where recordings pass within 5 m of each other (79 spots) their heights differed
 | Taylor Trail | 2026-09-05 21:43 UTC | -2.9 |
 | E/W Flyover | 2026-09-05 22:18 UTC | -2.6 |
 | Tracy Trail | 2026-09-05 21:56 UTC | -2.3 |
+| Brush Pile Trail | 2026-09-05 21:46 UTC | -2.2 |
 | Cabin Trail | 2026-09-05 20:41 UTC | +2.2 |
 | Ring Road | 2026-09-05 20:57 UTC | -2.1 |
-| Cougar Bridge Trail | 2026-09-05 22:40 UTC | +1.9 |
-| Brush Pile Trail | 2026-09-05 21:46 UTC | -1.7 |
+| Cougar Bridge Trail | 2026-09-05 22:40 UTC | +1.8 |
 | Warren Trail | 2026-09-05 21:53 UTC | +1.7 |
 | Cabin Perimeter | 2026-09-05 20:54 UTC | +1.5 |
 | Roger Trail | 2026-09-05 22:09 UTC | +1.5 |
-| Skull Trail | 2026-09-05 22:30 UTC | -1.4 |
+| Skull Trail | 2026-09-05 22:30 UTC | -1.5 |
 | Backroad Trail | 2026-09-05 22:36 UTC | +1.4 |
 | Zoey Trail | 2026-09-05 21:30 UTC | -1.2 |
 | Larry's Crossing | 2026-09-05 22:27 UTC | +0.8 |
-| Margaret Trail | 2026-09-05 22:05 UTC | +0.6 |
 | Payton and Caine Trail | 2026-09-05 21:15 UTC | -0.6 |
+| Margaret Trail | 2026-09-05 22:05 UTC | +0.6 |
+| Clint Trail | 2026-09-05 21:25 UTC | -0.6 |
 | Trailhead | 2026-09-05 21:54 UTC | -0.6 |
-| Clint Trail | 2026-09-05 21:25 UTC | -0.5 |
+
+Height noise left over (root mean square at those spots): 1.3 m.
 
 ## Photos
 
