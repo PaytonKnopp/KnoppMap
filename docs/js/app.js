@@ -1730,17 +1730,22 @@
     const sum = (list, k) => list.reduce((s, x) => s + (x[k] || 0), 0);
     // Highest and lowest point along any line on the quarter: the same heights as the trail cards' elevation charts.
     let hi = null, lo = null;
-    onQuarter.forEach((f) => (f.properties.profile || []).forEach(([, e]) => {
-      if (!hi || e > hi.e) hi = { e, f };
-      if (!lo || e < lo.e) lo = { e, f };
-    }));
+    onQuarter.forEach((f) => {
+      const prof = f.properties.profile || [];
+      prof.forEach(([d, e]) => {
+        const at = { e, f, frac: d / (prof[prof.length - 1][0] || 1) };   // how far along the line, 0 to 1
+        if (!hi || e > hi.e) hi = at;
+        if (!lo || e < lo.e) lo = at;
+      });
+    });
     const bounds = onQuarter.filter((f) => cat(f) === "boundary" && f.geometry.type === "Polygon")
       .map((f) => ({ f, area: ringArea(f.geometry.coordinates[0]), around: f.properties.length_m || 0 })).sort((a, b) => b.area - a.area);
     const quarter = bounds.find((b) => b.f.id === "quarter-section-perimeter") || bounds[0] || null;
     if (quarter) {
       const qb = L.geoJSON(quarter.f).getBounds(), mid = qb.getCenter();
-      quarter.wide = distM(L.latLng(mid.lat, qb.getWest()), L.latLng(mid.lat, qb.getEast()));
-      quarter.tall = distM(L.latLng(qb.getSouth(), mid.lng), L.latLng(qb.getNorth(), mid.lng));
+      // Its full stretch each way, to the nearest 10 m (a traced outline isn't good to the metre).
+      quarter.wide = Math.round(distM(L.latLng(mid.lat, qb.getWest()), L.latLng(mid.lat, qb.getEast())) / 10) * 10;
+      quarter.tall = Math.round(distM(L.latLng(qb.getSouth(), mid.lng), L.latLng(qb.getNorth(), mid.lng)) / 10) * 10;
     }
     const named = featuredPlaces().filter((pl) => !pl.f.properties.site);
     let far = null;
@@ -1856,6 +1861,7 @@
     const rec = (e, label, value, name, open = "") => `<${open ? `button ${open}` : "div"} class="sp-rec"><span class="e" aria-hidden="true">${e}</span>
       <small>${label}</small><b>${value}</b><span>${name}</span></${open ? "button" : "div"}>`;
     const tr = (t) => `data-trail="${esc(t.id)}"`;
+    const spot = (x) => `data-trail="${esc(x.f.id)}" data-frac="${x.frac.toFixed(4)}"`;
     const records = [];
     if (n) {
       const [long, short, steep, flat, hub, snap] = [top((s) => s.len), top((s) => -s.len), top((s) => s.steep), top((s) => -s.steep),
@@ -1868,8 +1874,8 @@
       if (snap.photos.length) records.push(rec("📸", "Most photographed trail", plural(snap.photos.length, "photo"), esc(snap.name), tr(snap)));
     }
     const hiT = S.hi && tracks.get(S.hi.f.id), loT = S.lo && tracks.get(S.lo.f.id);
-    if (hiT) records.push(rec("🏔️", "Highest point", fmtH(S.hi.e), `on ${esc(hiT.f.properties.name)}`, tr(hiT.f)));
-    if (loT) records.push(rec("🏞️", "Lowest point", fmtH(S.lo.e), `on ${esc(loT.f.properties.name)}`, tr(loT.f)));
+    if (hiT) records.push(rec("🏔️", "Highest point", fmtH(S.hi.e), `on ${esc(hiT.f.properties.name)}`, spot(S.hi)));
+    if (loT) records.push(rec("🏞️", "Lowest point", fmtH(S.lo.e), `on ${esc(loT.f.properties.name)}`, spot(S.lo)));
     if (S.far) records.push(rec("↔️", "Farthest apart", fmtLen(S.far.d), `${esc(placeTitle(S.far.a))} ↔ ${esc(placeTitle(S.far.b))}`));
     const bestPlace = [...featuredPlaces()].sort((a, b) => b.photos.length - a.photos.length || placeTitle(a).localeCompare(placeTitle(b)))[0];
     if (bestPlace?.photos.length) records.push(rec("🖼️", "Most photographed place", plural(bestPlace.photos.length, "photo"),
@@ -1877,10 +1883,10 @@
 
     // ---- fun comparisons (each says what it's compared with, so it can be checked)
     const fun = [];
-    const rinks = S.quarter && S.quarter.area / (60.96 * 25.908);   // an NHL rink: 200 × 85 ft
+    const rinks = S.quarter && S.quarter.area / ((200 * 85 - (4 - Math.PI) * 28 ** 2) * 0.09290304);   // an NHL rink: 200 × 85 ft, corners rounded 28 ft
     const storeys = S.hi && S.lo ? Math.round((S.hi.e - S.lo.e) / 3) : 0;
     if (S.trailLen) fun.push(["🏃", `All ${n} trails end to end come to ${fmtLen(S.trailLen)}: about <b>${halves(S.trailLen / 400)} laps</b> of a 400 m running track.`]);
-    if (rinks) fun.push(["🏒", `The quarter could fit about <b>${(rinks >= 100 ? Math.round(rinks / 10) * 10 : Math.round(rinks)).toLocaleString()} NHL hockey rinks</b> (200 × 85 ft each).`]);
+    if (rinks) fun.push(["🏒", `The quarter could fit about <b>${(rinks >= 100 ? Math.round(rinks / 10) * 10 : Math.round(rinks)).toLocaleString()} NHL hockey rinks</b> (200 × 85 ft, with rounded corners).`]);
     if (storeys >= 2) fun.push(["🏢", `The lowest point is ${fmtH(S.hi.e - S.lo.e)} below the highest: about as tall as <b>${/^8/.test(storeys) || storeys === 11 || storeys === 18 ? "an" : "a"} ${storeys}-storey building</b>.`]);
     if (S.gain) fun.push(["🗼", `All the uphill on every trail adds up to ${fmtH(S.gain)}, <b>${heightOf(S.gain / 191)}</b> the Calgary Tower (${fmtH(191)}).`]);
     if (S.quarter?.around) fun.push(["🚶", `A walk right around the property line is ${fmtLen(S.quarter.around)}, about <b>${fmtDur(walkMins(S.quarter.around))}</b> at an easy pace.`]);
@@ -1934,10 +1940,12 @@
           ${big(...splitUnit(qArea))}
           <span>${esc(qAlt)}</span>
           <span>${fmtLen(S.quarter.around)} around</span>
-          <span>about ${fmtLen(S.quarter.wide)} × ${fmtLen(S.quarter.tall)}</span>
+          <span>${fmtLen(S.quarter.wide)} east–west</span>
+          <span>${fmtLen(S.quarter.tall)} north–south</span>
         </div>
       </div>
-      ${S.quarter.f.id === "quarter-section-perimeter" ? `<p class="note">Measured inside the property line as it’s drawn on the map. A surveyed quarter section is 160 acres (64.7 ha).</p>` : ""}
+      ${S.quarter.f.id === "quarter-section-perimeter" ? `<p class="note">Measured inside the property line as it’s drawn on the map. That line was traced with GPS, so the
+        area can be out by a few acres either way. A surveyed quarter section is usually 160 acres (64.7 ha).</p>` : ""}
       ${others.map((b) => { const [a, alt] = fmtArea(b.area); return `<div class="sp-bound">
         <span class="bound-sw" style="border-color:${esc(boundCol(b.f))}"></span>
         <span class="grow"><b>${esc(b.f.properties.name)}</b><small>${fmtLen(b.around)} around</small></span>
@@ -1949,7 +1957,9 @@
         ${tile("🔻", splitUnit(fmtH(S.lo.e)), "lowest", esc(S.lo.f.properties.name), "sm")}
         ${tile("↕️", splitUnit(fmtH(S.hi.e - S.lo.e)), "difference", "", "sm")}
       </div>
-      <p class="note">Heights above sea level, from the GPS recordings. Walking every trail once, the way it was mapped, climbs
+      <p class="note">Heights above sea level from the phone’s GPS, evened out so every recording agrees (within a few
+        metres) wherever trails meet; the heights themselves can be several metres out, but the rises and drops between
+        places are closer. Walking every trail once, the way it was mapped, climbs
         <b>↗ ${fmtH(S.gain)}</b> and drops <b>↘ ${fmtH(S.loss)}</b> in all.</p>` : ""}
 
       <h3>📍 Places &amp; tour</h3>
@@ -1996,7 +2006,12 @@
       setMore(false);
       drawBoard();
     }
-    $$("[data-trail]", body).forEach((b) => b.onclick = () => openTrail(b.dataset.trail, { back: true }));
+    $$("[data-trail]", body).forEach((b) => b.onclick = () => {
+      openTrail(b.dataset.trail, { back: true });
+      // The highest and lowest point: the trail card opens and the exact spot pulses once the map has flown there.
+      const t = tracks.get(b.dataset.trail);
+      if (b.dataset.frac && t) setTimeout(() => pulseAt(alongLine(lineCoords(t.f.geometry), +b.dataset.frac).at), 700);
+    });
     $$("[data-place]", body).forEach((b) => b.onclick = () => openPlace(b.dataset.place, { back: true }));
 
     // ---- photo charts: one column per day or hour; tapping one shows its photos
@@ -2160,9 +2175,13 @@
     if (isPhone()) closeSheet();
     const ll = x.m.getLatLng();
     flyToVisible(ll, 19);
+    pulseAt(ll);
+  };
+  /** Gold rings pulsing out from a spot for a few seconds, to show exactly where something is. */
+  function pulseAt(ll) {
     const pulse = L.marker(ll, { icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div class="pulse"><span></span></div>' }), interactive: false }).addTo(map);
     setTimeout(() => map.removeLayer(pulse), 4200);
-  };
+  }
   document.addEventListener("keydown", (e) => {
     if (lb.hidden) return;
     if (e.key === "Escape") closeLb();
