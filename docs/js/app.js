@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const { icon, esc, fmtDate, store, loadBundle, photoUrl } = KM;
+  const { icon, esc, fmtDate, store, loadBundle, photoUrl, esriTiles } = KM;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   // An upright phone: panels come up from the bottom. A phone turned sideways, however narrow, gets the side panel
@@ -95,9 +95,32 @@
   applySize();
 
   // ================================================================ map
-  const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 22, minZoom: 5 });
-  L.control.zoom({ position: "topright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" }).addTo(map);
-  let scaleCtl = L.control.scale({ position: "bottomright", imperial: false }).addTo(map);
+  // One world, no copies either side, and no panning off its top or bottom edge.
+  const WORLD = L.latLngBounds([[-85.0511, -180], [85.0511, 180]]);
+  const map = L.map("map", { zoomControl: false, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, maxZoom: 22, minZoom: 0,
+    maxBounds: WORLD, maxBoundsViscosity: 1 });
+  const zoomCtl = L.control.zoom({ position: "topright", zoomInTitle: "Zoom in", zoomOutTitle: "Zoom out" }).addTo(map);
+  // Zoomed all the way out, the whole world just fits on the screen (an upright phone or a wide window alike). The
+  // map's own lowest zoom stays 0, because the photo groups work out every zoom level from the lowest once, when they
+  // start; the limit that follows the screen size goes into the one place every zoom (buttons, wheel, pinch) passes.
+  const worldZoom = () => {
+    const s = map.getSize(), snap = map.options.zoomSnap;
+    return Math.max(0, Math.floor(Math.log2(Math.min(s.x, s.y) / 256) / snap) * snap);
+  };
+  const limitZoom = map._limitZoom;
+  map._limitZoom = function (z) { return Math.max(worldZoom(), limitZoom.call(this, z)); };
+  const markZoomOut = () => {
+    const b = zoomCtl._zoomOutButton, off = map.getZoom() <= worldZoom();
+    b.classList.toggle("leaflet-disabled", off);
+    b.setAttribute("aria-disabled", off);
+  };
+  map.on("zoomend zoomlevelschange", markZoomOut).on("resize", () => {
+    if (map.getZoom() < worldZoom()) map.setZoom(worldZoom(), { animate: false });
+    markZoomOut();
+  });
+  // A bar can be as short as half its longest; at 120 px even "5000 km" or "5000 ft" fits in the shortest.
+  const SCALE_W = 120;
+  let scaleCtl = L.control.scale({ position: "bottomright", maxWidth: SCALE_W, imperial: false }).addTo(map);
   // An antique compass rose: brass ring, aged parchment face, 16-point rose with shaded halves and a fleur-de-lis for north.
   // Each copy gets its own gradient ids (the map and the printed poster both show one).
   let compassCount = 0;
@@ -152,8 +175,10 @@
 
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
   const CARTO = "https://{s}.basemaps.cartocdn.com/";
-  // Tiles keep old imagery on screen while zooming instead of flashing grey, and don't fetch mid-animation.
-  const TILE_OPTS = { maxZoom: 22, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
+  // Tiles keep old imagery on screen while zooming instead of flashing grey, and don't fetch mid-animation. Only one
+  // world's worth (both options are needed: without bounds Leaflet still asks for the tiles past its edges).
+  const ONE_WORLD = { noWrap: true, bounds: WORLD };
+  const TILE_OPTS = { maxZoom: 22, ...ONE_WORLD, updateWhenZooming: false, updateWhenIdle: L.Browser.mobile, keepBuffer: 4 };
   // Between whole zoom levels the tiles are scaled, and the browser leaves hairline lines between them. Base map tiles
   // are drawn one pixel larger so they overlap, and app.css turns off Leaflet's additive blending for them. (Not the
   // see-through radar or hill tiles: an overlap would show there.)
@@ -168,7 +193,7 @@
   let madeKeys = null;   // which Esri services the map style being built uses (see setBase)
   const esriLayer = (svc, key, attribution, extra = {}) => {
     madeKeys?.add(key);
-    return L.tileLayer(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
+    return esriTiles(ESRI + svc + "/MapServer/tile/{z}/{y}/{x}", { ...TILE_OPTS, maxNativeZoom: nativeZoom(key), attribution, ...extra });
   };
   const IMG_ATTR = "Imagery © Esri, Maxar, Earthstar Geographics";
   const OSM_ATTR = "© OpenStreetMap contributors";
@@ -232,7 +257,8 @@
     }
   }
 
-  // ---- how deep the real imagery goes here (Esri shows a grey "Map data not yet available" tile beyond it)
+  // ---- how deep the real imagery goes at the quarter, so the map asks for the sharpest level there is and no deeper.
+  // (Anywhere shallower, a missing level is filled from the one above, see esriTiles, at the cost of a wasted request.)
   const PROBE = { img: "World_Imagery", topo: "World_Topo_Map", ref: "Reference/World_Transportation", hill: "Elevation/World_Hillshade" };
   const FLAT_OK = new Set(["hill"]);   // naturally grey, so only a missing tile counts
   const native = store.get("nativeZoom", {});
@@ -291,7 +317,7 @@
     for (const key of keys) {
       const svc = PROBE[key], old = native[key];
       let found = null;
-      for (let z = 20; z >= 12; z--) {
+      for (let z = map.getMaxZoom(); z >= 12; z--) {
         const res = await Promise.all(pts.map((p) => probeTile(svc, z, p.lat, p.lng, FLAT_OK.has(key))));
         if (res.some((r) => r === null)) { found = undefined; break; }   // network trouble: try again next visit
         if (res.every(Boolean)) { found = z; break; }
@@ -1414,7 +1440,7 @@
     scaleCtl.remove();
     compassCtl.remove();
     if (!adv.compass) return;
-    scaleCtl = L.control.scale({ position: "bottomright", metric: adv.units !== "imperial", imperial: adv.units === "imperial" }).addTo(map);
+    scaleCtl = L.control.scale({ position: "bottomright", maxWidth: SCALE_W, metric: adv.units !== "imperial", imperial: adv.units === "imperial" }).addTo(map);
     compassCtl.addTo(map);
   }
   function setUnits(u) {
@@ -2330,7 +2356,7 @@
     const f = radar.frames[i];
     if (!radar.layers.has(f.path)) {
       radar.layers.set(f.path, L.tileLayer(`${radar.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`,
-        { pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 22, attribution: "Radar © RainViewer" }));
+        { pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 22, ...ONE_WORLD, attribution: "Radar © RainViewer" }));
     }
     return radar.layers.get(f.path);
   }
@@ -3100,18 +3126,23 @@
   window.addEventListener("offline", updateOnline);
   updateOnline();
 
-  function farmTiles(z0 = 13, z1 = nativeZoom("img")) {
+  function farmTiles(z0 = 13, z1 = Math.min(19, nativeZoom("img"))) {
     // The quarter, plus a small square around each family house. Zoomed out, a wide margin too (a few MB), so the
-    // opening view on an upright phone, much taller than the quarter, has no grey bands above and below it.
+    // opening view on an upright phone, much taller than the quarter, has no grey bands above and below it. Past
+    // level 19 the map enlarges the level-19 picture offline, nearly as sharp for a quarter of the space. Further out,
+    // the country around the quarter, about three screens across at each level, and the whole world (a few MB).
+    const c = farmBounds.getCenter(), across = (z) => (3 * 40075016 * Math.cos((c.lat * Math.PI) / 180)) / 2 ** z;
     return [...tilesIn(farmBounds.pad(1), z0, Math.min(17, z1)), ...tilesIn(farmBounds.pad(0.15), 18, z1),
-      ...sitePlaces().flatMap((pl) => tilesIn(pl.marker.getLatLng().toBounds(400), z0, z1))];
+      ...sitePlaces().flatMap((pl) => tilesIn(pl.marker.getLatLng().toBounds(400), z0, z1)),
+      ...tilesIn(WORLD, 0, 2), ...Array.from({ length: z0 - 3 }, (_, i) => tilesIn(c.toBounds(across(i + 3)), i + 3, i + 3)).flat()];
   }
   function tilesIn(b, z0, z1) {
     const urls = [];
     for (let z = z0; z <= z1; z++) {
-      const n = 2 ** z;
-      const tx = (lng) => Math.floor(((lng + 180) / 360) * n);
-      const ty = (lat) => Math.floor((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2 * n);
+      const n = 2 ** z, edge = (v) => Math.max(0, Math.min(n - 1, v));
+      const tx = (lng) => edge(Math.floor(((lng + 180) / 360) * n));
+      const ty = (lat) => { const r = (Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI) / 180;
+        return edge(Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n)); };
       for (let x = tx(b.getWest()); x <= tx(b.getEast()); x++) {
         for (let y = ty(b.getNorth()); y <= ty(b.getSouth()); y++) urls.push(`${ESRI}World_Imagery/MapServer/tile/${z}/${y}/${x}`);
       }
