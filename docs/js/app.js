@@ -3188,6 +3188,12 @@
       reg.active.postMessage({ type: "shell" }, [ch.port2]);
     });
   }
+  // A saved map tile carries when it was saved, so the service worker (sw.js) knows when to fetch a newer picture.
+  async function stamped(res) {
+    const headers = new Headers(res.headers);
+    headers.set("x-km-saved", String(Date.now()));
+    return new Response(await res.blob(), { status: 200, headers });
+  }
   // Saves the given addresses (plus a fresh copy of the app and its data), then counts again what is really saved.
   async function saveOffline(urls) {
     const S = offlineState;
@@ -3204,7 +3210,7 @@
           try {
             const res = await fetch(u, { mode: u.startsWith(location.origin) ? "same-origin" : "cors" });
             if (!res.ok) throw new Error(res.status);
-            await cache.put(u, res);
+            await cache.put(u, u.startsWith(ESRI) ? await stamped(res) : res);
           } catch (err) {
             // Out of room: stop, rather than fail every remaining item one by one.
             if (err?.name === "QuotaExceededError") S.full = true;

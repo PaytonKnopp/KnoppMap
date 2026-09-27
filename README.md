@@ -87,7 +87,8 @@ GitHub Pages from the `docs/` folder.
   browser, so the same link works at the quarter with no signal. "Add to Home Screen" gives it an app icon.
   - The satellite picture is saved for the quarter and the family houses down to level 19 (closer in, the map enlarges
     it), plus the country around the quarter and the whole world zoomed out, so zooming out works offline too.
-    A saved picture stays as it was saved; it doesn't change when Esri gets newer photos.
+    A saved picture keeps itself current: when it is over a month old and the device is online (not on mobile
+    data), a newer copy is fetched in the background as it's viewed.
   - The panel counts what is really saved on the device (not just a note that a save once happened) and says what
     is missing: new photos, a save that was cut short, or a copy the phone cleared. *Save* only fetches what is
     missing, so an interrupted save carries on where it stopped.
