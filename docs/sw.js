@@ -1,5 +1,5 @@
 // Offline support: the app shell and data are network-first (so updates arrive), photos and map tiles are cache-first.
-const SHELL = "km-shell-v36";
+const SHELL = "km-shell-v37";
 const MEDIA = "km-media-v1";
 const CORE = [
   "./", "index.html", "css/app.css", "js/common.js", "js/app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-32.png",
@@ -30,6 +30,27 @@ self.addEventListener("activate", (e) => {
   })());
 });
 
+// A saved map tile shows at once. When it was saved over a month ago and there's internet (not mobile data), a fresh
+// copy is fetched behind it for next time, so a saved map picks up Esri's newer pictures. If Esri no longer has that
+// level there (an error with blankTile=false), the saved one is kept. The saving time rides along as a header.
+const TILE_FRESH_MS = 30 * 864e5;
+const refreshing = new Set();
+async function refreshTile(c, key, hit) {
+  const conn = navigator.connection || {};
+  if (Date.now() - (+hit.headers.get("x-km-saved") || 0) < TILE_FRESH_MS || refreshing.has(key)) return;
+  if (!navigator.onLine || conn.saveData || conn.type === "cellular") return;
+  refreshing.add(key);
+  try {
+    const res = await fetch(key + "?blankTile=false", { mode: "cors", cache: "no-cache" });
+    if (res.ok) await c.put(key, await stampTile(res));
+  } catch { /* offline or blocked: try again another time */ } finally { refreshing.delete(key); }
+}
+async function stampTile(res) {
+  const headers = new Headers(res.headers);
+  headers.set("x-km-saved", String(Date.now()));
+  return new Response(await res.blob(), { status: 200, headers });
+}
+
 const isMedia = (url) => url.pathname.includes("/photos/") || url.hostname.endsWith("arcgisonline.com");
 // Shell files are stored under their plain address (no ?v=…), so there is one copy of each and offline gets the newest.
 const shellKey = (url) => url.origin + url.pathname;
@@ -42,8 +63,9 @@ self.addEventListener("fetch", (e) => {
     // Map tiles are saved under their plain address; the map asks for them with ?blankTile=false.
     const tile = url.hostname.endsWith("arcgisonline.com");
     e.respondWith(caches.open(MEDIA).then(async (c) => {
-      const hit = await c.match(tile ? url.origin + url.pathname : e.request, { ignoreVary: true });
-      if (hit) return hit;
+      const key = tile ? url.origin + url.pathname : e.request;
+      const hit = await c.match(key, { ignoreVary: true });
+      if (hit) { if (tile) e.waitUntil(refreshTile(c, key, hit)); return hit; }
       const res = await fetch(e.request);
       if (res.ok && url.pathname.includes("/photos/thumb/")) e.waitUntil(c.put(e.request, res.clone()));
       return res;
