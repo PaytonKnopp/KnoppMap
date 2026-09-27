@@ -23,7 +23,7 @@ GitHub Pages from the `docs/` folder.
 | 📏 **Measure** | Tap points on the map to measure distance; keep tapping to add legs. Points snap to named places, can be dragged, and Undo / Clear / Done and a ✕ to close are always shown. |
 | 🗺️ **Legend** | What the lines and pins mean (folded-map button, top right). |
 | 💡 **Tips** | The welcome guide. |
-| ⚙️ **Options** | Looks, map styles, weather, what's shown, text size, print & offline, and the advanced sections below. **Reset to original settings** is at the top. |
+| ⚙️ **Options** | Looks, map styles, weather, what's shown, text size, print & offline, **Stats & records**, and the advanced sections below. **Reset to original settings** is at the top. |
 | 🧭 **Compass** | The antique compass (bottom right) shows north is up; tap it for a little spin. |
 
 - **Panels on a phone** (Places, Options, place cards and the rest) can be dragged up or down by their header to
@@ -52,6 +52,20 @@ GitHub Pages from the `docs/` folder.
   and snow colours are also in the Legend while the radar is on, and it pauses while the map is in the background. A line in the panel says what is falling at
   the farm right now and what's coming in the next few hours, and the panel's icon switches between 🌧️ 🌨️ 🧊 ⛈️ to
   match. There is also a chip with current Open-Meteo conditions at the quarter.
+- **Stats & records** (Options, just above the advanced sections) opens its own panel of numbers about the whole map,
+  all worked out from the map data so they stay right after every rebuild, in metres or feet as picked in Options:
+  - *Headline tiles:* total trail distance and the time to walk every trail, trails, photos, named places, and the
+    quarter's area (acres and hectares, measured inside the property line as drawn).
+  - *Trail leaderboard:* all 28 trails ranked by length, hills (climb and drop), steepness or photos, with medals and
+    bars; tap one to see it on the map.
+  - *Records:* longest, shortest, steepest and flattest trail, the most connected trail, the most photographed trail and
+    place, the highest and lowest point, and the two named places farthest apart. Each card opens its trail or place.
+  - *Photos:* a bar for each day photos were taken (tap one to see that day's photos), photos by time of day, and the
+    most photographed places.
+  - *The land:* a little drawing of the quarter with its trails and places, its area, distance around and size, and
+    each other property line.
+  - *Ups and downs, places & tour, family houses* (photos and distance from the quarter), the tour's walking distance
+    with a Start button, and a few fun comparisons (running-track laps, hockey rinks, the Calgary Tower).
 - **Advanced options:**
   - *Trail colours & lines:* colour by one colour / each trail / steepness / length, pick the single trail colour,
     line style (the look's own, solid, dashed, dotted), thickness, see-through, map brightness, dark outline on or
@@ -197,4 +211,5 @@ still be downloaded from GitHub itself.
 
 ## Links
 
-Every place, trail and tour stop has its own address, e.g. `#place=spot-05`, `#trail=cabin-trail`, `#tour=3`.
+Every place, trail and tour stop has its own address, e.g. `#place=spot-05`, `#trail=cabin-trail`, `#tour=3`, and
+`#stats` opens Stats & records.

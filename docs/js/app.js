@@ -1018,7 +1018,7 @@
   function linkOf(hash) {
     let k, v;
     try { [k, v] = decodeURIComponent(hash.slice(1)).split("="); } catch { return null; }
-    return (k === "place" && places.has(v)) || (k === "trail" && tracks.has(v)) || (k === "tour" && tour.stops.length) ? [k, v] : null;
+    return (k === "place" && places.has(v)) || (k === "trail" && tracks.has(v)) || (k === "tour" && tour.stops.length) || k === "stats" ? [k, v] : null;
   }
   window.addEventListener("popstate", (e) => {
     if (skipPops) { skipPops--; handledHash = location.hash; return; }
@@ -1031,6 +1031,7 @@
       const [k, v] = link;
       if (k === "place") openPlace(v);
       else if (k === "trail") openTrail(v, { back: !!sheetCurrent });
+      else if (k === "stats") statsSheet({ back: !!sheetCurrent });
       else startTour((parseInt(v, 10) || 1) - 1);
     } else {
       const name = backLayers.pop();
@@ -1458,6 +1459,8 @@
         <p class="note">Prints exactly what you see now: the look, map style and filters you picked.</p>
         <button class="big ghost" id="m-print">🖨️ Print this map</button>
         <div class="os-div"></div><div id="m-offline"></div>`)}
+      <button class="opt-link" id="m-stats"><span class="os-ic">📊</span><span class="os-txt"><b>Stats &amp; records</b>
+        <small>${esc(statsSummary())}</small></span><span class="os-chev">›</span></button>
       <div class="adv-label"><span class="adv-badge">ADVANCED</span> For people who like to fine-tune</div>
       ${sec("colours", "🖍️", "Trail colours & lines", "Colour, line style, outline, thickness, brightness", `
         <h4>Colour trails by</h4><div class="seg" id="a-colour"></div>
@@ -1534,6 +1537,7 @@
     });
     seg($("#m-size", body), SIZE_NAMES.map((l, i) => [i, l]), sizeIdx, (i) => { sizeIdx = i; store.set("textSize", i); applySize(); setSum("text", SIZE_NAMES[i]); });
     $("#m-print", body).onclick = printMap;
+    $("#m-stats", body).onclick = () => statsSheet({ back: true });
     offlinePanel($("#m-offline", body));
 
     // ---- advanced
@@ -1674,6 +1678,388 @@
     photosOn = on;
     $('#dock [data-act="photos"]')?.setAttribute("aria-pressed", on);
     refreshPhotos();
+  }
+
+  // ================================================================ stats & records
+  // Options → Stats & records: totals, a trail leaderboard, records and fun comparisons for the whole map. All of it is
+  // worked out from the map data itself, so it stays right whenever the map is rebuilt. Distances and heights follow
+  // the "Distances in" setting.
+  const fmtDur = (mins) => (mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}`);
+  /** "9.4 km" → ["9.4", "km"]: a big number with its unit set smaller. */
+  const splitUnit = (s) => { const i = s.lastIndexOf(" "); return i < 0 ? [s, ""] : [s.slice(0, i), s.slice(i + 1)]; };
+  /** Area inside a lon/lat ring, in square metres (flat is exact enough over a quarter section). */
+  function ringArea(ring) {
+    const r = Math.PI / 180, [x0, y0] = ring[0];
+    let a = 0;
+    for (let i = 0; i < ring.length; i++) {
+      const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % ring.length];
+      a += (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+    }
+    return (Math.abs(a) / 2) * (6371008.8 * r) ** 2 * Math.cos(y0 * r);
+  }
+  /** [in the chosen units, in the other ones]: hectares (or m² when small) and acres (or square feet). */
+  function fmtArea(m2) {
+    const ha = m2 / 1e4, ac = m2 / 4046.8564224;
+    const metric = m2 < 5000 ? `${Math.round(m2).toLocaleString()} m²` : `${ha.toFixed(ha < 10 ? 2 : 1)} ha`;
+    const imperial = ac < 1 ? `${Math.round(m2 * 10.7639).toLocaleString()} sq ft` : `${ac.toFixed(ac < 10 ? 1 : 0)} acres`;
+    return adv.units === "imperial" ? [imperial, metric] : [metric, imperial];
+  }
+  // "about two-thirds the height of", "about 1.4 times the height of"
+  function heightOf(r) {
+    if (r >= 1.15) return `about ${r < 10 ? Math.round(r * 10) / 10 : Math.round(r)} times the height of`;
+    if (r >= 0.9) return "about the height of";
+    const words = [[0.72, 0.8, "three-quarters"], [0.6, 0.72, "two-thirds"], [0.45, 0.55, "half"], [0.3, 0.37, "a third"], [0.22, 0.28, "a quarter"]]
+      .find(([lo, hi]) => r >= lo && r < hi);
+    return words ? `about ${words[2]} the height of` : `about ${Math.max(5, Math.round(r * 20) * 5)}% of the height of`;
+  }
+  const halves = (x) => { const n = Math.round(x * 2) / 2; return (Math.floor(n) || (n % 1 ? "" : "0")) + (n % 1 ? "½" : ""); };
+
+  // The numbers themselves, in metres; worked out once (the map's data doesn't change while it's open).
+  let statsData = null;
+  function statsFor() {
+    if (statsData) return statsData;
+    const feats = [...tracks.values()].map((t) => t.f);
+    const onQuarter = feats.filter((f) => !f.properties.site);
+    const trailIds = new Set(feats.filter((f) => cat(f) === "trails").map((f) => f.id));
+    const trails = feats.filter((f) => cat(f) === "trails").map((f) => {
+      const p = f.properties;
+      return { id: f.id, name: p.name, len: p.length_m || 0, gain: p.gain_m || 0, loss: p.loss_m || 0, steep: steepness(p),
+        photos: allPhotos.filter((x) => x.p.near === p.name).map((x) => x.p),   // the same photos as the trail card's
+        links: (p.connects || []).filter((c) => trailIds.has(c)).length, recorded: p.recorded };
+    });
+    const sum = (list, k) => list.reduce((s, x) => s + (x[k] || 0), 0);
+    // Highest and lowest point along any line on the quarter: the same heights as the trail cards' elevation charts.
+    let hi = null, lo = null;
+    onQuarter.forEach((f) => (f.properties.profile || []).forEach(([, e]) => {
+      if (!hi || e > hi.e) hi = { e, f };
+      if (!lo || e < lo.e) lo = { e, f };
+    }));
+    const bounds = onQuarter.filter((f) => cat(f) === "boundary" && f.geometry.type === "Polygon")
+      .map((f) => ({ f, area: ringArea(f.geometry.coordinates[0]), around: f.properties.length_m || 0 })).sort((a, b) => b.area - a.area);
+    const quarter = bounds.find((b) => b.f.id === "quarter-section-perimeter") || bounds[0] || null;
+    if (quarter) {
+      const qb = L.geoJSON(quarter.f).getBounds(), mid = qb.getCenter();
+      quarter.wide = distM(L.latLng(mid.lat, qb.getWest()), L.latLng(mid.lat, qb.getEast()));
+      quarter.tall = distM(L.latLng(qb.getSouth(), mid.lng), L.latLng(qb.getNorth(), mid.lng));
+    }
+    const named = featuredPlaces().filter((pl) => !pl.f.properties.site);
+    let far = null;
+    named.forEach((a, i) => named.slice(i + 1).forEach((b) => {
+      const d = distM(a.marker.getLatLng(), b.marker.getLatLng());
+      if (!far || d > far.d) far = { d, a, b };
+    }));
+    // Photos by the day and hour the camera says they were taken (its own clock, so no time zone shifts them).
+    const byKey = (key) => {
+      const m = new Map();
+      allPhotos.forEach(({ p }) => { const k = p.taken && key(p.taken); if (k != null) (m.get(k) || m.set(k, []).get(k)).push(p); });
+      return m;
+    };
+    const days = [...byKey((t) => t.slice(0, 10))].sort((a, b) => a[0].localeCompare(b[0]));
+    const hours = byKey((t) => (/T\d\d/.test(t) ? +t.slice(11, 13) : null));
+    const siteOf = (p) => { const pl = places.get(p.place); return pl?.f.properties.site ? pl : null; };
+    // The tour on foot: each leg walked the way Take me there would go (along the trails where that's shorter).
+    const stops = tour.stops.map((s) => places.get(s.place)).filter(Boolean);
+    const keepSnap = destSnap;
+    let tourLen = 0;
+    for (let i = 1; i < stops.length; i++) tourLen += routeBetween(stops[i - 1].marker.getLatLng(), stops[i].marker.getLatLng()).len;
+    destSnap = keepSnap;
+    statsData = {
+      trails, trailLen: sum(trails, "len"), gain: sum(trails, "gain"), loss: sum(trails, "loss"),
+      driveLen: onQuarter.filter((f) => cat(f) === "roads").reduce((s, f) => s + (f.properties.length_m || 0), 0),
+      // The days the trails were recorded, as dates at the quarter (fmtDate uses its time zone).
+      mapped: [...new Set(trails.map((t) => t.recorded).filter(Boolean).sort().map((r) => fmtDate(r, false)))],
+      hi, lo, bounds, quarter, named, far, onQuarter,
+      spots: [...places.values()].filter((pl) => !pl.f.properties.featured),
+      tags: [...places.values()].map((pl) => pl.f.properties.label).filter(Boolean),
+      sites: sitePlaces(), quarterPhotos: allPhotos.filter((x) => !siteOf(x.p)).length,
+      days: days.map(([d, list]) => {
+        // Where the day was spent: the house most of that day's photos are from, otherwise the quarter.
+        const counts = new Map();
+        list.forEach((p) => { const s = siteOf(p); counts.set(s, (counts.get(s) || 0) + 1); });
+        const [where] = [...counts].sort((a, b) => b[1] - a[1])[0];
+        return { d, list, where: where ? placeTitle(where) : "Quarter" };
+      }),
+      hours, stops, tourLen,
+    };
+    return statsData;
+  }
+
+  // A little map of the quarter drawn in the look's own colours: property lines, driveway, trails and named places.
+  function miniMapSvg(S) {
+    const feats = S.onQuarter.filter((f) => f.geometry.type !== "Point");
+    const all = feats.flatMap((f) => lineCoords(f.geometry));
+    if (!all.length) return "";
+    const k = Math.cos(((all.reduce((s, c) => s + c[1], 0) / all.length) * Math.PI) / 180);
+    const xs = all.map((c) => c[0] * k), ys = all.map((c) => c[1]);
+    const x0 = Math.min(...xs), y1 = Math.max(...ys);
+    const W = 200, pad = 9, s = (W - 2 * pad) / (Math.max(...xs) - x0 || 1e-9), H = Math.round((y1 - Math.min(...ys)) * s + 2 * pad);
+    const pt = ([lng, lat]) => `${((lng * k - x0) * s + pad).toFixed(1)},${((y1 - lat) * s + pad).toFixed(1)}`;
+    const d = (g) => (g.type === "Polygon" ? g.coordinates : g.type === "MultiLineString" ? g.coordinates : [g.coordinates])
+      .map((cs) => "M" + cs.map(pt).join("L") + (g.type === "Polygon" ? "Z" : "")).join("");
+    const kind = (f) => (cat(f) === "boundary" ? (f === S.quarter?.f ? "b" : "a") : cat(f) === "roads" ? "r" : "t");
+    const order = { b: 0, a: 1, r: 2, t: 3 };
+    const paths = feats.sort((a, b) => order[kind(a)] - order[kind(b)]).map((f) => `<path class="${kind(f)}" d="${d(f.geometry)}"/>`).join("");
+    const dots = S.named.map((pl) => { const ll = pl.marker.getLatLng(); return `<circle class="p" r="3.2" cx="${pt([ll.lng, ll.lat]).replace(",", '" cy="')}"/>`; }).join("");
+    // The north arrow gets a narrow strip of its own on the right, clear of the property line.
+    return `<svg class="sp-map" viewBox="0 0 ${W + 14} ${H}" style="aspect-ratio:${W + 14}/${H}" role="img"
+      aria-label="Outline of the quarter with its trails and named places">${paths}${dots}
+      <g class="n" transform="translate(${W + 5} 12)"><path d="M0-8l5 11-5-3-5 3z"/><text y="16" text-anchor="middle">N</text></g></svg>`;
+  }
+
+  // Big numbers count up when the panel opens (not for people who've asked their device for less motion).
+  function countUp(root) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    $$("[data-count]", root).forEach((el) => {
+      const end = el.textContent, target = parseFloat(end), dec = (end.split(".")[1] || "").length;
+      if (!(target > 0)) return;
+      const t0 = performance.now();
+      const tick = (now) => {
+        const k = Math.min(1, (now - t0) / 900);
+        el.textContent = k < 1 ? (target * (1 - (1 - k) ** 3)).toFixed(dec) : end;
+        if (k < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  // What the leaderboard can rank the trails by.
+  const BOARDS = {
+    length: { label: "Length", note: "End to end, as mapped with GPS.", val: (s) => s.len, fmt: (s) => fmtLen(s.len) },
+    hills: { label: "Hills", note: "How much each trail climbs ↗ and drops ↘, walked the way it was mapped.",
+      val: (s) => s.gain + s.loss, fmt: (s) => `↗ ${fmtH(s.gain)} ↘ ${fmtH(s.loss)}` },
+    steep: { label: "Steepness", note: "Average slope: the climb (or drop, if bigger) over the trail’s length.",
+      val: (s) => s.steep, fmt: (s) => s.steep.toFixed(1) + " %" },
+    photos: { label: "Photos", note: "Photos taken along each trail.", val: (s) => s.photos.length, fmt: (s) => plural(s.photos.length, "photo") },
+  };
+  let boardBy = "length";
+  const LB_FIRST = 10;
+
+  function statsSheet({ back = false } = {}) {
+    const body = document.createElement("div");
+    body.className = "sp";
+    if (!siteMeta) {
+      body.innerHTML = `<p class="note">The map is still loading…</p>`;
+      openSheet("📊 Stats & records", body, { back });
+      return;
+    }
+    const S = statsFor();
+    const imperial = adv.units === "imperial";
+    // A big number: counts up if it's a plain number, with its unit set smaller beside it.
+    const big = (n, unit = "") => `<b class="sp-num"><span${/^\d+(\.\d+)?$/.test(n) ? " data-count" : ""}>${esc(n)}</span>${unit ? ` <small>${esc(unit)}</small>` : ""}</b>`;
+    const tile = (ic, [n, unit], label, sub = "", cls = "") => `<div class="sp-tile ${cls}"><span class="sp-ic" aria-hidden="true">${ic}</span>
+      ${big(n, unit)}<span class="sp-lbl">${label}</span>${sub ? `<small class="sp-sub">${sub}</small>` : ""}</div>`;
+    const [qArea, qAlt] = S.quarter ? fmtArea(S.quarter.area) : ["", ""];
+    const n = S.trails.length;
+
+    // ---- records: each card opens its trail or place
+    const top = (f) => [...S.trails].sort((a, b) => f(b) - f(a) || b.len - a.len || a.name.localeCompare(b.name))[0];
+    const rec = (e, label, value, name, open = "") => `<${open ? `button ${open}` : "div"} class="sp-rec"><span class="e" aria-hidden="true">${e}</span>
+      <small>${label}</small><b>${value}</b><span>${name}</span></${open ? "button" : "div"}>`;
+    const tr = (t) => `data-trail="${esc(t.id)}"`;
+    const records = [];
+    if (n) {
+      const [long, short, steep, flat, hub, snap] = [top((s) => s.len), top((s) => -s.len), top((s) => s.steep), top((s) => -s.steep),
+        top((s) => s.links), top((s) => s.photos.length)];
+      records.push(rec("📏", "Longest trail", fmtLen(long.len), esc(long.name), tr(long)),
+        rec("🐜", "Shortest trail", fmtLen(short.len), esc(short.name), tr(short)),
+        rec("⛰️", "Steepest trail", `${steep.steep.toFixed(1)} % slope`, esc(steep.name), tr(steep)),
+        rec("🌾", "Flattest trail", flat.steep < 0.05 ? "Dead flat" : `${flat.steep.toFixed(1)} % slope`, esc(flat.name), tr(flat)));
+      if (hub.links) records.push(rec("🔗", "Most connected", plural(hub.links, "trail"), `${esc(hub.name)} meets them all`, tr(hub)));
+      if (snap.photos.length) records.push(rec("📸", "Most photographed trail", plural(snap.photos.length, "photo"), esc(snap.name), tr(snap)));
+    }
+    const hiT = S.hi && tracks.get(S.hi.f.id), loT = S.lo && tracks.get(S.lo.f.id);
+    if (hiT) records.push(rec("🏔️", "Highest point", fmtH(S.hi.e), `on ${esc(hiT.f.properties.name)}`, tr(hiT.f)));
+    if (loT) records.push(rec("🏞️", "Lowest point", fmtH(S.lo.e), `on ${esc(loT.f.properties.name)}`, tr(loT.f)));
+    if (S.far) records.push(rec("↔️", "Farthest apart", fmtLen(S.far.d), `${esc(placeTitle(S.far.a))} ↔ ${esc(placeTitle(S.far.b))}`));
+    const bestPlace = [...featuredPlaces()].sort((a, b) => b.photos.length - a.photos.length || placeTitle(a).localeCompare(placeTitle(b)))[0];
+    if (bestPlace?.photos.length) records.push(rec("🖼️", "Most photographed place", plural(bestPlace.photos.length, "photo"),
+      esc(placeTitle(bestPlace)), `data-place="${esc(bestPlace.f.id)}"`));
+
+    // ---- fun comparisons (each says what it's compared with, so it can be checked)
+    const fun = [];
+    const rinks = S.quarter && S.quarter.area / (60.96 * 25.908);   // an NHL rink: 200 × 85 ft
+    const storeys = S.hi && S.lo ? Math.round((S.hi.e - S.lo.e) / 3) : 0;
+    if (S.trailLen) fun.push(["🏃", `All ${n} trails end to end come to ${fmtLen(S.trailLen)}: about <b>${halves(S.trailLen / 400)} laps</b> of a 400 m running track.`]);
+    if (rinks) fun.push(["🏒", `The quarter could fit about <b>${(rinks >= 100 ? Math.round(rinks / 10) * 10 : Math.round(rinks)).toLocaleString()} NHL hockey rinks</b> (200 × 85 ft each).`]);
+    if (storeys >= 2) fun.push(["🏢", `The lowest point is ${fmtH(S.hi.e - S.lo.e)} below the highest: about as tall as <b>${/^8/.test(storeys) || storeys === 11 || storeys === 18 ? "an" : "a"} ${storeys}-storey building</b>.`]);
+    if (S.gain) fun.push(["🗼", `All the uphill on every trail adds up to ${fmtH(S.gain)}, <b>${heightOf(S.gain / 191)}</b> the Calgary Tower (${fmtH(191)}).`]);
+    if (S.quarter?.around) fun.push(["🚶", `A walk right around the property line is ${fmtLen(S.quarter.around)}, about <b>${fmtDur(walkMins(S.quarter.around))}</b> at an easy pace.`]);
+
+    const houses = S.sites.map((pl) => {
+      const loop = [...tracks.values()].find((t) => t.f.properties.site === pl.f.id);
+      return { pl, loop, away: farmBounds ? distM(farmBounds.getCenter(), pl.marker.getLatLng()) : 0 };
+    });
+    const others = S.bounds.filter((b) => b !== S.quarter);
+    const boundCol = (f) => (f.id === "quarter-section-perimeter" && THEMES[theme].lines.boundary) || f.properties.color;
+    const shortDay = (d) => new Date(d + "T12:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC",
+      ...(new Set(S.days.map((x) => x.d.slice(0, 4))).size > 1 ? { year: "2-digit" } : {}) });
+
+    body.innerHTML = `
+      <div class="sp-hero">
+        <div class="sp-tile sp-main">
+          <span class="sp-deco" aria-hidden="true">${TRAIL_SVG}</span>
+          <span class="sp-lbl">Total trail distance</span>
+          ${big(...splitUnit(fmtLen(S.trailLen)))}
+          <small class="sp-sub">${plural(n, "named trail")} · about <b>${fmtDur(walkMins(S.trailLen))}</b> to walk them all${S.driveLen ? ` · plus ${fmtLen(S.driveLen)} of driveway` : ""}</small>
+        </div>
+        ${tile(TRAIL_SVG, [String(n), ""], "trails", n ? `averaging ${fmtLen(S.trailLen / n)}` : "")}
+        ${tile("📷", [String(allPhotos.length), ""], "photos", `taken on ${plural(S.days.length, "day")}`)}
+        ${tile("📍", [String(S.named.length), ""], "named places", `plus ${plural(S.spots.length, "photo spot")}`)}
+        ${S.quarter ? tile("🌾", splitUnit(qArea), "the quarter", qAlt) : ""}
+      </div>
+
+      ${n ? `<h3>🏅 Trail leaderboard</h3>
+      <div class="seg sp-tabs" data-slot="tabs"></div>
+      <p class="note" data-slot="lbnote"></p>
+      <div class="sp-list sp-board" data-slot="board"></div>
+      <button class="show-all" data-slot="lball" hidden></button>
+      ${S.mapped.length ? `<p class="note">Mapped with GPS on ${esc(listWords(S.mapped))}. Tap a trail to see it on the map.</p>` : ""}` : ""}
+
+      ${records.length ? `<h3>🏆 Records</h3><div class="sp-recs">${records.join("")}</div>` : ""}
+
+      ${allPhotos.length ? `<h3>📷 Photos</h3>
+      <p class="sp-lead"><b>${allPhotos.length}</b> photos: <b>${S.quarterPhotos}</b> on the quarter${houses.map((h) => `, <b>${h.pl.photos.length}</b> at ${esc(placeTitle(h.pl))}`).join("")}.</p>
+      <h4>Photo days <small>tap one to see its photos</small></h4>
+      <div class="sp-cols" data-slot="days"></div>
+      <h4>Time of day</h4>
+      <div class="sp-cols sp-hours" data-slot="hours"></div>
+      <h4>Most photographed places</h4>
+      <div class="sp-list" data-slot="places"></div>` : ""}
+
+      ${S.quarter ? `<h3>🌾 The land</h3>
+      <div class="sp-land">
+        ${miniMapSvg(S)}
+        <div class="sp-land-txt">
+          <small>The quarter section</small>
+          ${big(...splitUnit(qArea))}
+          <span>${esc(qAlt)}</span>
+          <span>${fmtLen(S.quarter.around)} around</span>
+          <span>about ${fmtLen(S.quarter.wide)} × ${fmtLen(S.quarter.tall)}</span>
+        </div>
+      </div>
+      ${S.quarter.f.id === "quarter-section-perimeter" ? `<p class="note">Measured inside the property line as it’s drawn on the map. A surveyed quarter section is 160 acres (64.7 ha).</p>` : ""}
+      ${others.map((b) => { const [a, alt] = fmtArea(b.area); return `<div class="sp-bound">
+        <span class="bound-sw" style="border-color:${esc(boundCol(b.f))}"></span>
+        <span class="grow"><b>${esc(b.f.properties.name)}</b><small>${fmtLen(b.around)} around</small></span>
+        <span class="sp-area"><b>${esc(a)}</b><small>${esc(alt)}</small></span></div>`; }).join("")}` : ""}
+
+      ${S.hi && S.lo ? `<h3>⛰️ Ups and downs</h3>
+      <div class="sp-trio">
+        ${tile("🔺", splitUnit(fmtH(S.hi.e)), "highest", esc(S.hi.f.properties.name), "sm")}
+        ${tile("🔻", splitUnit(fmtH(S.lo.e)), "lowest", esc(S.lo.f.properties.name), "sm")}
+        ${tile("↕️", splitUnit(fmtH(S.hi.e - S.lo.e)), "difference", "", "sm")}
+      </div>
+      <p class="note">Heights above sea level, from the GPS recordings. Walking every trail once, the way it was mapped, climbs
+        <b>↗ ${fmtH(S.gain)}</b> and drops <b>↘ ${fmtH(S.loss)}</b> in all.</p>` : ""}
+
+      <h3>📍 Places &amp; tour</h3>
+      <div class="sp-quad">
+        ${tile("📍", [String(S.named.length), ""], "named places", "", "sm")}
+        ${tile("📷", [String(S.spots.length), ""], "photo spots", "", "sm")}
+        ${tile("🏡", [String(S.sites.length), ""], "family houses", "", "sm")}
+        ${tile("▶️", [String(S.stops.length), ""], "tour stops", "", "sm")}
+      </div>
+      ${S.tags.length ? `<p class="note">Also named on the map: ${esc(listWords(S.tags))}.</p>` : ""}
+      <div data-slot="houses"></div>
+      ${S.stops.length > 1 ? `<p class="sp-lead">Walked from stop to stop, the tour is about <b>${fmtLen(S.tourLen)}</b>, around <b>${fmtDur(walkMins(S.tourLen))}</b> on foot.</p>
+      <button class="big ghost" data-act="tour">▶️ Start the tour</button>` : ""}
+
+      ${fun.length ? `<h3>🎉 Fun comparisons</h3><ul class="sp-fun">${fun.map(([e, t]) => `<li><span aria-hidden="true">${e}</span><span>${t}</span></li>`).join("")}</ul>` : ""}
+
+      <p class="note sp-foot">Worked out from the map itself, so these stay up to date whenever the map changes. Walking times are
+        at an easy ${imperial ? "2.8 mph" : "4.5 km/h"}. Distances are in ${imperial ? "feet and miles" : "metres and kilometres"}; change that under
+        <b>Options → Labels &amp; extras</b>.</p>`;
+
+    // ---- leaderboard
+    const board = $('[data-slot="board"]', body), more = $('[data-slot="lball"]', body);
+    const drawBoard = () => {
+      const B = BOARDS[boardBy];
+      const rows = [...S.trails].sort((a, b) => B.val(b) - B.val(a) || b.len - a.len || a.name.localeCompare(b.name));
+      const max = Math.max(...rows.map(B.val)) || 1;
+      $('[data-slot="lbnote"]', body).textContent = B.note;
+      board.replaceChildren(...rows.map((s, i) => {
+        const v = B.val(s), rank = rows.findIndex((o) => B.val(o) === v) + 1, medal = v > 0 && rank <= 3;
+        const b = document.createElement("button");
+        b.className = "sp-row";
+        b.innerHTML = `<span class="sp-rank${medal ? " medal" : ""}">${medal ? ["🥇", "🥈", "🥉"][rank - 1] : rank}</span>
+          <span class="sp-name">${esc(s.name)}</span><span class="sp-val">${B.fmt(s)}</span>
+          <span class="sp-bar" aria-hidden="true"><i style="width:${((v / max) * 100).toFixed(1)}%;animation-delay:${Math.min(i, LB_FIRST) * 35}ms"></i></span>`;
+        b.onclick = () => openTrail(s.id, { back: true });
+        return b;
+      }));
+    };
+    if (board) {
+      seg($('[data-slot="tabs"]', body), Object.entries(BOARDS).map(([k, B]) => [k, B.label]), boardBy, (k) => { boardBy = k; drawBoard(); });
+      const setMore = (open) => { board.classList.toggle("open", open); more.textContent = open ? "Show fewer ▴" : `Show all ${n} trails ▾`; };
+      more.hidden = n <= LB_FIRST;
+      more.onclick = () => setMore(!board.classList.contains("open"));
+      setMore(false);
+      drawBoard();
+    }
+    $$("[data-trail]", body).forEach((b) => b.onclick = () => openTrail(b.dataset.trail, { back: true }));
+    $$("[data-place]", body).forEach((b) => b.onclick = () => openPlace(b.dataset.place, { back: true }));
+
+    // ---- photo charts: one column per day or hour; tapping one shows its photos
+    const columns = (slot, items) => {
+      const el = $(`[data-slot="${slot}"]`, body);
+      if (!el) return;
+      const max = Math.max(...items.map((x) => x.list.length)) || 1;
+      items.forEach((x, i) => {
+        const b = document.createElement(x.list.length ? "button" : "div");
+        b.className = "sp-col";
+        b.innerHTML = `<span class="sp-plot"><b>${x.list.length}</b><i style="height:calc(${(x.list.length / max).toFixed(3)} * (100% - 1.4rem));animation-delay:${i * 50}ms"></i></span>
+          <span class="sp-x">${esc(x.label)}</span>${x.sub ? `<small>${esc(x.sub)}</small>` : ""}`;
+        if (x.list.length) {
+          b.setAttribute("aria-label", `${x.title}: ${plural(x.list.length, "photo")}`);
+          b.onclick = () => openLightbox(x.list, 0, x.title);
+        }
+        el.append(b);
+      });
+    };
+    columns("days", S.days.map((x) => ({ list: x.list, label: shortDay(x.d), sub: x.where, title: fmtDate(x.list[0].taken, false) })));
+    const hrs = [...S.hours.keys()];
+    const hourName = (h) => new Date(2000, 0, 1, h).toLocaleTimeString(undefined, { hour: "numeric" });
+    if (hrs.length) {
+      const items = [];
+      for (let h = Math.min(...hrs); h <= Math.max(...hrs); h++) {
+        items.push({ list: S.hours.get(h) || [], label: hourName(h), title: `Photos taken from ${hourName(h)} to ${hourName((h + 1) % 24)}` });
+      }
+      columns("hours", items);
+    }
+    const plEl = $('[data-slot="places"]', body);
+    if (plEl) {
+      const best = featuredPlaces().filter((pl) => pl.photos.length)
+        .sort((a, b) => b.photos.length - a.photos.length || placeTitle(a).localeCompare(placeTitle(b))).slice(0, 5);
+      const max = best[0]?.photos.length || 1;
+      best.forEach((pl, i) => {
+        const hero = heroOf(pl), b = document.createElement("button");
+        b.className = "sp-row pic";
+        b.innerHTML = `<span class="sp-rank">${hero ? `<img src="${esc(photoUrl(hero, "thumb"))}" alt="" loading="lazy">` : icon(pl.f.properties.icon)}</span>
+          <span class="sp-name">${esc(placeTitle(pl))}</span><span class="sp-val">${plural(pl.photos.length, "photo")}</span>
+          <span class="sp-bar" aria-hidden="true"><i style="width:${((pl.photos.length / max) * 100).toFixed(1)}%;animation-delay:${i * 50}ms"></i></span>`;
+        b.onclick = () => openPlace(pl.f.id, { back: true });
+        plEl.append(b);
+      });
+    }
+
+    // ---- family houses: their photos, the Home Loop and how far they are from the quarter
+    const hs = $('[data-slot="houses"]', body);
+    houses.forEach(({ pl, loop, away }) => {
+      const row = placeRow(pl);
+      $("small", row).textContent = [plural(pl.photos.length, "photo"), loop && `${loop.f.properties.name} ${fmtLen(loop.f.properties.length_m)}`,
+        away && `${fmtLen(away)} from the quarter`].filter(Boolean).join(" · ");
+      hs.append(row);
+    });
+    $('[data-act="tour"]', body)?.addEventListener("click", () => startTour(0));
+
+    openSheet("📊 Stats & records", body, { back, hash: "#stats" });
+    countUp(body);
+  }
+  /** The line under Stats & records in Options. */
+  function statsSummary() {
+    if (!siteMeta || !tracks.size) return "Totals, records and fun facts";
+    const S = statsFor();
+    return `${plural(S.trails.length, "trail")} · ${fmtLen(S.trailLen)} · ${plural(allPhotos.length, "photo")} · records`;
   }
 
   // ================================================================ lightbox (zoom, pan, swipe, filmstrip)
@@ -2965,12 +3351,14 @@
       if (hk === "place" && places.has(hv) && selectedPlace !== hv) openPlace(hv);
       else if (hk === "trail" && tracks.has(hv) && selectedTrack !== hv) openTrail(hv);
       else if (hk === "tour" && tourIdx !== (parseInt(hv, 10) || 1) - 1) startTour((parseInt(hv, 10) || 1) - 1);
+      else if (hk === "stats" && sheetCurrent?.hash !== "#stats") statsSheet();
     });
     const h = decodeURIComponent(location.hash.slice(1));
     const [k, v] = h.split("=");
     if (k === "place" && places.has(v)) openPlace(v);
     else if (k === "trail" && tracks.has(v)) openTrail(v);
     else if (k === "tour") startTour((parseInt(v, 10) || 1) - 1);
+    else if (k === "stats") statsSheet();
     else if (!store.get("welcomed", false)) showWelcome();
   }
 

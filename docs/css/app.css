@@ -1202,3 +1202,131 @@ html, body { overscroll-behavior: none; }
 #site-btn[aria-expanded="true"] .st-caret::before { transform: translateY(0.1em) rotate(-135deg); }
 #options-btn > span:first-child { display: inline-block; transition: transform .3s; }
 #options-btn:hover > span:first-child, #options-btn.active > span:first-child { transform: rotate(60deg); }
+
+/* =================================================================== Options → Stats & records */
+/* The row in Options that opens it: looks like the other sections, but opens its own panel. */
+.opt-link { display: flex; align-items: center; gap: 0.7rem; width: 100%; min-height: 3.4rem; padding: 0.7rem 0.8rem; text-align: left;
+  background: var(--field); color: var(--ink); border: 1.5px solid var(--line); border-radius: 14px; }
+.opt-link:hover { background: var(--paper-2); }
+.opt-link:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.opt-link .os-ic { background: color-mix(in srgb, var(--green) 16%, var(--paper-2)); }
+@media (max-width: 700px), (max-height: 500px) { .opt-link { min-height: 3rem; padding: 0.55rem 0.7rem; gap: 0.6rem; } }
+
+.sp { display: flex; flex-direction: column; }
+.sp h4 { margin: 1rem 0 0.4rem; font-size: 0.95rem; }
+.sp h4 small { color: var(--muted); font-weight: 400; font-size: 0.8rem; margin-left: 0.3rem; }
+.sp .note { margin-top: 0.5rem; }
+.sp-lead { margin: 0.2rem 0 0.4rem; }
+.sp button { font: inherit; }
+.sp button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* big numbers: the same sans as the rest of the text, with their unit set smaller */
+.sp-num { font-family: var(--body-font); font-size: 1.85rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; margin-top: 0.25rem; }
+.sp-num small { font-size: 0.55em; font-weight: 700; letter-spacing: 0; }
+
+/* the headline tiles */
+.sp-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.sp-tile { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 0.6rem 0.75rem 0.65rem;
+  background: var(--field); border: 1.5px solid var(--line); border-radius: 14px; }
+.sp-ic { font-size: 1.15rem; line-height: 1; height: 1.2rem; color: var(--green); }
+.sp-ic .trail-ic { width: 1.2rem; height: 1.2rem; vertical-align: top; }
+.sp-lbl { font-weight: 700; font-size: 0.92rem; }
+.sp-sub { color: var(--muted); font-size: 0.8rem; line-height: 1.3; margin-top: 0.1rem; }
+.sp-main { grid-column: 1 / -1; overflow: hidden; border-color: transparent; color: var(--on-accent); padding: 0.8rem 0.95rem 0.85rem;
+  background: radial-gradient(circle at 100% 0, rgba(255, 255, 255, .2), transparent 60%), var(--green); }
+.sp-main .sp-num { font-size: 2.7rem; margin: 0.1rem 0 0.15rem; }
+.sp-main .sp-sub { color: inherit; opacity: 0.9; font-size: 0.85rem; }
+.sp-deco { position: absolute; right: -0.6rem; bottom: -1rem; opacity: 0.2; pointer-events: none; }
+.sp-deco .trail-ic { width: 7.5rem; height: 7.5rem; }
+.sp-trio { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: 0.5rem; }
+.sp-quad { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.sp-tile.sm { padding: 0.5rem 0.65rem 0.55rem; }
+.sp-tile.sm .sp-num { font-size: 1.45rem; }
+
+/* ranked bars: the leaderboard and the most photographed places */
+.sp-tabs { margin-top: 0.1rem; }
+.sp-list { display: flex; flex-direction: column; gap: 0.1rem; }
+.sp-board:not(.open) > .sp-row:nth-child(n+11) { display: none; }
+.sp-row { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; grid-template-areas: "rk nm nm" "rk br vl"; align-items: center;
+  column-gap: 0.55rem; row-gap: 0.2rem; width: 100%; padding: 0.4rem 0.35rem; border: 0; border-radius: 10px; background: none;
+  color: inherit; text-align: left; }
+.sp-row:hover { background: var(--paper-2); }
+.sp-rank { grid-area: rk; text-align: center; font-weight: 800; font-size: 0.9rem; color: var(--muted); }
+.sp-rank.medal { font-size: 1.35rem; line-height: 1; }
+/* the name has the whole row to itself (a long one wraps rather than being cut short); the value sits at the tip of its bar */
+.sp-name { grid-area: nm; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.sp-val { grid-area: vl; font-weight: 700; font-size: 0.85rem; line-height: 1.2; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sp-bar { grid-area: br; height: 0.5rem; border-radius: 0 4px 4px 0; background: color-mix(in srgb, var(--green) 13%, transparent); overflow: hidden; }
+.sp-bar i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--green); transform-origin: left;
+  animation: sp-grow .7s cubic-bezier(.2, .7, .2, 1) both; }
+.sp-row.pic { grid-template-columns: min(3rem, 52px) minmax(0, 1fr) auto; }
+.sp-row.pic .sp-rank { font-size: 1.4rem; }
+.sp-row.pic img { display: block; width: 100%; aspect-ratio: 5 / 4; object-fit: cover; border-radius: 8px; background: var(--line); }
+@keyframes sp-grow { from { transform: scaleX(0); } }
+
+/* records */
+.sp-recs { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.5rem; }
+.sp-rec { display: flex; flex-direction: column; align-items: flex-start; gap: 0.05rem; min-width: 0; padding: 0.6rem 0.7rem 0.65rem;
+  background: var(--field); color: var(--ink); border: 1.5px solid var(--line); border-radius: 14px; text-align: left; }
+button.sp-rec:hover { border-color: var(--green); background: var(--paper-2); }
+.sp-rec .e { font-size: 1.35rem; line-height: 1; margin-bottom: 0.3rem; }
+.sp-rec small { color: var(--muted); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.25; }
+.sp-rec b { font-size: 1.15rem; line-height: 1.25; }
+.sp-rec > span:last-child { font-size: 0.86rem; line-height: 1.3; overflow-wrap: anywhere; }
+/* the names stay in the text colour (the accent is too faint as text in some looks); a › shows the card opens something */
+button.sp-rec { position: relative; padding-right: 1.5rem; }
+button.sp-rec > span:last-child { font-weight: 700; }
+button.sp-rec::after { content: "›"; position: absolute; top: 0.45rem; right: 0.6rem; color: var(--muted); font-size: 1.3rem; line-height: 1; }
+
+/* columns: photos per day and per hour, each labelled with its count */
+.sp-cols { display: flex; gap: 0.3rem; overflow-x: auto; padding-bottom: 0.15rem; }
+.sp-col { flex: 1 0 2.8rem; min-width: 0; display: flex; flex-direction: column; align-items: center; padding: 0.35rem 0.15rem 0.3rem; border: 0; border-radius: 10px;
+  background: none; color: inherit; }
+button.sp-col:hover { background: var(--paper-2); }
+.sp-plot { width: 100%; height: 6.5rem; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  border-bottom: 1px solid var(--line); }
+.sp-hours .sp-col { flex-basis: 2.3rem; }
+.sp-hours .sp-plot { height: 4.5rem; }
+.sp-plot b { font-size: 0.85rem; margin-bottom: 0.2rem; }
+.sp-plot i { width: min(24px, 70%); min-height: 2px; border-radius: 4px 4px 0 0; background: var(--green); transform-origin: bottom;
+  animation: sp-rise .7s cubic-bezier(.2, .7, .2, 1) both; }
+div.sp-col .sp-plot i { display: none; }
+div.sp-col .sp-plot b { color: var(--muted); font-weight: 600; }
+.sp-x { margin-top: 0.3rem; font-size: 0.78rem; font-weight: 700; text-align: center; line-height: 1.2; }
+.sp-col small { color: var(--muted); font-size: 0.7rem; line-height: 1.2; text-align: center; }
+@keyframes sp-rise { from { transform: scaleY(0); } }
+
+/* the land: a little map of the quarter beside its size */
+.sp-land { display: grid; grid-template-columns: minmax(0, 10.5rem) 1fr; gap: 0.9rem; align-items: center; padding: 0.7rem;
+  background: var(--field); border: 1.5px solid var(--line); border-radius: 14px; }
+.sp-land-txt { display: flex; flex-direction: column; min-width: 0; font-size: 0.88rem; }
+.sp-land-txt > small { color: var(--muted); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.sp-land-txt .sp-num { margin: 0 0 0.15rem; }
+.sp-land-txt span:first-of-type { font-weight: 700; }
+.sp-map { display: block; width: 100%; height: auto; overflow: visible; }
+.sp-map path { vector-effect: non-scaling-stroke; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sp-map .b { fill: color-mix(in srgb, var(--green) 9%, transparent); stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: 0.8; }
+.sp-map .a { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+.sp-map .r { stroke: var(--ink); stroke-width: 3.5; opacity: 0.5; }
+.sp-map .t { stroke: var(--green); stroke-width: 1.8; }
+.sp-map .p { fill: var(--gold); stroke: var(--ink); stroke-width: 1.2; }
+.sp-map .n path { fill: var(--ink); stroke: none; opacity: 0.75; }
+.sp-map .n text { fill: var(--ink); opacity: 0.75; font: 800 9px var(--body-font); }
+.sp-bound { display: flex; align-items: center; gap: 0.7rem; padding: 0.55rem 0.3rem; border-bottom: 1px solid var(--line); }
+.sp-bound:last-of-type { border-bottom: 0; }
+.sp-bound .bound-sw { flex: none; width: 1.6rem; border-top: 3px dashed; filter: drop-shadow(0 0 1px rgba(0, 0, 0, .6)); }
+.sp-bound .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sp-bound small, .sp-area small { color: var(--muted); font-size: 0.8rem; }
+.sp-area { display: flex; flex-direction: column; align-items: flex-end; text-align: right; white-space: nowrap; }
+
+/* fun comparisons */
+.sp-fun { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.sp-fun li { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.6rem 0.7rem; background: var(--paper-2); border-radius: 12px; font-size: 0.95rem; line-height: 1.4; }
+.sp-fun li > span:first-child { font-size: 1.3rem; line-height: 1.1; flex: none; }
+.sp-foot { margin-top: 1.2rem; }
+
+@media (prefers-reduced-motion: reduce) { .sp-bar i, .sp-plot i { animation: none; } }
+/* Narrow phones and large text: the little map sits above the quarter's size instead of beside it. */
+@media (max-width: 360px) { .sp-land { grid-template-columns: 1fr; } .sp-map { max-width: 12rem; margin: 0 auto; } }
+:root[data-size="2"] .sp-land { grid-template-columns: 1fr; }
+:root[data-size="2"] .sp-map { max-width: 13rem; margin: 0 auto; }
