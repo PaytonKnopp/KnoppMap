@@ -82,6 +82,51 @@
 | Zoey Trail | start | Cabin Perimeter | joined | 0.6 | 0.0 |
 | Zoey Trail | end | Finley Trail | trimmed at crossing | 0.0 | 2.5 |
 
+### Height glitches left out
+
+Readings more than 5 m from their neighbours (mostly the first seconds of a recording, while GPS height settles).
+
+| Track | Readings | Off by (m) |
+|---|---|---|
+| Driveway & Main Yard | 1 | -18 |
+| Outside Trail | 2 | +12, -7 |
+| Quarter Section Perimeter | 2 | -17, -5 |
+| Hill Behind House Trails | 1 | -16 |
+
+### Heights levelled
+
+Where recordings pass within 5 m of each other (79 spots) their heights differed by up to 20.8 m (median 3.2 m); after one shift per recording, by up to 4.0 m (median 0.8 m).
+
+| Recording | Recorded | Height shift (m) |
+|---|---|---|
+| Golf Range | 2026-08-23 22:07 UTC | +19.4 |
+| Field Highway Trail | 2026-08-23 22:15 UTC | +17.8 |
+| Shooting Range | 2026-08-23 21:53 UTC | +15.7 |
+| Acreage Perimeter | 2026-08-23 21:33 UTC | +11.6 |
+| Quarter Section Perimeter | 2026-08-23 20:40 UTC | -6.2 |
+| Hill Behind House Trails | 2026-08-23 20:29 UTC | -5.9 |
+| Tree Farm Trail | 2026-09-05 20:35 UTC | +5.0 |
+| Outside Trail | 2026-09-05 23:06 UTC | +4.7 |
+| Driveway & Main Yard | 2026-08-23 20:03 UTC | -4.7 |
+| Taylor Trail | 2026-09-05 21:43 UTC | -2.9 |
+| E/W Flyover | 2026-09-05 22:18 UTC | -2.6 |
+| Tracy Trail | 2026-09-05 21:56 UTC | -2.3 |
+| Cabin Trail | 2026-09-05 20:41 UTC | +2.2 |
+| Ring Road | 2026-09-05 20:57 UTC | -2.1 |
+| Cougar Bridge Trail | 2026-09-05 22:40 UTC | +1.9 |
+| Brush Pile Trail | 2026-09-05 21:46 UTC | -1.7 |
+| Warren Trail | 2026-09-05 21:53 UTC | +1.7 |
+| Cabin Perimeter | 2026-09-05 20:54 UTC | +1.5 |
+| Roger Trail | 2026-09-05 22:09 UTC | +1.5 |
+| Skull Trail | 2026-09-05 22:30 UTC | -1.4 |
+| Backroad Trail | 2026-09-05 22:36 UTC | +1.4 |
+| Zoey Trail | 2026-09-05 21:30 UTC | -1.2 |
+| Larry's Crossing | 2026-09-05 22:27 UTC | +0.8 |
+| Margaret Trail | 2026-09-05 22:05 UTC | +0.6 |
+| Payton and Caine Trail | 2026-09-05 21:15 UTC | -0.6 |
+| Trailhead | 2026-09-05 21:54 UTC | -0.6 |
+| Clint Trail | 2026-09-05 21:25 UTC | -0.5 |
+
 ## Photos
 
 365 photos found, 89 hidden (config/hidden.json), 276 placed on the map.

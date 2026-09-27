@@ -142,6 +142,13 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
   Trail between the two brush piles); `"snap": false` turns automatic joining off for a track.
 - `"directions"` adds named direction markers (Payton Trail one way, Caine Trail the other).
 
+**Heights**
+- A phone's GPS height drifts: on 23 August the evening recordings read up to 19 m lower than the same spots on other
+  recordings, and a recording's first few seconds can be well off while the height settles. So readings more than 5 m
+  from their neighbours are left out, and each recording gets one height shift so that recordings agree (to within a
+  few metres) wherever they pass within 5 m of each other. Most recordings keep their own heights; `build/report.md`
+  lists every reading left out and every shift. The heights above sea level can still be several metres out overall.
+
 **Photos**
 - Position and time come from EXIF. Each photo is checked against the GPS track timeline and moved to the track if
   the camera was more than 25 m off (none needed it).

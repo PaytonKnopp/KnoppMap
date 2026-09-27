@@ -40,6 +40,8 @@ JOIN_SEG_M = 50.0         # paused-recording segments joined when the gap is und
 WEB_PX, WEB_Q = 1600, 80
 THUMB_PX, THUMB_Q = 360, 72
 NEAR_TRACK_M = 25.0
+LEVEL_M = 5.0             # recordings passing within this of each other should read the same height there
+SPIKE_M = 5.0             # a height reading this far from its neighbours is a GPS glitch, not the ground
 
 LAT0 = 52.2
 KX = 111320.0 * math.cos(math.radians(LAT0))
@@ -351,6 +353,80 @@ def connect_end(line, others, at_start):
     return None
 
 
+def drop_height_spikes(prof):
+    """GPS height takes a few seconds to settle when a recording starts (the driveway's first reading is 18 m low) and
+    can jump for a moment later on. A reading more than SPIKE_M from the middle of its neighbours (three either side)
+    is left out of the heights, the worst first, until none is left. Returns (cleaned profile, how far off each was)."""
+    prof, off = list(prof), []
+    while len(prof) > 4:
+        es = [e for _, e in prof]
+        worst = None   # (how far off, index)
+        for i, e in enumerate(es):
+            nb = sorted(es[max(0, i - 3):i] + es[i + 1:i + 4])
+            d = e - (nb[(len(nb) - 1) // 2] + nb[len(nb) // 2]) / 2
+            if abs(d) > SPIKE_M and (not worst or abs(d) > abs(worst[0])):
+                worst = (d, i)
+        if not worst:
+            break
+        off.append(worst[0])
+        del prof[worst[1]]
+    return prof, off
+
+
+def level_heights(tracks):
+    """A phone's altitude drifts from one recording to the next (on 23 August it read up to 19 m low by the evening),
+    yet two recordings passing the same spot must read the same height there. Each recording gets one height shift,
+    chosen (least squares) so they agree wherever they pass within LEVEL_M of each other. The shifts are centred on
+    the middle one, so most recordings keep their own heights; a recording that meets no other is left alone.
+    Returns the report lines."""
+    pts = [[(to_xy(p), e) for p, e in t["prof"]] for t in tracks]
+    box = [(min(x for (x, _), _ in ps), min(y for (_, y), _ in ps), max(x for (x, _), _ in ps), max(y for (_, y), _ in ps))
+           if ps else None for ps in pts]
+    pairs = []   # (i, j, height of i minus height of j) at spots where recordings i and j meet, one per 10 m
+    for i in range(len(tracks)):
+        for j in range(i + 1, len(tracks)):
+            a, b = box[i], box[j]
+            if not a or not b or a[0] > b[2] + LEVEL_M or b[0] > a[2] + LEVEL_M or a[1] > b[3] + LEVEL_M or b[1] > a[3] + LEVEL_M:
+                continue
+            last = None
+            for pa, ea in pts[i]:
+                if last and math.hypot(pa[0] - last[0], pa[1] - last[1]) <= 10:
+                    continue
+                d, eb = min(((math.hypot(pa[0] - pb[0], pa[1] - pb[1]), eb) for pb, eb in pts[j]), key=lambda x: x[0])
+                if d < LEVEL_M:
+                    pairs.append((i, j, ea - eb))
+                    last = pa
+    if not pairs:
+        return ["### Heights\n", "- no recordings cross, nothing to level", ""]
+    met = sorted({k for i, j, _ in pairs for k in (i, j)})
+    links = {k: [] for k in met}
+    for i, j, dz in pairs:
+        links[i].append((j, -dz))   # i needs shift[j] - dz
+        links[j].append((i, dz))
+    shift = {k: 0.0 for k in met}
+    for _ in range(3000):   # Gauss-Seidel; the small pull towards 0 keeps each group of recordings from floating
+        moved = 0.0
+        for k in met:
+            new = sum(shift[o] + c for o, c in links[k]) / (len(links[k]) + 0.05)
+            moved = max(moved, abs(new - shift[k]))
+            shift[k] = new
+        if moved < 1e-4:
+            break
+    mid = sorted(shift.values())[len(shift) // 2]
+    shift = {k: s - mid for k, s in shift.items()}
+    for k, s in shift.items():
+        tracks[k]["prof"] = [(p, e + s) for p, e in tracks[k]["prof"]]
+    before = sorted(abs(dz) for _, _, dz in pairs)
+    after = sorted(abs(dz + shift[i] - shift[j]) for i, j, dz in pairs)
+    return ["### Heights levelled\n",
+            f"Where recordings pass within {LEVEL_M:g} m of each other ({len(pairs)} spots) their heights differed by "
+            f"up to {before[-1]:.1f} m (median {before[len(before) // 2]:.1f} m); after one shift per recording, by up to "
+            f"{after[-1]:.1f} m (median {after[len(after) // 2]:.1f} m).\n",
+            "| Recording | Recorded | Height shift (m) |", "|---|---|---|",
+            *[f"| {tracks[k]['name']} | {(tracks[k]['start'] or '')[:16].replace('T', ' ')} UTC | {shift[k]:+.1f} |"
+              for k in sorted(met, key=lambda k: -abs(shift[k])) if abs(shift[k]) >= 0.5], ""]
+
+
 def profile(prof, n=60):
     """Smoothed elevation profile [[distance m, elevation m], ...] plus total climb and descent."""
     if len(prof) < 3:
@@ -448,6 +524,14 @@ def build_tracks():
             else:
                 log_loop.append(f"- **{t['name']}**: NOT closed, start/end are {gap:.0f} m apart")
 
+    log_spikes = []
+    for t in tracks:
+        t["prof"], off = drop_height_spikes(t["prof"])
+        if off:
+            log_spikes.append(f"| {t['name']} | {len(off)} | {', '.join(f'{d:+.0f}' for d in off)} |")
+    log_level = ["### Height glitches left out\n", f"Readings more than {SPIKE_M:g} m from their neighbours (mostly the first "
+                 "seconds of a recording, while GPS height settles).\n", "| Track | Readings | Off by (m) |", "|---|---|---|",
+                 *(log_spikes or ["| none | | |"]), "", *level_heights(tracks)]
     raw_pts = sum(len(p) for t in tracks for p in t["parts"])
     # Simplify first so the junction points added below are never moved afterwards.
     for t in tracks:
@@ -505,7 +589,7 @@ def build_tracks():
               f"Points: {raw_pts} raw -> {out_pts} after {SIMPLIFY_M:g} m simplification.\n",
               "### Loops\n", *log_loop, "", "### Joined recording segments\n", *(log_join or ["- none"]), "",
               f"### End snapping (within {SNAP_M:g} m, looking back {TAIL_M:g} m for overshoot)\n",
-              "| Track | End | Joined to | How | Moved (m) | Trimmed (m) |", "|---|---|---|---|---|---|", *log_snap, ""]
+              "| Track | End | Joined to | How | Moved (m) | Trimmed (m) |", "|---|---|---|---|---|---|", *log_snap, "", *log_level]
     return features, report
 
 
