@@ -42,6 +42,7 @@ THUMB_PX, THUMB_Q = 360, 72
 NEAR_TRACK_M = 25.0
 LEVEL_M = 5.0             # recordings passing within this of each other should read the same height there
 SPIKE_M = 5.0             # a height reading this far from its neighbours is a GPS glitch, not the ground
+ON_LINE_M = 4.0           # a height reading this close to the finished line belongs to it (the line is the same recording, simplified 2 m)
 
 LAT0 = 52.2
 KX = 111320.0 * math.cos(math.radians(LAT0))
@@ -427,6 +428,12 @@ def level_heights(tracks):
               for k in sorted(met, key=lambda k: -abs(shift[k])) if abs(shift[k]) >= 0.5], ""]
 
 
+def on_line(prof, parts):
+    """Only the height readings along the finished line: a recording that ran on past a junction, or started before one,
+    is trimmed there, and those readings are no part of this trail's climb (Warren Trail's recording starts 18 m early)."""
+    return [(p, e) for p, e in prof if min(nearest_on_line(p, part)[1] for part in parts) <= ON_LINE_M]
+
+
 def profile(prof, n=60):
     """Smoothed elevation profile [[distance m, elevation m], ...] plus total climb and descent."""
     if len(prof) < 3:
@@ -570,7 +577,7 @@ def build_tracks():
                 "recorded": t["start"],
                 **({"directions": t["directions"]} if t.get("directions") else {}),
                 **({"site": t["site"]} if t.get("site") else {}),
-                **dict(zip(("profile", "gain_m", "loss_m"), profile(t["prof"]))),
+                **dict(zip(("profile", "gain_m", "loss_m"), profile(on_line(t["prof"], t["parts"])))),
             },
             "geometry": geom,
         })

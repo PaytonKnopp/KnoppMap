@@ -1832,7 +1832,7 @@
     length: { label: "Length", note: "End to end, as mapped with GPS.", val: (s) => s.len, fmt: (s) => fmtLen(s.len) },
     hills: { label: "Hills", note: "How much each trail climbs ↗ and drops ↘, walked the way it was mapped.",
       val: (s) => s.gain + s.loss, fmt: (s) => `↗ ${fmtH(s.gain)} ↘ ${fmtH(s.loss)}` },
-    steep: { label: "Steepness", note: "Average slope: the climb (or drop, if bigger) over the trail’s length.",
+    steep: { label: "Steepness", note: "Average slope: the climb (or drop, if bigger) over the trail’s length. Phone GPS heights are rough, so slopes within about 0.3 % of each other are really a tie.",
       val: (s) => s.steep, fmt: (s) => s.steep.toFixed(1) + " %" },
     photos: { label: "Photos", note: "Photos taken along each trail.", val: (s) => s.photos.length, fmt: (s) => plural(s.photos.length, "photo") },
   };
@@ -1858,8 +1858,11 @@
 
     // ---- records: each card opens its trail or place
     const top = (f) => [...S.trails].sort((a, b) => f(b) - f(a) || b.len - a.len || a.name.localeCompare(b.name))[0];
-    const rec = (e, label, value, name, open = "") => `<${open ? `button ${open}` : "div"} class="sp-rec"><span class="e" aria-hidden="true">${e}</span>
-      <small>${label}</small><b>${value}</b><span>${name}</span></${open ? "button" : "div"}>`;
+    const rec = (e, label, value, name, open = "", tie = []) => `<${open ? `button ${open}` : "div"} class="sp-rec"><span class="e" aria-hidden="true">${e}</span>
+      <small>${label}</small><b>${value}</b><span>${name}${tie.length ? `<em class="sp-tie">practically tied with ${esc(listWords(tie))}</em>` : ""}</span></${open ? "button" : "div"}>`;
+    // Phone GPS heights are good to about a metre along a trail, so slopes this close together are really a tie.
+    const TIE = 0.3;
+    const tiedWith = (best, key) => S.trails.filter((s) => s !== best && Math.abs(key(s) - key(best)) < TIE).map((s) => s.name);
     const tr = (t) => `data-trail="${esc(t.id)}"`;
     const spot = (x) => `data-trail="${esc(x.f.id)}" data-frac="${x.frac.toFixed(4)}"`;
     const records = [];
@@ -1868,8 +1871,8 @@
         top((s) => s.links), top((s) => s.photos.length)];
       records.push(rec("📏", "Longest trail", fmtLen(long.len), esc(long.name), tr(long)),
         rec("🐜", "Shortest trail", fmtLen(short.len), esc(short.name), tr(short)),
-        rec("⛰️", "Steepest trail", `${steep.steep.toFixed(1)} % slope`, esc(steep.name), tr(steep)),
-        rec("🌾", "Flattest trail", flat.steep < 0.05 ? "Dead flat" : `${flat.steep.toFixed(1)} % slope`, esc(flat.name), tr(flat)));
+        rec("⛰️", "Steepest trail", `${steep.steep.toFixed(1)} % slope`, esc(steep.name), tr(steep), tiedWith(steep, (s) => s.steep)),
+        rec("🌾", "Flattest trail", flat.steep < 0.05 ? "Dead flat" : `${flat.steep.toFixed(1)} % slope`, esc(flat.name), tr(flat), tiedWith(flat, (s) => s.steep)));
       if (hub.links) records.push(rec("🔗", "Most connected", plural(hub.links, "trail"), `${esc(hub.name)} meets them all`, tr(hub)));
       if (snap.photos.length) records.push(rec("📸", "Most photographed trail", plural(snap.photos.length, "photo"), esc(snap.name), tr(snap)));
     }

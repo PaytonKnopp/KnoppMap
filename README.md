@@ -148,6 +148,9 @@ Commit `config/`, `build/report.md` and `docs/`, push, and merge to `main`; GitH
   from their neighbours are left out, and each recording gets one height shift so that recordings agree (to within a
   few metres) wherever they pass within 5 m of each other. Most recordings keep their own heights; `build/report.md`
   lists every reading left out and every shift. The heights above sea level can still be several metres out overall.
+- A trail's climb, drop and elevation chart use only the readings along its finished line, not the bit of recording
+  trimmed off past a junction (Warren Trail's recording starts 18 m before its junction, which made it look 8.6 % steep
+  instead of under 2 %).
 
 **Photos**
 - Position and time come from EXIF. Each photo is checked against the GPS track timeline and moved to the track if
