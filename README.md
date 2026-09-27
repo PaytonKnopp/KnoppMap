@@ -45,6 +45,10 @@ GitHub Pages from the `docs/` folder.
   to open that spot in Google Maps.
 - **Photos** appear as thumbnail groups with a count. They split apart as you zoom in; a tight group fans out when
   tapped. Photos only ever group with others from the same place. On a computer, hovering shows a preview.
+- **Zooming** goes from the whole world (zoom out until it just fits the screen, phone or computer; the − button
+  greys out there) down to a single house or shed. The satellite picture comes live from Esri, so it updates when
+  Esri gets newer photos of the area. Past the most detailed picture Esri has of a spot, the map enlarges the
+  sharpest one there is instead of showing a grey "Map data not yet available" square.
 - **Looks** (20 themes) restyle the whole app and tint the satellite photo; **map styles** (20) change the base map.
 - **Weather:** live RainViewer precipitation radar with rain and snow in separate colours (slider, play/pause, step,
   speed, see-through, rain and snow colour keys, a one-tap wider view). On a phone the radar plays on its own with just a
@@ -81,6 +85,9 @@ GitHub Pages from the `docs/` folder.
   legend and list of places.
 - **Offline:** Options → Print & offline → *Save everything to this device* keeps the map and all photos inside the
   browser, so the same link works at the quarter with no signal. "Add to Home Screen" gives it an app icon.
+  - The satellite picture is saved for the quarter and the family houses down to level 19 (closer in, the map enlarges
+    it), plus the country around the quarter and the whole world zoomed out, so zooming out works offline too.
+    A saved picture stays as it was saved; it doesn't change when Esri gets newer photos.
   - The panel counts what is really saved on the device (not just a note that a save once happened) and says what
     is missing: new photos, a save that was cut short, or a copy the phone cleared. *Save* only fetches what is
     missing, so an interrupted save carries on where it stopped.
@@ -213,7 +220,10 @@ map never downloads it.
 
 Themes are the `THEMES` object in `docs/js/app.js` plus a matching `:root[data-theme="…"]` block in
 `docs/css/app.css`. Map styles are `BASEMAPS` in `docs/js/app.js`. All built-in styles, the radar and the weather
-need no account. Extra styles switch on automatically when keys are added to `config/site.json`:
+need no account. Esri layers are made with `KM.esriTiles` (`docs/js/common.js`), which asks with `blankTile=false` and
+fills a level Esri doesn't have from the one above; how deep each Esri layer goes at the quarter is checked once a
+week per device (`probeImagery`), so the map normally asks for exactly the sharpest level there. Extra styles switch
+on automatically when keys are added to `config/site.json`:
 
 ```json
 "keys": { "maptiler": "YOUR_KEY", "thunderforest": "YOUR_KEY", "stadia": true }

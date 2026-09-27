@@ -3,7 +3,7 @@
 // (python3 build/apply_edits.py <file>), which rewrites config/places.json, photos.json, hidden.json and tour.json.
 (() => {
   "use strict";
-  const { ICONS, icon, esc, fmtDate, store, loadBundle, photoUrl, getJSON } = KM;
+  const { ICONS, icon, esc, fmtDate, store, loadBundle, photoUrl, getJSON, esriTiles } = KM;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const clone = (o) => (o == null ? o : JSON.parse(JSON.stringify(o)));
@@ -18,6 +18,9 @@
   const isTyping = (el) => !!el && ((el.tagName === "INPUT" && !["checkbox", "radio", "button", "file"].includes(el.type))
     || el.tagName === "TEXTAREA" || el.isContentEditable);
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+  // As deep as the family map found the imagery goes at the quarter on this device (19 until it has looked); a level
+  // Esri doesn't have is filled from the one above.
+  const imagery = (maxZoom, attribution) => esriTiles(ESRI, { maxZoom, maxNativeZoom: store.get("nativeZoom", {}).img?.z || 19, attribution });
   const FAR_M = 50;          // a photo further than this from its place's pin gets "⚠ far"
   const FAR_HOUSE_M = 150;   // family houses spread wider
 
@@ -647,7 +650,7 @@
   const trails = () => L.geoJSON(bundle.tracks, { interactive: false, filter: (f) => f.geometry.type !== "Point", style: trailStyle });
   function initMap() {
     map = L.map("map", { zoomSnap: 0.25, maxZoom: 22 });
-    L.tileLayer(ESRI, { maxZoom: 22, maxNativeZoom: 19, attribution: "Imagery © Esri" }).addTo(map);
+    imagery(22, "Imagery © Esri").addTo(map);
     trailLayer = trails().addTo(map);
     allLayer = L.layerGroup().addTo(map);
     pinLayer = L.layerGroup().addTo(map);
@@ -743,7 +746,7 @@
     document.body.classList.add("noscroll");
     if (!vw.map) {
       vw.map = L.map($(".vw-map", V), { zoomControl: false, attributionControl: false, maxZoom: 21, zoomSnap: 0.25 });
-      L.tileLayer(ESRI, { maxZoom: 21, maxNativeZoom: 19 }).addTo(vw.map);
+      imagery(21).addTo(vw.map);
       trails().addTo(vw.map);
       vw.layer = L.layerGroup().addTo(vw.map);
     }

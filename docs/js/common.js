@@ -63,5 +63,29 @@ window.KM = (() => {
 
   const photoUrl = (p, size = "web") => `photos/${size}/${encodeURIComponent(p.src || p.file)}.jpg`;
 
-  return { ICONS, icon, esc, fmtLen, fmtDate, store, getJSON, loadBundle, photoUrl };
+  // Esri tiles. Past the most detailed picture Esri has of a spot it sends a grey "Map data not yet available"
+  // square; asked with blankTile=false it sends an error instead, and that tile is filled from the level above,
+  // enlarged and trimmed to its own square (up to five levels up). So zooming in anywhere, even past how deep the
+  // map expects the imagery to go, or offline past what was saved, shows the sharpest real picture there is.
+  const DeepTiles = L.TileLayer.extend({
+    createTile(coords, done) {
+      const tile = L.TileLayer.prototype.createTile.call(this, coords, done);
+      tile._deep = { coords, up: 0 };
+      return tile;
+    },
+    _tileOnError(done, tile, e) {
+      const d = tile._deep, { x: x0, y: y0, z: z0 } = d.coords;
+      // A tile the map has already let go of (zoomed or panned away) is left alone.
+      if (!tile.parentNode || d.up >= 5 || z0 - d.up <= 0) return L.TileLayer.prototype._tileOnError.call(this, done, tile, e);
+      if (!d.up) d.w = parseFloat(tile.style.width), d.h = parseFloat(tile.style.height);
+      const s = 2 ** ++d.up, size = this.getTileSize(), x = Math.floor(x0 / s), y = Math.floor(y0 / s), z = z0 - d.up;
+      const W = size.x * s, H = size.y * s, left = (x0 - x * s) * size.x, top = (y0 - y * s) * size.y;
+      const clip = `inset(${top}px ${Math.max(0, W - left - d.w)}px ${Math.max(0, H - top - d.h)}px ${left}px)`;
+      Object.assign(tile.style, { width: W + "px", height: H + "px", marginLeft: -left + "px", marginTop: -top + "px", clipPath: clip, webkitClipPath: clip });
+      tile.src = L.Util.template(this._url, L.extend({ r: "", s: this._getSubdomain({ x, y }), x, y, z }, this.options));
+    },
+  });
+  const esriTiles = (url, opts) => new DeepTiles(url + "?blankTile=false", opts);
+
+  return { ICONS, icon, esc, fmtLen, fmtDate, store, getJSON, loadBundle, photoUrl, esriTiles };
 })();

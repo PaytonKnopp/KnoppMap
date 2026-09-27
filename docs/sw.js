@@ -1,5 +1,5 @@
 // Offline support: the app shell and data are network-first (so updates arrive), photos and map tiles are cache-first.
-const SHELL = "km-shell-v35";
+const SHELL = "km-shell-v36";
 const MEDIA = "km-media-v1";
 const CORE = [
   "./", "index.html", "css/app.css", "js/common.js", "js/app.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-180.png", "icons/icon-32.png",
@@ -39,8 +39,10 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (isMedia(url)) {
     // Looked up by exact address: ignoring the "?…" part makes the browser scan every saved tile and photo each time.
+    // Map tiles are saved under their plain address; the map asks for them with ?blankTile=false.
+    const tile = url.hostname.endsWith("arcgisonline.com");
     e.respondWith(caches.open(MEDIA).then(async (c) => {
-      const hit = await c.match(e.request, { ignoreVary: true });
+      const hit = await c.match(tile ? url.origin + url.pathname : e.request, { ignoreVary: true });
       if (hit) return hit;
       const res = await fetch(e.request);
       if (res.ok && url.pathname.includes("/photos/thumb/")) e.waitUntil(c.put(e.request, res.clone()));
